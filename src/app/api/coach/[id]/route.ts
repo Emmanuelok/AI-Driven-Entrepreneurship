@@ -25,7 +25,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const client = new Anthropic({ apiKey });
 
   const contextLine = context
-    ? `\n\nSTUDENT CONTEXT:\n${Object.entries(context).filter(([, v]) => v).map(([k, v]) => `- ${k}: ${v}`).join("\n")}`
+    ? `\n\n=== EVERYTHING I KNOW ABOUT THIS STUDENT (use it; do not introduce yourself) ===\n${Object.entries(context).filter(([, v]) => v).map(([k, v]) => `- ${k}: ${v}`).join("\n")}\n\nAlways address them by first name. Reference what they're currently doing. Tie your answer to their venture and goals where relevant. Don't be generic.`
     : "";
 
   const stream = await client.messages.stream({

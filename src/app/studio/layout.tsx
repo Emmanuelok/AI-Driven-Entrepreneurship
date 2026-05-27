@@ -8,16 +8,20 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Bell, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
+  User, Timer,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/command-palette";
+import { Companion } from "@/components/companion";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
 
 const NAV: NavItem[] = [
   { href: "/studio", label: "Dashboard", icon: LayoutDashboard, group: "Workspace" },
+  { href: "/studio/me", label: "Me", icon: User, group: "Workspace" },
   { href: "/studio/path", label: "Your Path", icon: GraduationCap, group: "Workspace" },
+  { href: "/studio/focus", label: "Focus mode", icon: Timer, group: "Workspace" },
   { href: "/studio/tutor", label: "Sage Tutor", icon: Brain, group: "Workspace" },
   { href: "/studio/coaches", label: "AI Coaches", icon: MessageSquare, group: "Workspace" },
   { href: "/studio/agents", label: "AI Agents", icon: Bot, group: "Workspace" },
@@ -146,6 +150,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   return (
     <div className="flex-1 flex">
       <CommandPalette />
+      <Companion />
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-border bg-surface/40 sticky top-0 h-screen">

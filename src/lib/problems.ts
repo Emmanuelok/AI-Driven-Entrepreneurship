@@ -14,7 +14,7 @@ export type Problem = {
 
 // Curated from on-the-ground reports, World Bank / UNESCO / WHO data, and
 // founder interviews across Sub-Saharan Africa, North Africa, South Asia, and LATAM.
-export const PROBLEMS: Problem[] = [
+const PROBLEMS_BASE: Problem[] = [
   {
     id: "post-harvest-loss",
     title: "30–40% of smallholder produce rots before reaching market",
@@ -190,6 +190,10 @@ export const PROBLEMS: Problem[] = [
     skillsNeeded: ["WebGL/WebGPU", "Physics simulation", "Pedagogy", "AR"],
   },
 ];
+
+// Merge in additional briefs from problems-extra
+import { PROBLEMS_EXTRA } from "./problems-extra";
+export const PROBLEMS = [...PROBLEMS_BASE, ...PROBLEMS_EXTRA];
 
 export function getProblem(id: string) {
   return PROBLEMS.find((p) => p.id === id);

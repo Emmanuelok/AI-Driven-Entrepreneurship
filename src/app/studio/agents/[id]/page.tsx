@@ -9,6 +9,7 @@ import { Markdown } from "@/components/markdown";
 import { ArrowLeft, Zap, Play, Copy, Check, Sparkles, Bot } from "lucide-react";
 import { useExt } from "@/store/extensions";
 import { useStore } from "@/store";
+import { useMe } from "@/store/me";
 
 export default function AgentRunPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -18,6 +19,7 @@ export default function AgentRunPage({ params }: { params: Promise<{ id: string 
 
   const { logAgentRun } = useExt();
   const { addXp } = useStore();
+  const { touchConcept, logActivity } = useMe();
 
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [output, setOutput] = useState("");
@@ -47,6 +49,8 @@ export default function AgentRunPage({ params }: { params: Promise<{ id: string 
       }
       logAgentRun(agent.id, inputs, acc, Date.now() - t0);
       addXp(15, `Ran ${agent.name}`);
+      touchConcept(agent.name, agent.category, 0.08);
+      logActivity({ kind: "agent", title: `Ran ${agent.name}`, href: `/studio/agents/${agent.id}` });
     } finally {
       setBusy(false);
     }

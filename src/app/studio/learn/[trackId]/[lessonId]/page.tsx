@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { getTrack } from "@/lib/curriculum";
 import { getLessonContent, Step } from "@/lib/lesson-content";
 import { useStore } from "@/store";
+import { useMe } from "@/store/me";
 import { Card, Button, Badge, Textarea } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
 import { ArrowLeft, CheckCircle2, XCircle, Sparkles, ArrowRight, Trophy } from "lucide-react";
@@ -14,11 +15,14 @@ import { ArrowLeft, CheckCircle2, XCircle, Sparkles, ArrowRight, Trophy } from "
 export default function LessonPlayerPage({ params }: { params: Promise<{ trackId: string; lessonId: string }> }) {
   const { trackId, lessonId } = use(params);
   const router = useRouter();
-  const track = getTrack(trackId);
-  const lesson = getLessonContent(lessonId);
-  if (!track || !lesson) notFound();
+  const foundTrack = getTrack(trackId);
+  const foundLesson = getLessonContent(lessonId);
+  if (!foundTrack || !foundLesson) { notFound(); return null; }
+  const track = foundTrack;
+  const lesson = foundLesson;
 
   const { startLesson, completeLesson } = useStore();
+  const { touchConcept, logActivity, remember } = useMe();
   const [stepIdx, setStepIdx] = useState(0);
   const [stepResult, setStepResult] = useState<Record<number, { correct: boolean; locked: boolean }>>({});
   const [finished, setFinished] = useState(false);
@@ -41,6 +45,11 @@ export default function LessonPlayerPage({ params }: { params: Promise<{ trackId
     if (isLast) {
       const pct = totalGradable > 0 ? (correctCount / totalGradable) * 100 : 100;
       completeLesson(trackId, lessonId, pct);
+      // Add a knowledge-graph node for this lesson and remember the milestone
+      touchConcept(lesson.title, track.pillar, Math.max(0.15, pct / 200));
+      logActivity({ kind: "lesson", title: `Completed: ${lesson.title}`, href: `/studio/learn/${trackId}` });
+      if (pct >= 90) remember({ fact: `Strong on "${lesson.title}" (${Math.round(pct)}%)`, kind: "achievement", source: "system", importance: 3 });
+      if (pct < 60) remember({ fact: `Struggled with "${lesson.title}" (${Math.round(pct)}%) — revisit`, kind: "challenge", source: "system", importance: 4 });
       setFinished(true);
     } else {
       setStepIdx(stepIdx + 1);
