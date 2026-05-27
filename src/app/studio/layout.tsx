@@ -4,28 +4,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Brain,
-  Compass,
-  FlaskConical,
-  Rocket,
-  Globe2,
-  LayoutDashboard,
-  ArrowLeft,
-  Users,
-  Wallet,
-  Award,
-  BookMarked,
-  Building2,
-  Settings,
-  Bell,
-  Menu,
-  X,
-  TrendingUp,
-  Folder,
-  MessageSquare,
+  Brain, Compass, FlaskConical, Rocket, Globe2, LayoutDashboard, ArrowLeft,
+  Users, Wallet, Award, BookMarked, Building2, Settings, Bell, Menu,
+  TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
+  FileText, Notebook, Target, Paintbrush, Briefcase, Search,
 } from "lucide-react";
-import { useStore, level, xpInLevel, xpToNextLevel } from "@/store";
+import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
+import { CommandPalette } from "@/components/command-palette";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
 
@@ -33,16 +19,28 @@ const NAV: NavItem[] = [
   { href: "/studio", label: "Dashboard", icon: LayoutDashboard, group: "Workspace" },
   { href: "/studio/tutor", label: "Sage Tutor", icon: Brain, group: "Workspace" },
   { href: "/studio/coaches", label: "AI Coaches", icon: MessageSquare, group: "Workspace" },
+  { href: "/studio/agents", label: "AI Agents", icon: Bot, group: "Workspace" },
 
   { href: "/studio/learn", label: "Learning Tracks", icon: Compass, group: "Learn" },
   { href: "/studio/lab", label: "Practice Lab", icon: FlaskConical, group: "Learn" },
   { href: "/studio/srs", label: "Daily Review", icon: BookMarked, group: "Learn" },
 
+  { href: "/studio/brainstorm", label: "Brainstorm", icon: Lightbulb, group: "Build" },
   { href: "/studio/venture", label: "Ventures", icon: Rocket, group: "Build" },
+  { href: "/studio/conglomerate", label: "Conglomerate", icon: Network, group: "Build" },
+  { href: "/studio/arena", label: "Pitch Arena", icon: Trophy, group: "Build" },
+  { href: "/studio/atlas", label: "Atlas", icon: Map, group: "Build" },
   { href: "/studio/problems", label: "Problem Hub", icon: Globe2, group: "Build" },
-  { href: "/studio/mentors", label: "Mentors", icon: Users, group: "Build" },
-  { href: "/studio/funding", label: "Funding", icon: Wallet, group: "Build" },
-  { href: "/studio/community", label: "Community", icon: Users, group: "Build" },
+
+  { href: "/studio/mentors", label: "Mentors", icon: Users, group: "Network" },
+  { href: "/studio/funding", label: "Funding", icon: Wallet, group: "Network" },
+  { href: "/studio/community", label: "Community", icon: Users, group: "Network" },
+  { href: "/studio/investor", label: "Investor Portal", icon: Briefcase, group: "Network" },
+
+  { href: "/studio/documents", label: "Document Studio", icon: FileText, group: "Tools" },
+  { href: "/studio/brand", label: "Brand Studio", icon: Paintbrush, group: "Tools" },
+  { href: "/studio/okrs", label: "OKRs", icon: Target, group: "Tools" },
+  { href: "/studio/notebook", label: "Notebook", icon: Notebook, group: "Tools" },
 
   { href: "/studio/portfolio", label: "Portfolio", icon: Folder, group: "You" },
   { href: "/studio/credentials", label: "Credentials", icon: Award, group: "You" },
@@ -50,6 +48,7 @@ const NAV: NavItem[] = [
   { href: "/studio/settings", label: "Settings", icon: Settings, group: "You" },
 
   { href: "/institution", label: "Institution View", icon: Building2, group: "Admin" },
+  { href: "/institution/cohorts", label: "Cohort Manager", icon: Users, group: "Admin" },
 ];
 
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
@@ -57,7 +56,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const { user, xp, streak, hydrated, notifications, markAllRead, signIn } = useStore();
+  const { user, hydrated, notifications, markAllRead, streak } = useStore();
 
   useEffect(() => {
     if (hydrated && !user && pathname !== "/studio/onboarding") {
@@ -65,11 +64,8 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
     }
   }, [hydrated, user, pathname, router]);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
-  // Skip the shell on the onboarding screen
   if (pathname === "/studio/onboarding") {
     return <>{children}</>;
   }
@@ -84,9 +80,6 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
 
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
   const unread = notifications.filter((n) => !n.read).length;
-  const lvl = level(xp);
-  const inLvl = xpInLevel(xp);
-  const toNext = xpToNextLevel();
 
   function Logo() {
     return (
@@ -106,22 +99,20 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted">Learner workspace</div>
           </div>
         </Link>
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
           {groups.map((g) => (
             <div key={g}>
-              <div className="px-3 text-[10px] uppercase tracking-widest text-muted/70 mb-1.5">{g}</div>
+              <div className="px-3 text-[10px] uppercase tracking-widest text-muted/70 mb-1">{g}</div>
               <div className="space-y-0.5">
                 {NAV.filter((n) => n.group === g).map((n) => {
-                  const active = pathname === n.href || (n.href !== "/studio" && pathname?.startsWith(n.href));
+                  const active = pathname === n.href || (n.href !== "/studio" && n.href !== "/institution" && pathname?.startsWith(n.href));
                   return (
                     <Link
                       key={n.href}
                       href={n.href}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition group relative",
-                        active
-                          ? "bg-emerald/10 text-foreground border border-emerald/20"
-                          : "text-muted hover:text-foreground hover:bg-surface-2 border border-transparent",
+                        "flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition group relative",
+                        active ? "bg-emerald/10 text-foreground border border-emerald/20" : "text-muted hover:text-foreground hover:bg-surface-2 border border-transparent",
                       )}
                     >
                       <n.icon className={cn("size-4 transition", active ? "text-emerald" : "group-hover:text-emerald")} />
@@ -134,36 +125,18 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
             </div>
           ))}
         </nav>
-        <div className="px-4 py-4 border-t border-border shrink-0">
+        <div className="px-4 py-3 border-t border-border shrink-0">
           {user && (
             <Link href="/studio/settings" className="flex items-center gap-3 hover:bg-surface-2 -m-1 p-1 rounded-xl transition">
-              <div className="size-9 rounded-full bg-gradient-to-br from-amber to-rust flex items-center justify-center text-black font-semibold text-sm">
+              <div className="size-8 rounded-full bg-gradient-to-br from-amber to-rust flex items-center justify-center text-black font-semibold text-xs">
                 {user.name?.[0] ?? "?"}
               </div>
               <div className="leading-tight flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{user.name}</div>
-                <div className="text-xs text-muted truncate">Lv {lvl} · {inLvl}/{toNext} XP</div>
+                <div className="text-xs font-medium truncate">{user.name}</div>
+                <div className="text-[10px] text-muted truncate">🔥 {streak}d streak</div>
               </div>
             </Link>
           )}
-          <div className="mt-3 h-1.5 bg-surface-2 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-emerald to-amber rounded-full"
-              style={{ width: `${(inLvl / toNext) * 100}%` }}
-            />
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs">
-            <span className="text-muted">🔥 {streak} day streak</span>
-            <button
-              onClick={() => {
-                useStore.getState().signOut();
-                router.push("/studio/onboarding");
-              }}
-              className="text-muted hover:text-rust transition"
-            >
-              Sign out
-            </button>
-          </div>
         </div>
       </>
     );
@@ -171,8 +144,10 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex-1 flex">
+      <CommandPalette />
+
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-64 border-r border-border bg-surface/40 sticky top-0 h-screen">
+      <aside className="hidden md:flex flex-col w-60 border-r border-border bg-surface/40 sticky top-0 h-screen">
         <Sidebar />
       </aside>
 
@@ -187,7 +162,6 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
       )}
 
       <main className="flex-1 min-w-0 flex flex-col">
-        {/* Top bar */}
         <div className="glass sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 h-14 border-b border-border">
           <div className="flex items-center gap-3">
             <button onClick={() => setMobileOpen(true)} className="md:hidden size-8 flex items-center justify-center -ml-2">
@@ -197,16 +171,24 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
               <Logo />
             </Link>
           </div>
+          <button
+            onClick={() => {
+              const e = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
+              document.dispatchEvent(e);
+            }}
+            className="hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-2 border border-border hover:border-emerald/40 text-sm text-muted transition w-72"
+          >
+            <Search className="size-3.5" />
+            <span className="flex-1 text-left">Search, jump, run anything…</span>
+            <kbd className="text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 border border-border rounded">⌘K</kbd>
+          </button>
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-surface-2 border border-border">
               <span className="size-1.5 rounded-full bg-emerald pulse-dot" /> Live
             </div>
             <div className="relative">
               <button
-                onClick={() => {
-                  setNotifOpen(!notifOpen);
-                  if (!notifOpen) markAllRead();
-                }}
+                onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) markAllRead(); }}
                 className="relative size-9 rounded-xl border border-border bg-surface hover:bg-surface-2 transition flex items-center justify-center"
               >
                 <Bell className="size-4" />
@@ -220,9 +202,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
                 <div className="absolute right-0 top-12 w-80 glass rounded-xl overflow-hidden z-30">
                   <div className="px-4 py-3 border-b border-border text-xs uppercase tracking-widest text-muted">Notifications</div>
                   <div className="max-h-96 overflow-y-auto divide-y divide-border">
-                    {notifications.length === 0 && (
-                      <div className="px-4 py-6 text-sm text-muted text-center">All caught up.</div>
-                    )}
+                    {notifications.length === 0 && <div className="px-4 py-6 text-sm text-muted text-center">All caught up.</div>}
                     {notifications.map((n) => (
                       <div key={n.id} className="px-4 py-3 text-sm hover:bg-surface-2 transition">
                         <div className="font-medium">{n.title}</div>
