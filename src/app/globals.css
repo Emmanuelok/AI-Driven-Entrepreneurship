@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0f0d;
+  --surface: #0f1614;
+  --surface-2: #141d1a;
+  --border: #1f2c28;
+  --foreground: #e7efe9;
+  --muted: #8aa39a;
+  --emerald: #2cc295;
+  --emerald-deep: #0c8f6a;
+  --amber: #f4a949;
+  --amber-deep: #c97a16;
+  --rust: #d96444;
+  --indigo: #6c8cff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-emerald: var(--emerald);
+  --color-emerald-deep: var(--emerald-deep);
+  --color-amber: var(--amber);
+  --color-amber-deep: var(--amber-deep);
+  --color-rust: var(--rust);
+  --color-indigo: var(--indigo);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-display), Georgia, serif;
+}
+
+html, body { background: var(--background); color: var(--foreground); }
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  background-image:
+    radial-gradient(1100px 600px at 80% -10%, rgba(44, 194, 149, 0.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(244, 169, 73, 0.08), transparent 60%);
+  background-attachment: fixed;
+}
+
+.glass {
+  background: linear-gradient(180deg, rgba(20,29,26,0.85), rgba(15,22,20,0.70));
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+
+.kente {
+  background-image:
+    repeating-linear-gradient(45deg, rgba(244,169,73,0.07) 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(-45deg, rgba(44,194,149,0.06) 0 8px, transparent 8px 16px);
+}
+
+.grid-paper {
+  background-image:
+    linear-gradient(rgba(138, 163, 154, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(138, 163, 154, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(44, 194, 149, 0.45); }
+  50% { box-shadow: 0 0 0 14px rgba(44, 194, 149, 0); }
+}
+.pulse-dot { animation: pulse-glow 2.2s ease-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.float { animation: float 6s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(231,239,233,0.08), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+::selection { background: var(--emerald); color: #001; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+.prose-chat p { margin: 0.4em 0; }
+.prose-chat code { background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
+.prose-chat pre { background: #06100d; border: 1px solid var(--border); padding: 12px; border-radius: 8px; overflow-x: auto; }
+.prose-chat ul { list-style: disc; padding-left: 1.4em; margin: 0.4em 0; }
+.prose-chat ol { list-style: decimal; padding-left: 1.4em; margin: 0.4em 0; }
