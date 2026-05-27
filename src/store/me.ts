@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { nanoid } from "nanoid";
+import { Genome, DEFAULT_GENOME } from "@/lib/genome";
 
 // ============================================================
 // The "Me" store — everything that makes the platform feel personal.
@@ -79,6 +80,28 @@ export type Insight = {
   category: "pattern" | "celebration" | "nudge" | "warning";
 };
 
+export type ShippedArtifact = {
+  id: string;
+  ts: number;
+  kind: "problem-brief" | "interview-script" | "loi" | "pricing-page" | "outreach-script" | "pitch-summary" | "landing-copy";
+  title: string;
+  body: string; // markdown or html
+  ventureName?: string;
+  ventureId?: string;
+};
+
+export type ShipSession = {
+  id: string;
+  startedAt: number;
+  completedAt?: number;
+  stage: "begin" | "wedge" | "persona" | "interview" | "slice" | "build" | "ship" | "reflect" | "done";
+  wedge?: { problemId: string; problemTitle: string; whyMe: string };
+  persona?: { name: string; role: string; location: string; pain: string };
+  sliceText?: string;
+  ventureName?: string;
+  artifactsCreated: string[]; // ids
+};
+
 export type AppPref = {
   companionOpen: boolean;
   companionPosition: { x: number; y: number };
@@ -98,7 +121,17 @@ type State = {
   dailyBriefs: Record<string, DailyBrief>;
   insights: Insight[];
   prefs: AppPref;
+  genome: Genome;
+  artifacts: ShippedArtifact[];
+  shipSession: ShipSession | null;
   hydrated: boolean;
+
+  setGenome: (g: Genome) => void;
+  shipArtifact: (a: Omit<ShippedArtifact, "id" | "ts">) => string;
+  removeArtifact: (id: string) => void;
+  startShipSession: () => string;
+  updateShipSession: (patch: Partial<ShipSession>) => void;
+  endShipSession: () => void;
 
   // memory
   remember: (m: Omit<Memory, "id" | "createdAt" | "lastSeenAt">) => string;
@@ -163,7 +196,37 @@ export const useMe = create<State>()(
         themeAccent: "emerald",
         focusModeActive: false,
       },
+      genome: DEFAULT_GENOME,
+      artifacts: [],
+      shipSession: null,
       hydrated: false,
+
+      setGenome: (g) => set({ genome: g }),
+      shipArtifact: (a) => {
+        const id = nanoid(8);
+        set({ artifacts: [{ id, ts: Date.now(), ...a }, ...get().artifacts] });
+        get().logActivity({ kind: "venture", title: `Shipped: ${a.title}` });
+        get().remember({ fact: `Shipped ${a.kind}: ${a.title}`, kind: "achievement", source: "system", importance: 4 });
+        return id;
+      },
+      removeArtifact: (id) => set({ artifacts: get().artifacts.filter((a) => a.id !== id) }),
+      startShipSession: () => {
+        const id = nanoid(8);
+        set({ shipSession: { id, startedAt: Date.now(), stage: "begin", artifactsCreated: [] } });
+        get().logActivity({ kind: "venture", title: "Started Ship Hour" });
+        return id;
+      },
+      updateShipSession: (patch) => {
+        const s = get().shipSession;
+        if (!s) return;
+        set({ shipSession: { ...s, ...patch } });
+      },
+      endShipSession: () => {
+        const s = get().shipSession;
+        if (!s) return;
+        set({ shipSession: { ...s, stage: "done", completedAt: Date.now() } });
+        get().logActivity({ kind: "venture", title: "Completed Ship Hour" });
+      },
 
       remember: (m) => {
         const existing = get().memories.find((x) => x.fact.toLowerCase() === m.fact.toLowerCase());

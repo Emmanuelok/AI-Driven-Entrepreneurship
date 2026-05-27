@@ -8,6 +8,7 @@ import { useMe } from "@/store/me";
 import { Markdown } from "@/components/markdown";
 import { useVoice } from "@/hooks/use-voice";
 import { getRecommendations } from "@/lib/recommendations";
+import { genomeVoiceInstruction, genomeSummary } from "@/lib/genome";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -17,7 +18,7 @@ export function Companion() {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const { user, ventures, xp, streak, dueCards } = useStore();
-  const { prefs, toggleCompanion, trackRoute, recall, recentActivity, todaysBrief, logActivity, remember, pushInsight, goals } = useMe();
+  const { prefs, toggleCompanion, trackRoute, recall, recentActivity, todaysBrief, logActivity, remember, pushInsight, goals, genome } = useMe();
   const { listening, transcript, supported, start, stop, speak } = useVoice();
 
   const [open, setOpen] = useState(prefs.companionOpen);
@@ -84,6 +85,8 @@ export function Companion() {
       memorySummary: memorySummary || "(none yet)",
       recentActivity: recentActivity(5).map((a) => a.title).join(" / "),
       brief: todaysBrief()?.morning ?? null,
+      genomeSummary: genomeSummary(genome),
+      genomeVoice: genomeVoiceInstruction(genome),
     };
 
     try {

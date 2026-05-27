@@ -112,8 +112,30 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Ship Hour hero CTA */}
+      <Card className="mt-8 p-7 sm:p-10 relative overflow-hidden bg-gradient-to-br from-amber/15 via-emerald/10 to-rust/10 border-amber/30">
+        <div className="absolute -top-24 -right-24 size-72 rounded-full bg-amber opacity-30 blur-3xl animate-pulse" />
+        <div className="absolute -bottom-24 -left-24 size-72 rounded-full bg-emerald opacity-20 blur-3xl" />
+        <div className="relative grid lg:grid-cols-[1fr_auto] gap-6 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-amber border border-amber/40 bg-amber/10 px-3 py-1 rounded-full mb-4">
+              <Sparkles className="size-3" /> The flagship experience
+            </div>
+            <h2 className="font-[family-name:var(--font-display)] text-3xl sm:text-5xl font-semibold leading-[1.05]">
+              Ship something <span className="text-emerald italic">real</span> in the next hour.
+            </h2>
+            <p className="mt-4 text-muted leading-relaxed max-w-2xl">
+              60 minutes. 7 stages. Sage works alongside you. You walk out with a Problem Brief, a Discovery Script, an LOI, a Pricing Page, and the WhatsApp message that sends them — for a specific person, in a specific village, with a specific pain.
+            </p>
+          </div>
+          <Link href="/studio/ship" className="bg-emerald text-black font-semibold px-7 py-4 rounded-full hover:bg-amber transition flex items-center gap-2 text-base shrink-0 self-end lg:self-center shadow-xl shadow-emerald/40">
+            <Sparkles className="size-5" /> Begin Ship Hour
+          </Link>
+        </div>
+      </Card>
+
       {/* Daily brief */}
-      <Card className="mt-8 p-6 sm:p-8 relative overflow-hidden bg-gradient-to-br from-emerald/10 via-transparent to-amber/10">
+      <Card className="mt-6 p-6 sm:p-8 relative overflow-hidden bg-gradient-to-br from-emerald/10 via-transparent to-amber/10">
         <div className="absolute -top-16 -right-16 size-48 rounded-full bg-emerald opacity-20 blur-3xl" />
         <div className="absolute -bottom-16 -left-16 size-48 rounded-full bg-amber opacity-20 blur-3xl" />
         <div className="relative">

@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Bell, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer,
+  User, Timer, Zap, Dna,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,9 @@ type NavItem = { href: string; label: string; icon: typeof Brain; group?: string
 
 const NAV: NavItem[] = [
   { href: "/studio", label: "Dashboard", icon: LayoutDashboard, group: "Workspace" },
+  { href: "/studio/ship", label: "Ship Hour", icon: Zap, group: "Workspace" },
   { href: "/studio/me", label: "Me", icon: User, group: "Workspace" },
+  { href: "/studio/genome", label: "Studio Genome", icon: Dna, group: "Workspace" },
   { href: "/studio/path", label: "Your Path", icon: GraduationCap, group: "Workspace" },
   { href: "/studio/focus", label: "Focus mode", icon: Timer, group: "Workspace" },
   { href: "/studio/tutor", label: "Sage Tutor", icon: Brain, group: "Workspace" },
