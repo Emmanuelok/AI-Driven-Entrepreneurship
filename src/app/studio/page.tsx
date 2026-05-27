@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Brain,
@@ -12,64 +14,76 @@ import {
   Sparkles,
   Clock,
   Target,
+  Users,
+  Wallet,
+  BookMarked,
 } from "lucide-react";
 import { TRACKS } from "@/lib/curriculum";
 import { PROBLEMS } from "@/lib/problems";
-
-const STREAK = 14;
-const XP = 4820;
-const LEVEL = 7;
-const NEXT_LEVEL_XP = 5500;
-
-const PROGRESS = [
-  { trackId: "stem-intuition", pct: 38 },
-  { trackId: "coding-craft", pct: 62 },
-  { trackId: "venture-building", pct: 18 },
-];
-
-const QUICK = [
-  { href: "/studio/tutor", icon: Brain, label: "Ask Sage", desc: "AI tutor — 1:1 help, your language", c: "emerald" },
-  { href: "/studio/learn", icon: Compass, label: "Continue track", desc: "Code That Ships · Lesson 6 of 14", c: "amber" },
-  { href: "/studio/lab", icon: FlaskConical, label: "Open Lab", desc: "Coding playground · physics sims", c: "indigo" },
-  { href: "/studio/venture", icon: Rocket, label: "Work on venture", desc: "Cocoa cooperative dashboard · Day 12", c: "rust" },
-];
+import { useStore, level, xpInLevel, xpToNextLevel } from "@/store";
+import { Card } from "@/components/ui";
 
 export default function Dashboard() {
+  const { user, xp, streak, ventures, progress, cards, dueCards } = useStore();
+  if (!user) return null;
+
+  const lvl = level(xp);
+  const inLvl = xpInLevel(xp);
+  const toNext = xpToNextLevel();
+  const due = dueCards();
+
+  const completedLessons = Object.values(progress).filter((p) => p.status === "completed").length;
+  const inProgressLessons = Object.values(progress).filter((p) => p.status === "in-progress");
+
+  const activeVenture = ventures[0];
+
+  const QUICK = [
+    { href: "/studio/tutor", icon: Brain, label: "Ask Sage", desc: "Always-on AI tutor", c: "emerald" },
+    { href: "/studio/srs", icon: BookMarked, label: `Daily Review (${due.length})`, desc: "Spaced-repetition cards due", c: due.length > 0 ? "amber" : "muted" },
+    { href: "/studio/learn", icon: Compass, label: "Continue learning", desc: `${completedLessons} lessons completed`, c: "indigo" },
+    { href: "/studio/venture", icon: Rocket, label: ventures.length > 0 ? "Venture room" : "Start a venture", desc: ventures.length > 0 ? activeVenture.name : "Pick a problem to solve", c: "rust" },
+  ];
+
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
-      {/* greeting */}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-emerald">Akwaaba, Ama</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-emerald">Akwaaba, {user.name.split(" ")[0]}</p>
           <h1 className="font-[family-name:var(--font-display)] text-3xl sm:text-4xl font-semibold mt-2 leading-tight">
-            You shipped <span className="text-emerald">3 lessons</span> yesterday. <br />Let&apos;s keep the fire going.
+            {streak > 0 ? (
+              <>
+                {streak}-day streak. <span className="text-emerald">Keep it alive.</span>
+              </>
+            ) : (
+              <>
+                Welcome back. <span className="text-emerald">Today is the day.</span>
+              </>
+            )}
           </h1>
         </div>
-        <div className="flex items-center gap-4">
-          <Stat icon={Flame} label="Streak" value={`${STREAK} days`} color="text-rust" />
-          <Stat icon={Trophy} label="Level" value={`Lv ${LEVEL}`} color="text-amber" />
-          <Stat icon={TrendingUp} label="XP" value={XP.toLocaleString()} color="text-emerald" />
+        <div className="flex items-center gap-3">
+          <StatBadge icon={Flame} label="Streak" value={`${streak} day${streak === 1 ? "" : "s"}`} color="text-rust" />
+          <StatBadge icon={Trophy} label="Level" value={`Lv ${lvl}`} color="text-amber" />
+          <StatBadge icon={TrendingUp} label="XP" value={xp.toLocaleString()} color="text-emerald" />
         </div>
       </div>
 
-      {/* level progress */}
-      <div className="mt-8 glass rounded-2xl p-5">
+      <Card className="mt-8 p-5">
         <div className="flex items-center justify-between text-sm mb-3">
-          <span className="text-muted">Level {LEVEL} → Level {LEVEL + 1}</span>
-          <span className="font-mono text-emerald">{XP} / {NEXT_LEVEL_XP} XP</span>
+          <span className="text-muted">Level {lvl} → Level {lvl + 1}</span>
+          <span className="font-mono text-emerald">{inLvl} / {toNext} XP</span>
         </div>
         <div className="h-2.5 bg-surface-2 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-emerald to-amber rounded-full transition-all"
-            style={{ width: `${(XP / NEXT_LEVEL_XP) * 100}%` }}
+            style={{ width: `${(inLvl / toNext) * 100}%` }}
           />
         </div>
         <p className="mt-3 text-xs text-muted">
-          Reach Level 8 to unlock the <span className="text-foreground">Pitch Deck Generator</span> and your first investor intro.
+          Reach Level {lvl + 1} to unlock {lvl < 5 ? "the Pitch Deck Generator and your first investor intro" : lvl < 10 ? "advanced lab simulations + cohort access" : "fundraising tools and mentor priority booking"}.
         </p>
-      </div>
+      </Card>
 
-      {/* quick actions */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-8">
         {QUICK.map((q) => (
           <Link
@@ -87,73 +101,83 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* tracks in progress */}
-      <section className="mt-12">
-        <div className="flex items-end justify-between mb-5">
-          <h2 className="font-[family-name:var(--font-display)] text-2xl font-semibold">In progress</h2>
-          <Link href="/studio/learn" className="text-sm text-emerald hover:underline">All tracks →</Link>
-        </div>
-        <div className="grid gap-3">
-          {PROGRESS.map((p) => {
-            const t = TRACKS.find((x) => x.id === p.trackId)!;
-            return (
-              <Link
-                key={t.id}
-                href="/studio/learn"
-                className="glass rounded-2xl p-5 flex items-center justify-between gap-6 hover:border-emerald/40 transition"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-muted mb-1.5">
-                    <span className="size-2 rounded-full" style={{ background: t.color }} />
-                    {t.pillar} · {t.level}
-                  </div>
-                  <div className="font-semibold truncate">{t.title}</div>
-                  <p className="text-sm text-muted mt-1 truncate">{t.tagline}</p>
-                  <div className="mt-3 h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${p.pct}%`, background: t.color }} />
-                  </div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="font-mono text-2xl font-semibold" style={{ color: t.color }}>{p.pct}%</div>
-                  <div className="text-xs text-muted">{t.hours}h total</div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* venture spotlight */}
-      <section className="mt-12 glass rounded-3xl p-7 sm:p-10 relative overflow-hidden">
-        <div className="absolute -top-20 -right-20 size-72 rounded-full bg-emerald opacity-15 blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 size-72 rounded-full bg-amber opacity-10 blur-3xl" />
-        <div className="relative grid lg:grid-cols-[1fr_auto] gap-8 items-end">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-amber mb-3 flex items-center gap-2">
-              <Sparkles className="size-3.5" /> Your active venture
-            </p>
-            <h3 className="font-[family-name:var(--font-display)] text-3xl font-semibold leading-tight">
-              KubaCold — solar microcold-storage for tomato co-ops in Northern Ghana
-            </h3>
-            <p className="mt-3 text-muted max-w-2xl leading-relaxed">
-              Pain point you picked: <span className="text-foreground">30–40% post-harvest loss for smallholder produce</span>. Day 12 of customer discovery. Sage scheduled your next 4 interviews in Tamale this week.
-            </p>
-            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-5 text-sm">
-              <span className="flex items-center gap-1.5 text-muted"><Target className="size-3.5 text-emerald" /> Interviews: <span className="text-foreground">11 / 20</span></span>
-              <span className="flex items-center gap-1.5 text-muted"><Clock className="size-3.5 text-amber" /> MVP target: <span className="text-foreground">21 days</span></span>
-              <span className="flex items-center gap-1.5 text-muted"><Trophy className="size-3.5 text-rust" /> Phase: <span className="text-foreground">Validate</span></span>
-            </div>
+      {/* In-progress tracks */}
+      {inProgressLessons.length > 0 && (
+        <section className="mt-12">
+          <div className="flex items-end justify-between mb-5">
+            <h2 className="font-[family-name:var(--font-display)] text-2xl font-semibold">In progress</h2>
+            <Link href="/studio/learn" className="text-sm text-emerald hover:underline">All tracks →</Link>
           </div>
-          <Link
-            href="/studio/venture"
-            className="bg-emerald text-black font-semibold px-6 py-3 rounded-full hover:bg-amber transition flex items-center gap-2 shrink-0"
-          >
-            Open venture room <ArrowUpRight className="size-4" />
-          </Link>
-        </div>
-      </section>
+          <div className="grid gap-3">
+            {Array.from(new Set(inProgressLessons.map((p) => p.trackId))).map((trackId) => {
+              const t = TRACKS.find((x) => x.id === trackId);
+              if (!t) return null;
+              const pct = (Object.values(progress).filter((p) => p.trackId === trackId && p.status === "completed").length / t.lessons.length) * 100;
+              return (
+                <Link
+                  key={t.id}
+                  href={`/studio/learn/${t.id}`}
+                  className="glass rounded-2xl p-5 flex items-center justify-between gap-6 hover:border-emerald/40 transition"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-xs text-muted mb-1.5">
+                      <span className="size-2 rounded-full" style={{ background: t.color }} />
+                      {t.pillar} · {t.level}
+                    </div>
+                    <div className="font-semibold truncate">{t.title}</div>
+                    <p className="text-sm text-muted mt-1 truncate">{t.tagline}</p>
+                    <div className="mt-3 h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.color }} />
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-mono text-2xl font-semibold" style={{ color: t.color }}>{Math.round(pct)}%</div>
+                    <div className="text-xs text-muted">{t.hours}h total</div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-      {/* problem hub teaser */}
+      {/* Active venture */}
+      {activeVenture && (
+        <section className="mt-12 glass rounded-3xl p-7 sm:p-10 relative overflow-hidden">
+          <div className="absolute -top-20 -right-20 size-72 rounded-full bg-emerald opacity-15 blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 size-72 rounded-full bg-amber opacity-10 blur-3xl" />
+          <div className="relative grid lg:grid-cols-[1fr_auto] gap-8 items-end">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-amber mb-3 flex items-center gap-2">
+                <Sparkles className="size-3.5" /> Your active venture · Phase: {activeVenture.phase}
+              </p>
+              <h3 className="font-[family-name:var(--font-display)] text-3xl font-semibold leading-tight">
+                {activeVenture.name}
+              </h3>
+              <p className="mt-2 text-muted max-w-2xl leading-relaxed">{activeVenture.tagline}</p>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 mt-5 text-sm">
+                <span className="flex items-center gap-1.5 text-muted">
+                  <Target className="size-3.5 text-emerald" /> Interviews: <span className="text-foreground">{activeVenture.interviews.length} / {activeVenture.metrics.interviewsTarget}</span>
+                </span>
+                <span className="flex items-center gap-1.5 text-muted">
+                  <Clock className="size-3.5 text-amber" /> MVP tasks: <span className="text-foreground">{activeVenture.mvpTasks.filter((t) => t.done).length} / {activeVenture.mvpTasks.length}</span>
+                </span>
+                <span className="flex items-center gap-1.5 text-muted">
+                  <Wallet className="size-3.5 text-emerald" /> MRR: <span className="text-foreground">${activeVenture.metrics.mrr}</span>
+                </span>
+              </div>
+            </div>
+            <Link
+              href={`/studio/venture/${activeVenture.id}`}
+              className="bg-emerald text-black font-semibold px-6 py-3 rounded-full hover:bg-amber transition flex items-center gap-2 shrink-0"
+            >
+              Open venture room <ArrowUpRight className="size-4" />
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* Problem hub teaser */}
       <section className="mt-12">
         <div className="flex items-end justify-between mb-5">
           <h2 className="font-[family-name:var(--font-display)] text-2xl font-semibold flex items-center gap-2">
@@ -182,7 +206,7 @@ export default function Dashboard() {
   );
 }
 
-function Stat({ icon: Icon, label, value, color }: { icon: typeof Flame; label: string; value: string; color: string }) {
+function StatBadge({ icon: Icon, label, value, color }: { icon: typeof Flame; label: string; value: string; color: string }) {
   return (
     <div className="glass rounded-xl px-4 py-3 flex items-center gap-3">
       <Icon className={`size-5 ${color}`} />

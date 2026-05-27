@@ -10,7 +10,7 @@ export function generateStaticParams() {
 export default async function ProblemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const p = getProblem(id);
-  if (!p) notFound();
+  if (!p) { notFound(); return null; }
 
   return (
     <div className="max-w-4xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
