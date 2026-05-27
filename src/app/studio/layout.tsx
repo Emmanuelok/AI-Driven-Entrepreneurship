@@ -7,7 +7,7 @@ import {
   Brain, Compass, FlaskConical, Rocket, Globe2, LayoutDashboard, ArrowLeft,
   Users, Wallet, Award, BookMarked, Building2, Settings, Bell, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
-  FileText, Notebook, Target, Paintbrush, Briefcase, Search,
+  FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ type NavItem = { href: string; label: string; icon: typeof Brain; group?: string
 
 const NAV: NavItem[] = [
   { href: "/studio", label: "Dashboard", icon: LayoutDashboard, group: "Workspace" },
+  { href: "/studio/path", label: "Your Path", icon: GraduationCap, group: "Workspace" },
   { href: "/studio/tutor", label: "Sage Tutor", icon: Brain, group: "Workspace" },
   { href: "/studio/coaches", label: "AI Coaches", icon: MessageSquare, group: "Workspace" },
   { href: "/studio/agents", label: "AI Agents", icon: Bot, group: "Workspace" },
