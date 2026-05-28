@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Bell, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer, Zap, Dna,
+  User, Timer, Zap, Dna, Mail,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,9 @@ const NAV: NavItem[] = [
   { href: "/studio/genome", label: "Studio Genome", icon: Dna, group: "Workspace" },
   { href: "/studio/path", label: "Your Path", icon: GraduationCap, group: "Workspace" },
   { href: "/studio/focus", label: "Focus mode", icon: Timer, group: "Workspace" },
-  { href: "/studio/tutor", label: "Sage Tutor", icon: Brain, group: "Workspace" },
+  { href: "/studio/sage", label: "Sit with Sage", icon: Brain, group: "Workspace" },
+  { href: "/studio/letters", label: "Letters from Sage", icon: Mail, group: "Workspace" },
+  { href: "/studio/tutor", label: "Quick chat", icon: MessageSquare, group: "Workspace" },
   { href: "/studio/coaches", label: "AI Coaches", icon: MessageSquare, group: "Workspace" },
   { href: "/studio/agents", label: "AI Agents", icon: Bot, group: "Workspace" },
 
