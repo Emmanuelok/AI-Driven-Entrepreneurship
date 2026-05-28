@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { moderateOrBlock } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,6 +67,17 @@ export async function POST(req: Request) {
 
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return Response.json({ error: "messages required" }, { status: 400 });
+  }
+
+  // Moderation: only the latest user message — earlier turns were already
+  // judged on their original request. System prompts are author-supplied
+  // by students building agents, so we check those separately.
+  const latest = body.messages[body.messages.length - 1]?.content ?? "";
+  const blocked = await moderateOrBlock(latest, { skipLLM: latest.length < 600 });
+  if (blocked) return blocked;
+  if (body.system) {
+    const sysBlocked = await moderateOrBlock(body.system, { skipLLM: true });
+    if (sysBlocked) return sysBlocked;
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

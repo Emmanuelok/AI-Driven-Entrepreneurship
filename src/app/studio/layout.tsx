@@ -21,6 +21,9 @@ import { LangSwitcher } from "@/components/lang-switcher";
 import { SyncProvider } from "@/components/sync-provider";
 import { SyncStatus } from "@/components/sync-status";
 import { OnboardingTour } from "@/components/onboarding-tour";
+import { ServiceWorker } from "@/components/service-worker";
+import { HelpOverlay } from "@/components/help-overlay";
+import { useT } from "@/lib/i18n";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
 
@@ -77,6 +80,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   const [notifOpen, setNotifOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { user, hydrated, notifications, markAllRead, streak } = useStore();
+  const t = useT();
 
   // Mount-once gate to avoid SSR/CSR hydration mismatches caused by
   // zustand-persist reading localStorage synchronously on the client.
@@ -180,6 +184,8 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
       <AiUsageWatcher />
       <SyncProvider />
       <OnboardingTour />
+      <ServiceWorker />
+      <HelpOverlay />
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-border bg-surface/40 sticky top-0 h-screen">
@@ -214,7 +220,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
             className="hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-surface-2 border border-border hover:border-emerald/40 text-sm text-muted transition w-72"
           >
             <Search className="size-3.5" />
-            <span className="flex-1 text-left">Search, jump, run anything…</span>
+            <span className="flex-1 text-left">{t("search.placeholder", "Search, jump, run anything…")}</span>
             <kbd className="text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 border border-border rounded">⌘K</kbd>
           </button>
           <div className="flex items-center gap-2">
@@ -224,6 +230,16 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
             <div className="hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-surface-2 border border-border">
               <span className="size-1.5 rounded-full bg-emerald pulse-dot" /> Live
             </div>
+            <button
+              onClick={() => {
+                const ev = new KeyboardEvent("keydown", { key: "?", bubbles: true });
+                document.dispatchEvent(ev);
+              }}
+              title="Help & shortcuts (?)"
+              className="hidden sm:flex size-9 rounded-xl border border-border bg-surface hover:bg-surface-2 transition items-center justify-center text-xs font-semibold text-muted hover:text-foreground"
+            >
+              ?
+            </button>
             <div className="relative">
               <button
                 onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) markAllRead(); }}

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { moderateOrBlock } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,6 +45,9 @@ Output STRICT JSON only. No markdown fences. Shape:
 
 export async function POST(req: Request) {
   const body = (await req.json()) as Body;
+  // Transcripts are user-generated free speech — pattern-block only.
+  const blocked = await moderateOrBlock(body.transcript, { skipLLM: true });
+  if (blocked) return blocked;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
 

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { moderateOrBlock } from "@/lib/moderation";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,11 @@ const BLOCK_PROMPTS: Record<string, string> = {
 
 export async function POST(req: Request) {
   const body = (await req.json()) as Body;
+  // Pattern-only moderation: canvas content is dense business text where
+  // a Haiku judge call would add 600ms × 9 blocks of latency for marginal gain.
+  const candidate = `${body.ventureName} ${body.tagline} ${Object.values(body.currentCanvas).join(" ")}`;
+  const blocked = await moderateOrBlock(candidate, { skipLLM: true });
+  if (blocked) return blocked;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return Response.json({ text: fallback(body) });
