@@ -14,6 +14,7 @@ import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/command-palette";
 import { Companion } from "@/components/companion";
+import { WelcomeCeremony } from "@/components/welcome-ceremony";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
 
@@ -153,6 +154,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
     <div className="flex-1 flex">
       <CommandPalette />
       <Companion />
+      <WelcomeCeremony />
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-border bg-surface/40 sticky top-0 h-screen">
