@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useState } from "react";
+import { Fragment, use, useState } from "react";
 import { notFound } from "next/navigation";
 import { useStore } from "@/store";
 import { PROBLEMS } from "@/lib/problems";
 import { Card, Button, Input, Textarea, Badge, Dialog, EmptyState } from "@/components/ui";
-import { Users, Plus, Sparkles, CheckCircle2, AlertCircle, XCircle, Brain, FlaskConical, Quote } from "lucide-react";
+import { Users, Plus, Sparkles, CheckCircle2, AlertCircle, XCircle, Brain, FlaskConical, Quote, Search } from "lucide-react";
 import { Markdown } from "@/components/markdown";
+import { supabaseBrowser } from "@/lib/supabase";
+import Link from "next/link";
 
 type Cluster = { theme: string; count: number; evidence: string[] };
 type Persona = { name: string; role: string; goals: string; pains: string; quote?: string };
@@ -27,6 +29,9 @@ export default function DiscoverPage({ params }: { params: Promise<{ id: string 
   const [script, setScript] = useState<{ category: string; q: string }[] | null>(null);
   const [syn, setSyn] = useState<Synthesis | null>(null);
   const [synthBusy, setSynthBusy] = useState(false);
+  const [similarFor, setSimilarFor] = useState<string | null>(null);
+  const [similar, setSimilar] = useState<Array<{ kind: string; ref_id: string; ref_url: string | null; title: string | null; body: string; similarity: number }>>([]);
+  const [similarBusy, setSimilarBusy] = useState(false);
 
   const found = ventures.find((x) => x.id === id);
   if (!found) { notFound(); return null; }
@@ -49,6 +54,34 @@ export default function DiscoverPage({ params }: { params: Promise<{ id: string 
       setScript(data.questions);
     } finally {
       setGenerating(false);
+    }
+  }
+
+  // Pull similar interviews from across ALL the user's ventures via
+  // the search_index. Surfaces patterns the local synthesizer misses
+  // because it only sees one venture at a time.
+  async function findSimilar(iv: { id: string; name: string; role: string; notes: string }) {
+    setSimilarFor(iv.id);
+    setSimilar([]);
+    setSimilarBusy(true);
+    try {
+      const sb = supabaseBrowser();
+      if (!sb) { setSimilarBusy(false); return; }
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { setSimilarBusy(false); return; }
+      const q = `${iv.name} (${iv.role}): ${iv.notes}`;
+      const res = await fetch("/api/search/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ q, kind: "interview", limit: 6 }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        // Filter out the source interview itself.
+        setSimilar((data.results || []).filter((r: { ref_id: string }) => !r.ref_id.endsWith(`:${iv.id}`)));
+      }
+    } finally {
+      setSimilarBusy(false);
     }
   }
 
@@ -208,11 +241,13 @@ export default function DiscoverPage({ params }: { params: Promise<{ id: string 
                 <th className="text-left px-4 py-3">Notes / verdict</th>
                 <th className="text-left px-4 py-3">WTP</th>
                 <th className="text-left px-4 py-3">Date</th>
+                <th className="text-left px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {v.interviews.map((iv) => (
-                <tr key={iv.id} className="border-t border-border hover:bg-surface-2/40">
+                <Fragment key={iv.id}>
+                <tr className="border-t border-border hover:bg-surface-2/40">
                   <td className="px-4 py-3 font-medium">{iv.name}</td>
                   <td className="px-4 py-3 text-muted">{iv.role}</td>
                   <td className="px-4 py-3">
@@ -225,7 +260,45 @@ export default function DiscoverPage({ params }: { params: Promise<{ id: string 
                   </td>
                   <td className="px-4 py-3 font-mono text-emerald">{iv.willingnessToPay ? `$${iv.willingnessToPay}` : "—"}</td>
                   <td className="px-4 py-3 text-muted text-xs">{iv.date}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => similarFor === iv.id ? setSimilarFor(null) : findSimilar(iv)}
+                      className="text-xs text-muted hover:text-emerald inline-flex items-center gap-1"
+                      title="Find similar interviews across all your ventures"
+                    >
+                      <Search className="size-3" /> Similar
+                    </button>
+                  </td>
                 </tr>
+                {similarFor === iv.id && (
+                  <tr className="border-t border-border bg-surface-2/30">
+                    <td colSpan={6} className="px-4 py-3">
+                      <div className="text-[10px] uppercase tracking-widest text-emerald mb-2 flex items-center gap-1.5">
+                        <Search className="size-2.5" /> Similar interviews across your work
+                      </div>
+                      {similarBusy && <div className="text-xs text-muted italic">Searching…</div>}
+                      {!similarBusy && similar.length === 0 && (
+                        <div className="text-xs text-muted italic">No matches yet. Sign in + log more interviews to find patterns.</div>
+                      )}
+                      <div className="space-y-1.5">
+                        {similar.map((s) => (
+                          <Link
+                            key={s.ref_id}
+                            href={s.ref_url ?? "#"}
+                            className="flex items-start gap-2 p-2 rounded-lg border border-border hover:border-emerald/40 hover:bg-surface text-xs"
+                          >
+                            <span className="font-mono text-emerald shrink-0">{(s.similarity * 100).toFixed(0)}%</span>
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{s.title}</div>
+                              <div className="text-muted truncate">{s.body.slice(0, 140)}</div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

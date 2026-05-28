@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
   Brain, Compass, FlaskConical, Rocket, Globe2, LayoutDashboard, Users, Wallet,
   Award, BookMarked, Building2, Settings, FileText, Map, Sparkles, Bot, Trophy,
   TrendingUp, Folder, MessageSquare, Library, Notebook, Target, Paintbrush, Lightbulb,
-  Network,
+  Network, Search as SearchIcon,
 } from "lucide-react";
 import { PROBLEMS } from "@/lib/problems";
 import { MENTORS } from "@/lib/mentors";
@@ -17,10 +17,15 @@ import { useStore } from "@/store";
 import { useBuild } from "@/store/build";
 import { useSketch } from "@/store/sketch";
 import { Hammer } from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabase";
+
+type SemanticHit = { kind: string; ref_id: string; ref_url: string | null; title: string | null; body: string; similarity: number };
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [semanticHits, setSemanticHits] = useState<SemanticHit[]>([]);
+  const [semanticBusy, setSemanticBusy] = useState(false);
   const router = useRouter();
   const { ventures, createVenture } = useStore();
   const builds = useBuild((s) => s.projects);
@@ -38,9 +43,36 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  // Semantic search: debounced query of /api/search/query for ≥3-char
+  // searches. Falls through silently when not signed in or backend is local-only.
+  const semTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (semTimer.current) clearTimeout(semTimer.current);
+    if (!open || search.trim().length < 3) { setSemanticHits([]); return; }
+    semTimer.current = setTimeout(async () => {
+      try {
+        const sb = supabaseBrowser();
+        if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) return;
+        setSemanticBusy(true);
+        const res = await fetch("/api/search/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ q: search.trim(), limit: 6 }),
+        });
+        const data = await res.json();
+        if (data.ok) setSemanticHits(data.results || []);
+      } catch { /* silent — palette still works without it */ }
+      finally { setSemanticBusy(false); }
+    }, 280);
+    return () => { if (semTimer.current) clearTimeout(semTimer.current); };
+  }, [search, open]);
+
   function go(href: string) {
     setOpen(false);
     setSearch("");
+    setSemanticHits([]);
     router.push(href);
   }
 
@@ -69,6 +101,25 @@ export function CommandPalette() {
           </div>
           <Command.List className="max-h-[60vh] overflow-y-auto p-2">
             <Command.Empty className="text-center text-muted py-10">No matches. Try "tutor", "pitch", "Mama Adwoa"…</Command.Empty>
+
+            {semanticHits.length > 0 && (
+              <Command.Group heading="Semantic matches" className="text-[10px] uppercase tracking-widest text-emerald px-2 mt-1 mb-1.5">
+                {semanticHits.map((h) => (
+                  <Item
+                    key={`${h.kind}:${h.ref_id}`}
+                    icon={kindIcon(h.kind)}
+                    label={h.title || h.body.slice(0, 60)}
+                    sub={`${h.kind} · ${(h.similarity * 100).toFixed(0)}% match · ${h.body.slice(0, 80)}`}
+                    onSelect={() => h.ref_url ? go(h.ref_url) : undefined}
+                  />
+                ))}
+              </Command.Group>
+            )}
+            {semanticBusy && search.trim().length >= 3 && semanticHits.length === 0 && (
+              <div className="px-3 py-2 text-[10px] text-muted italic flex items-center gap-1.5">
+                <SearchIcon className="size-2.5 animate-pulse" /> Searching your work…
+              </div>
+            )}
 
             <Command.Group heading="Quick actions" className="text-[10px] uppercase tracking-widest text-muted px-2 mt-1 mb-1.5">
               <Item icon={Brain} label="Ask Sage (AI tutor)" hint="⇧S" onSelect={() => go("/studio/tutor")} />
@@ -159,6 +210,16 @@ export function CommandPalette() {
       </Command.Dialog>
     </>
   );
+}
+
+function kindIcon(kind: string) {
+  switch (kind) {
+    case "venture": return Rocket;
+    case "interview": return Users;
+    case "build": return Hammer;
+    case "brainstorm": return Lightbulb;
+    default: return SearchIcon;
+  }
 }
 
 function Item({ icon: Icon, label, sub, hint, onSelect }: { icon: typeof Brain; label: string; sub?: string; hint?: string; onSelect: () => void }) {
