@@ -2,18 +2,53 @@
 
 import Link from "next/link";
 import { TRACKS } from "@/lib/curriculum";
+import { INTERACTIVE_LESSONS } from "@/lib/interactive-lessons";
 import { useStore } from "@/store";
 import { Card, Badge, Button } from "@/components/ui";
-import { Clock, Layers, Play, Sparkles, ChevronRight } from "lucide-react";
+import { Clock, Layers, Play, Sparkles, ChevronRight, Zap, Brain } from "lucide-react";
 
 export default function LearnPage() {
   const { progress } = useStore();
 
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
+      {/* Interactive lessons hero strip */}
+      <Card className="p-6 sm:p-8 mb-8 relative overflow-hidden bg-gradient-to-br from-emerald/15 via-transparent to-amber/15 border-emerald/30">
+        <div className="absolute -top-20 -right-20 size-64 rounded-full bg-emerald/20 blur-3xl" />
+        <div className="relative flex items-start justify-between gap-4 flex-wrap mb-5">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.25em] text-emerald mb-2 flex items-center gap-1.5">
+              <Zap className="size-3.5" /> Interactive · Brilliant/AoPS-class
+            </div>
+            <h2 className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl font-semibold leading-tight">Lessons that talk back.</h2>
+            <p className="mt-2 text-muted max-w-xl text-sm">Live simulations. Socratic dialogue with Sage. Adaptive difficulty. Visible mastery growth on every screen.</p>
+          </div>
+        </div>
+        <div className="relative grid sm:grid-cols-3 gap-3">
+          {INTERACTIVE_LESSONS.map((l) => (
+            <Link key={l.id} href={`/studio/interactive/${l.id}`} className="glass rounded-2xl p-5 hover:border-emerald/40 transition group">
+              <div className="flex items-center justify-between mb-3">
+                <Brain className="size-4 text-emerald" />
+                <div className="flex gap-0.5" title={`Difficulty ${l.difficulty}/5`}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <span key={i} className={`size-1.5 rounded-full ${i < l.difficulty ? "bg-amber" : "bg-border"}`} />
+                  ))}
+                </div>
+              </div>
+              <div className="font-medium leading-snug">{l.title}</div>
+              <p className="text-xs text-muted mt-2 line-clamp-2">{l.subtitle}</p>
+              <div className="mt-4 flex items-center justify-between text-xs">
+                <span className="text-muted flex items-center gap-1"><Clock className="size-3" /> ~{l.estMinutes}m</span>
+                <span className="text-emerald flex items-center gap-1 group-hover:gap-2 transition-all">Begin <ChevronRight className="size-3" /></span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </Card>
+
       <div className="flex items-end justify-between flex-wrap gap-6 mb-10">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2">Learning</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2">Learning tracks</p>
           <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
             Tracks built from the best of every platform — adapted for your continent.
           </h1>
