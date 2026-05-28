@@ -600,6 +600,555 @@ export const BUILD_TEMPLATES: BuildTemplate[] = [
 </body></html>`,
   },
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // AI AGENT TEMPLATES — ready-to-extend, calls Claude through Sankofa's
+  // built-in /api/build/proxy so no API key in the client.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  {
+    id: "simple-chat-agent",
+    name: "Simple Chat Agent",
+    tagline: "Your first AI agent — a working chatbot wired to Claude.",
+    longDescription: "A clean chat UI that streams Claude responses through Sankofa's built-in AI proxy. No API key needed. Customize the system prompt to make it a tutor, a coach, a writing partner — anything.",
+    emoji: "🤖",
+    kind: "agentic",
+    level: "starter",
+    disciplines: ["Computer Science", "Education", "Psychology"],
+    conceptsTouched: ["agent-loop", "system-prompt", "streaming", "chat-ui"],
+    startingPrompt: "A chat agent. Tweak the system prompt at the top of the script to give the bot a personality — try 'a market trader from Tamale who only speaks Pidgin'.",
+    extensionIdeas: [
+      "Add a personality picker (tutor / coach / market trader / etc.)",
+      "Give the agent memory of the last 10 turns",
+      "Add a 'reset' button + saved conversations sidebar",
+      "Make it switch to Twi / Hausa / Swahili based on the user's first message",
+    ],
+    starterCode: `<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>${baseStyle}
+  .app { max-width: 760px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; }
+  .header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--warn)); display: grid; place-items: center; color: #000; font-weight: 700; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 78%; padding: 12px 14px; border-radius: 14px; font-size: 15px; line-height: 1.55; }
+  .me { background: rgba(44,194,149,0.15); border: 1px solid rgba(44,194,149,0.3); align-self: flex-end; }
+  .bot { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; white-space: pre-wrap; }
+  .input { padding: 14px; border-top: 1px solid var(--border); display: flex; gap: 10px; }
+  .input input { flex: 1; background: var(--surface-2); color: var(--text); padding: 12px 16px; border-radius: 999px; border: 1px solid var(--border); outline: none; font-size: 15px; }
+  .input button { background: var(--accent); color: #000; padding: 0 22px; border-radius: 999px; font-weight: 700; }
+  .typing { color: var(--muted); font-style: italic; font-size: 13px; align-self: flex-start; padding: 4px 14px; }
+</style></head>
+<body>
+  <div class="app">
+    <div class="header"><div class="avatar">🤖</div><div><div style="font-weight:600">Claude Agent</div><div style="font-size:11px;color:var(--muted)">via Sankofa proxy</div></div></div>
+    <div class="messages" id="msgs"></div>
+    <form class="input" onsubmit="event.preventDefault(); send()">
+      <input id="inp" placeholder="Say something…" autofocus/>
+      <button type="submit">Send</button>
+    </form>
+  </div>
+  <script>
+    // ───────────────────────────────────────────────────────────────────
+    // Change me. This is your agent's brain.
+    const SYSTEM = "You are a warm, helpful tutor. Use African / developing-world examples (mama-put, tro-tro, M-Pesa) when explaining concepts. Keep replies to 3-4 short paragraphs.";
+    // ───────────────────────────────────────────────────────────────────
+    const history = [];
+    function add(role, text) {
+      const el = document.createElement("div");
+      el.className = "msg " + (role === "user" ? "me" : "bot");
+      el.textContent = text;
+      document.getElementById("msgs").appendChild(el);
+      el.scrollIntoView({ behavior: "smooth" });
+      return el;
+    }
+    async function send() {
+      const inp = document.getElementById("inp");
+      const text = inp.value.trim(); if (!text) return;
+      add("user", text); inp.value = "";
+      history.push({ role: "user", content: text });
+      const el = add("assistant", "");
+      const typing = document.createElement("div");
+      typing.className = "typing"; typing.textContent = "thinking…";
+      document.getElementById("msgs").appendChild(typing);
+      try {
+        const res = await fetch("/api/build/proxy?stream=1", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ system: SYSTEM, messages: history.slice(-10), max_tokens: 800 }),
+        });
+        typing.remove();
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let acc = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          acc += dec.decode(value, { stream: true });
+          el.textContent = acc;
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+        history.push({ role: "assistant", content: acc });
+      } catch (e) {
+        typing.remove();
+        el.textContent = "Network hiccup: " + e.message;
+      }
+    }
+  </script>
+</body></html>`,
+  },
+
+  {
+    id: "tool-use-agent",
+    name: "Tool-Use Agent",
+    tagline: "An agent that calls JavaScript functions to get things done.",
+    longDescription: "The agent loop: AI thinks → calls a tool → tool returns data → AI continues. This template gives Claude three tools (current time, calculator, simple search) and lets it use them autonomously.",
+    emoji: "🛠️",
+    kind: "agentic",
+    level: "intermediate",
+    disciplines: ["Computer Science", "Mathematics & Statistics"],
+    conceptsTouched: ["tool-use", "function-calling", "agent-loop", "autonomous-reasoning"],
+    startingPrompt: "A tool-using agent. The starter has 3 tools — current_time, calculator, and a stub search. Ask things like 'what's 12.5% of last week's total if the total was 4,200 cedis?' and watch the agent reason → call the tool → reason → reply.",
+    extensionIdeas: [
+      "Add a 'weather' tool that hits a public weather API",
+      "Add a 'save_note' tool that writes to localStorage",
+      "Add a 'send_whatsapp' tool that opens wa.me with the agent's text",
+      "Add a 'query_database' tool that searches a tiny inline JSON dataset",
+    ],
+    starterCode: `<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>${baseStyle}
+  .app { max-width: 800px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  header h1 { margin: 0; font-size: 18px; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+  .messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { padding: 10px 14px; border-radius: 12px; max-width: 88%; font-size: 14px; line-height: 1.5; }
+  .user { background: rgba(44,194,149,0.15); border: 1px solid rgba(44,194,149,0.3); align-self: flex-end; }
+  .bot { background: var(--surface); border: 1px solid var(--border); align-self: flex-start; white-space: pre-wrap; }
+  .tool { font-family: monospace; font-size: 12px; background: rgba(244,169,73,0.12); border: 1px solid rgba(244,169,73,0.3); color: var(--warn); padding: 8px 12px; border-radius: 10px; align-self: flex-start; max-width: 88%; }
+  .tool .k { color: var(--accent); }
+  form { padding: 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+  input { flex: 1; background: var(--surface-2); padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); color: var(--text); outline: none; }
+  button { background: var(--accent); color: #000; padding: 0 20px; border-radius: 10px; font-weight: 600; }
+</style></head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🛠️ Tool-Use Agent</h1>
+      <p>Ask it something that requires a tool. Watch the agent loop.</p>
+    </header>
+    <div class="messages" id="msgs">
+      <div class="bot">Hi. I have three tools available: <code>get_current_time</code>, <code>calculate(expr)</code>, and <code>search(query)</code>. Ask me something that needs one and you'll see me use it.</div>
+    </div>
+    <form onsubmit="event.preventDefault(); ask()">
+      <input id="inp" placeholder="e.g. What's 12.5% of 4200?" autofocus/>
+      <button>Ask</button>
+    </form>
+  </div>
+  <script>
+    // The tools the agent can use. Each maps to a real JS function.
+    const TOOLS = {
+      get_current_time: { describe: "Returns the current local time as a string. No arguments.", run: () => new Date().toLocaleString() },
+      calculate: { describe: "Evaluates a math expression. Arg: { expression: string }. Returns the number.", run: (args) => { try { return String(Function('"use strict";return ('+args.expression+')')()); } catch (e) { return "error: "+e.message; } } },
+      search: { describe: "Stub search. Returns canned results. Arg: { query: string }.", run: (args) => "Top result for '"+args.query+"': (this is a stub — wire to a real search API to make it real)" },
+    };
+
+    const SYSTEM = "You are a helpful agent with access to tools. When the user asks something that requires a tool, you MUST use it instead of guessing. Available tools:\\n" +
+      Object.entries(TOOLS).map(([n, t]) => "- " + n + ": " + t.describe).join("\\n") +
+      "\\n\\nTo use a tool, reply with EXACTLY this format (and nothing else): <tool>{\\"name\\":\\"tool_name\\",\\"args\\":{...}}</tool>\\n\\nWhen you have the answer, reply normally to the user.";
+
+    const history = [];
+
+    function add(cls, html) {
+      const el = document.createElement("div"); el.className = "msg " + cls; el.innerHTML = html;
+      document.getElementById("msgs").appendChild(el); el.scrollIntoView({ behavior: "smooth" }); return el;
+    }
+    function addTool(name, args, result) {
+      const el = document.createElement("div"); el.className = "tool";
+      el.innerHTML = '<span class="k">→ '+name+'</span>(' + JSON.stringify(args) + ')<br><span style="color:var(--text)">'+result+'</span>';
+      document.getElementById("msgs").appendChild(el); el.scrollIntoView({ behavior: "smooth" }); return el;
+    }
+
+    async function callClaude(messages) {
+      const res = await fetch("/api/build/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system: SYSTEM, messages: messages, max_tokens: 600 }),
+      });
+      const data = await res.json();
+      return data.content || "";
+    }
+
+    async function ask() {
+      const inp = document.getElementById("inp");
+      const q = inp.value.trim(); if (!q) return;
+      add("user", q); inp.value = "";
+      history.push({ role: "user", content: q });
+
+      // Agent loop — up to 4 iterations
+      for (let i = 0; i < 4; i++) {
+        const reply = await callClaude(history);
+        history.push({ role: "assistant", content: reply });
+        const m = reply.match(/<tool>([\\s\\S]+?)<\\/tool>/);
+        if (!m) {
+          add("bot", reply.replace(/</g, "&lt;"));
+          return;
+        }
+        let call;
+        try { call = JSON.parse(m[1]); }
+        catch (e) { add("bot", "I tried to call a tool but the JSON was malformed: " + e.message); return; }
+        const tool = TOOLS[call.name];
+        if (!tool) { add("bot", "Unknown tool: " + call.name); return; }
+        const result = tool.run(call.args || {});
+        addTool(call.name, call.args || {}, result);
+        history.push({ role: "user", content: "<tool_result>"+result+"</tool_result>" });
+      }
+      add("bot", "(stopped after 4 tool iterations to be safe)");
+    }
+  </script>
+</body></html>`,
+  },
+
+  {
+    id: "voice-agent",
+    name: "Voice Agent (talk to it)",
+    tagline: "Push to talk. AI replies. Spoken back to you.",
+    longDescription: "A full voice loop: Web Speech recognition → Claude → text-to-speech reply. Hands-free conversation in your browser. Perfect for a literacy-tolerant tool or accessibility-first product.",
+    emoji: "🗣️",
+    kind: "agentic",
+    level: "intermediate",
+    disciplines: ["Computer Science", "Public Health", "Psychology", "Nursing"],
+    conceptsTouched: ["voice-agent", "speech-to-text", "text-to-speech", "real-time-ui"],
+    startingPrompt: "A voice-first agent. Hold the big button, speak. The AI replies. Tweak the system prompt to give it a role (community health worker companion / language tutor / journaling partner).",
+    extensionIdeas: [
+      "Add a language picker (en-US, sw-KE, ha-NG, fr-FR)",
+      "Show the live transcript while you're speaking",
+      "Save each turn to localStorage so you can revisit",
+      "Switch to push-to-talk + voice-activated for hands-free mode",
+    ],
+    starterCode: `<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>${baseStyle}
+  .app { max-width: 480px; margin: 0 auto; padding: 24px 20px; min-height: 100vh; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 22px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .transcript { background: var(--surface); padding: 16px; border-radius: 14px; min-height: 100px; font-size: 14px; line-height: 1.55; border: 1px solid var(--border); flex: 1; overflow-y: auto; max-height: 50vh; }
+  .turn { margin-bottom: 12px; }
+  .turn.user { color: var(--muted); font-style: italic; }
+  .turn.bot { color: var(--text); }
+  .turn.bot::before { content: "🤖 "; }
+  .button-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 0; }
+  .mic { width: 120px; height: 120px; border-radius: 60px; background: radial-gradient(circle at 30% 30%, var(--accent), var(--emerald-deep, #0c8f6a)); display: grid; place-items: center; font-size: 50px; box-shadow: 0 0 0 0 rgba(44,194,149,0.5); user-select: none; cursor: pointer; transition: transform 0.15s; }
+  .mic:active, .mic.rec { transform: scale(0.95); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(44,194,149,0.5); } 70% { box-shadow: 0 0 0 24px rgba(44,194,149,0); } }
+  .status { color: var(--muted); font-size: 13px; min-height: 18px; }
+  select { background: var(--surface-2); color: var(--text); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); }
+</style></head>
+<body>
+  <div class="app">
+    <div>
+      <h1>🗣️ Voice Agent</h1>
+      <div class="sub">Hold the mic, speak, release. The agent listens, thinks, and talks back.</div>
+    </div>
+    <select id="lang">
+      <option value="en-US">English (US)</option><option value="en-GB">English (UK)</option>
+      <option value="sw-KE">Swahili</option><option value="fr-FR">French</option><option value="ha-NG">Hausa</option>
+    </select>
+    <div class="transcript" id="transcript"></div>
+    <div class="button-wrap">
+      <div class="mic" id="mic">🎤</div>
+      <div class="status" id="status">Hold to speak</div>
+    </div>
+  </div>
+  <script>
+    const SYSTEM = "You are a warm, attentive voice companion. Keep replies SHORT — 1-2 sentences — because they'll be spoken aloud. Conversational, not formal. African / developing-world context when natural.";
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const mic = document.getElementById("mic");
+    const status = document.getElementById("status");
+    const transcript = document.getElementById("transcript");
+    const langSel = document.getElementById("lang");
+    const history = [];
+    let recognition = null;
+
+    function add(cls, text) {
+      const t = document.createElement("div"); t.className = "turn " + cls; t.textContent = text;
+      transcript.appendChild(t); transcript.scrollTop = transcript.scrollHeight;
+    }
+
+    function speak(text) {
+      if (!window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = langSel.value; u.rate = 1.05;
+      window.speechSynthesis.speak(u);
+    }
+
+    async function reply(userText) {
+      add("user", userText);
+      history.push({ role: "user", content: userText });
+      status.textContent = "Thinking…";
+      try {
+        const res = await fetch("/api/build/proxy", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ system: SYSTEM, messages: history.slice(-8), max_tokens: 200 }),
+        });
+        const data = await res.json();
+        const text = data.content || "I didn't catch that. Try again?";
+        history.push({ role: "assistant", content: text });
+        add("bot", text);
+        status.textContent = "Speaking…";
+        speak(text);
+        const onEnd = () => { status.textContent = "Hold to speak"; window.speechSynthesis.removeEventListener("end", onEnd); };
+        window.speechSynthesis.addEventListener("end", onEnd);
+        setTimeout(() => { status.textContent = "Hold to speak"; }, 4000);
+      } catch (e) {
+        status.textContent = "Error: " + e.message;
+      }
+    }
+
+    function startListen() {
+      if (!SR) { status.textContent = "Voice not supported. Try Chrome."; return; }
+      recognition = new SR();
+      recognition.lang = langSel.value;
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      let final = "";
+      recognition.onresult = (e) => {
+        let interim = "";
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          else interim += e.results[i][0].transcript;
+        }
+        status.textContent = interim || final || "listening…";
+      };
+      recognition.onend = () => {
+        mic.classList.remove("rec");
+        if (final.trim()) reply(final.trim());
+        else status.textContent = "Didn't catch anything. Try again.";
+      };
+      recognition.start();
+      mic.classList.add("rec");
+      status.textContent = "Listening…";
+    }
+    function stopListen() { if (recognition) recognition.stop(); }
+
+    let pressed = false;
+    mic.addEventListener("pointerdown", () => { pressed = true; startListen(); });
+    mic.addEventListener("pointerup", () => { if (pressed) { pressed = false; stopListen(); } });
+    mic.addEventListener("pointerleave", () => { if (pressed) { pressed = false; stopListen(); } });
+  </script>
+</body></html>`,
+  },
+
+  {
+    id: "rag-agent",
+    name: "RAG Agent (knowledge over docs)",
+    tagline: "Drop in a doc. Ask the agent questions about it.",
+    longDescription: "A simple retrieval-augmented generation agent. Paste any text (policy doc, course notes, contract). The agent retrieves the most relevant chunks and answers grounded in them. Citations included.",
+    emoji: "📚",
+    kind: "agentic",
+    level: "advanced",
+    disciplines: ["Law", "Education", "Public Health", "Business"],
+    conceptsTouched: ["rag", "embeddings", "chunking", "grounded-answers", "citations"],
+    startingPrompt: "A RAG agent. Paste a document. Ask questions. The agent retrieves relevant chunks and cites them. Tweak the chunking strategy or the retrieval scoring at the top of the script.",
+    extensionIdeas: [
+      "Replace the keyword-based retriever with an embedding-based one (use a small in-browser model)",
+      "Let users upload a PDF or .docx",
+      "Add a list of multiple documents with a 'which doc?' dropdown",
+      "Cache answers to FAQ-style queries",
+    ],
+    starterCode: `<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>${baseStyle}
+  .app { max-width: 800px; margin: 0 auto; padding: 22px 18px; min-height: 100vh; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font-size: 22px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  textarea { width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 12px; font-size: 13px; outline: none; font-family: inherit; min-height: 140px; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; background: var(--surface-2); color: var(--text); padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); outline: none; }
+  button { background: var(--accent); color: #000; padding: 12px 22px; border-radius: 12px; font-weight: 600; }
+  .answer { background: var(--surface); border: 1px solid var(--border); padding: 16px; border-radius: 14px; line-height: 1.6; }
+  .answer h3 { margin: 0 0 8px; font-size: 14px; color: var(--accent); }
+  .citation { background: rgba(108,140,255,0.08); border-left: 3px solid var(--indigo, #6c8cff); padding: 8px 10px; border-radius: 6px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .citation b { color: var(--text); }
+</style></head>
+<body>
+  <div class="app">
+    <h1>📚 RAG Agent</h1>
+    <p class="sub">1. Paste a document below. 2. Ask anything about it. Grounded answers with citations.</p>
+    <div>
+      <div class="sub" style="margin-bottom:4px">Document</div>
+      <textarea id="doc" placeholder="Paste any text here — a policy, a chapter, a contract, your lecture notes…"></textarea>
+    </div>
+    <div class="row">
+      <input id="q" placeholder="Ask a question about the document" autofocus/>
+      <button onclick="ask()" id="askBtn">Ask</button>
+    </div>
+    <div id="out"></div>
+  </div>
+  <script>
+    // ── chunking: split into ~400-char chunks at sentence boundaries
+    function chunk(text) {
+      const sents = text.replace(/\\s+/g, " ").split(/(?<=[.!?])\\s+/);
+      const out = []; let cur = "";
+      for (const s of sents) {
+        if ((cur + " " + s).length > 400 && cur) { out.push(cur.trim()); cur = s; }
+        else cur += " " + s;
+      }
+      if (cur.trim()) out.push(cur.trim());
+      return out;
+    }
+    // ── keyword retriever: BM25-ish lite (tf-idf without idf normalization)
+    function retrieve(query, chunks, k = 3) {
+      const qTokens = query.toLowerCase().match(/\\w+/g) || [];
+      const scored = chunks.map((c, i) => {
+        const tokens = c.toLowerCase().match(/\\w+/g) || [];
+        const counts = {};
+        for (const t of tokens) counts[t] = (counts[t] || 0) + 1;
+        let score = 0;
+        for (const q of qTokens) if (counts[q]) score += Math.log(1 + counts[q]);
+        return { i, c, score };
+      });
+      return scored.sort((a, b) => b.score - a.score).slice(0, k).filter((x) => x.score > 0);
+    }
+
+    async function ask() {
+      const doc = document.getElementById("doc").value.trim();
+      const q = document.getElementById("q").value.trim();
+      if (!doc || !q) { alert("Paste a doc and ask a question first."); return; }
+      const btn = document.getElementById("askBtn"); btn.textContent = "Thinking…"; btn.disabled = true;
+      try {
+        const chunks = chunk(doc);
+        const hits = retrieve(q, chunks);
+        if (hits.length === 0) {
+          document.getElementById("out").innerHTML = '<div class="answer"><h3>No relevant content found</h3><div>The document doesn\\'t seem to contain anything matching your question.</div></div>';
+          return;
+        }
+        const context = hits.map((h, i) => "[" + (i+1) + "] " + h.c).join("\\n\\n");
+        const prompt = "Based ONLY on the following excerpts from the document, answer the user's question. Cite the excerpt number in brackets like [1] or [2]. If the excerpts don't contain the answer, say so honestly.\\n\\nEXCERPTS:\\n" + context + "\\n\\nQUESTION: " + q;
+        const res = await fetch("/api/build/proxy", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ system: "You answer questions grounded only in provided excerpts. Cite which excerpt(s) you used.", messages: [{ role: "user", content: prompt }], max_tokens: 600 }),
+        });
+        const data = await res.json();
+        const html = '<div class="answer"><h3>Answer</h3><div>' + (data.content || "(no reply)").replace(/\\[(\\d+)\\]/g, '<b style="color:var(--accent)">[$1]</b>').replace(/\\n/g, "<br>") + '</div>' +
+          hits.map((h, i) => '<div class="citation"><b>[' + (i+1) + ']</b> ' + h.c.slice(0, 240).replace(/</g, "&lt;") + (h.c.length > 240 ? "…" : "") + '</div>').join("") +
+          '</div>';
+        document.getElementById("out").innerHTML = html;
+      } catch (e) {
+        document.getElementById("out").innerHTML = '<div class="answer">Error: ' + e.message + '</div>';
+      } finally {
+        btn.textContent = "Ask"; btn.disabled = false;
+      }
+    }
+  </script>
+</body></html>`,
+  },
+
+  {
+    id: "planner-agent",
+    name: "Multi-Step Planner Agent",
+    tagline: "Give it a goal. It writes a plan and executes step by step.",
+    longDescription: "A planning-execution loop. The agent breaks a goal into steps, runs each one (drafting / refining / saving), and shows its work as it goes. Closer to a research assistant or a campaign drafter than a chatbot.",
+    emoji: "🎯",
+    kind: "agentic",
+    level: "advanced",
+    disciplines: ["Computer Science", "Business", "Marketing & Sales"],
+    conceptsTouched: ["planning-agent", "multi-step", "scratchpad", "chain-of-thought", "execution-loop"],
+    startingPrompt: "A planner-executor agent. Give it a goal like 'draft a 30-day launch plan for a tomato cooperative' and watch it: 1) plan the steps, 2) execute each, 3) show you a final compiled output.",
+    extensionIdeas: [
+      "Let users edit or reorder steps before execution",
+      "Add a 'pause / approve' gate between steps for sensitive decisions",
+      "Save each plan as JSON so you can re-run later",
+      "Add tools (search, calculator, save_note) the executor can call",
+    ],
+    starterCode: `<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>${baseStyle}
+  .app { max-width: 880px; margin: 0 auto; padding: 22px 18px; min-height: 100vh; display: flex; flex-direction: column; gap: 16px; }
+  h1 { margin: 0; font-size: 22px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; background: var(--surface-2); color: var(--text); padding: 14px; border-radius: 12px; border: 1px solid var(--border); outline: none; font-size: 15px; }
+  button { background: var(--accent); color: #000; padding: 0 24px; border-radius: 12px; font-weight: 700; font-size: 14px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .plan { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+  .step { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+  .step:first-child { border-top: 0; padding-top: 0; }
+  .step .n { width: 28px; height: 28px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; flex-shrink: 0; font-family: monospace; font-size: 12px; color: var(--muted); }
+  .step.done .n { background: var(--accent); color: #000; }
+  .step.active .n { background: var(--warn); color: #000; }
+  .step .body { flex: 1; min-width: 0; }
+  .step .title { font-weight: 600; font-size: 14px; }
+  .step .output { font-size: 13px; color: var(--muted); margin-top: 6px; white-space: pre-wrap; line-height: 1.6; }
+  .final { background: rgba(44,194,149,0.08); border: 1px solid rgba(44,194,149,0.3); border-radius: 16px; padding: 18px; }
+  .final h3 { margin: 0 0 10px; color: var(--accent); font-size: 14px; }
+  .final .body { white-space: pre-wrap; line-height: 1.7; font-size: 14px; }
+</style></head>
+<body>
+  <div class="app">
+    <div>
+      <h1>🎯 Planner Agent</h1>
+      <p class="sub">Give it a goal. It plans, executes step by step, and compiles a final output.</p>
+    </div>
+    <div class="row">
+      <input id="goal" placeholder="e.g. Draft a 30-day launch plan for a tomato cooperative in Tamale" autofocus/>
+      <button id="go" onclick="run()">Plan & execute</button>
+    </div>
+    <div id="planEl"></div>
+    <div id="finalEl"></div>
+  </div>
+  <script>
+    async function callClaude(system, prompt) {
+      const res = await fetch("/api/build/proxy", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system, messages: [{ role: "user", content: prompt }], max_tokens: 1500 }),
+      });
+      const d = await res.json(); return d.content || "";
+    }
+
+    async function run() {
+      const goal = document.getElementById("goal").value.trim(); if (!goal) return;
+      const btn = document.getElementById("go"); btn.disabled = true;
+      document.getElementById("finalEl").innerHTML = "";
+
+      // 1. Plan
+      const planText = await callClaude(
+        "You produce step-by-step plans. Output ONLY a numbered list of 4-6 concrete, executable steps. No prose around it.",
+        "Goal: " + goal + "\\n\\nProduce the plan."
+      );
+      const steps = planText.split("\\n").map(s => s.replace(/^\\d+[\\.\\)]\\s*/, "").trim()).filter(s => s.length > 0).slice(0, 6);
+
+      const planEl = document.getElementById("planEl");
+      planEl.innerHTML = '<div class="plan"><div class="sub" style="margin-bottom:10px">The plan</div>' +
+        steps.map((s, i) => '<div class="step" id="step'+i+'"><div class="n">'+(i+1)+'</div><div class="body"><div class="title">'+s+'</div><div class="output" id="out'+i+'"></div></div></div>').join("") +
+      '</div>';
+
+      // 2. Execute each step
+      const outputs = [];
+      for (let i = 0; i < steps.length; i++) {
+        const stepEl = document.getElementById("step"+i);
+        stepEl.classList.add("active");
+        const out = await callClaude(
+          "You execute one step of a plan. Be concrete and short. Output the deliverable for this step only — no meta-commentary.",
+          "Overall goal: " + goal + "\\n\\nFull plan:\\n" + steps.map((s, idx) => (idx+1) + ". " + s).join("\\n") + "\\n\\nPrevious outputs:\\n" + outputs.map((o, idx) => "Step " + (idx+1) + ": " + o).join("\\n\\n") + "\\n\\nNow execute step " + (i+1) + ": " + steps[i]
+        );
+        outputs.push(out);
+        document.getElementById("out"+i).textContent = out;
+        stepEl.classList.remove("active"); stepEl.classList.add("done");
+      }
+
+      // 3. Final compile
+      const final = await callClaude(
+        "You compile a final, polished deliverable from a sequence of partial outputs. Make it cohesive, well-structured, and ready to share. No meta-commentary.",
+        "Goal: " + goal + "\\n\\nStep outputs:\\n" + outputs.map((o, i) => "=== Step " + (i+1) + ": " + steps[i] + " ===\\n" + o).join("\\n\\n") + "\\n\\nCompile the final deliverable."
+      );
+      document.getElementById("finalEl").innerHTML = '<div class="final"><h3>✨ Final deliverable</h3><div class="body">' + final.replace(/</g, "&lt;") + '</div></div>';
+      btn.disabled = false;
+    }
+  </script>
+</body></html>`,
+  },
+
   {
     id: "blank-canvas",
     name: "Blank Canvas",

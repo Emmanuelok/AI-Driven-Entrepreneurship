@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Card, Badge, Button } from "@/components/ui";
-import { Rocket, GitBranch, Cloud, Key, Zap, Terminal, Globe, Database, Shield, ArrowRight, Hammer, GitMerge } from "lucide-react";
+import { Card, Badge } from "@/components/ui";
+import { Rocket, GitBranch, Cloud, Key, Zap, Globe, Shield, ArrowRight, Hammer, GitMerge, Bot, Wrench, Brain, DollarSign, Activity } from "lucide-react";
 
 type Lesson = {
   id: string;
@@ -87,6 +87,82 @@ const LESSONS: Lesson[] = [
     ],
   },
   {
+    id: "agent-loop",
+    title: "Build an AI agent (the loop)",
+    sub: "What turns a chatbot into an agent — and why it matters",
+    icon: Bot,
+    minutes: 9,
+    steps: [
+      { title: "Chatbot vs agent", body: "A chatbot replies once and stops. An agent runs in a loop: think → act (call a tool) → observe the result → think again — until the goal is reached or it gives up. That loop is the whole secret." },
+      { title: "Pick the agent's job", body: "Narrow beats broad. 'Answer questions about my course notes' ships in a weekend. 'Be a personal CFO' takes a year. Start with one verb and one noun: triage symptoms, price a basket, draft a follow-up." },
+      { title: "Open the Tool-Use Agent template", body: "In the AI Build Studio, hit New project → 'Tool-using agent'. You get a working loop with three example tools (clock, calculator, fake search). Read every line — that's the entire pattern." },
+      { title: "The minimal loop in pseudocode", body: "This is what's running under every 'agent framework' in the world. Don't let anyone gatekeep it.", code: "while not done and steps < MAX_STEPS:\n  reply = call_claude(messages, tools=TOOLS)\n  if reply.wants_tool:\n    result = run_tool(reply.tool_name, reply.tool_args)\n    messages.push(tool_result=result)\n  else:\n    done = True\n    final = reply.text" },
+      { title: "Stop conditions matter", body: "Every agent needs a kill switch: max steps (e.g. 8), max tokens spent (e.g. $0.20), max wall-clock time (e.g. 30s), and a 'no progress' detector. Without these, a confused agent will spin forever and bill you." },
+      { title: "Practice", body: "Add a 4th tool to the Tool-Use template — maybe `get_weather(city)` that returns a hardcoded value. Push it on the loop. Watch the agent decide when to call it." },
+    ],
+  },
+  {
+    id: "agent-prompts",
+    title: "System prompts that actually work",
+    sub: "The 200 words that decide whether your agent is useful",
+    icon: Brain,
+    minutes: 7,
+    steps: [
+      { title: "The system prompt is the job description", body: "If you wouldn't hire a human with these instructions, your agent will fail too. Be specific about role, scope, tone, what to refuse, and how to format answers." },
+      { title: "The 5-part skeleton", body: "Identity. Goals. Available tools (with when to use each). Output format. Failure modes (what to do when stuck).", code: "You are SankofaTriage, a clinical triage assistant for rural\nclinics in Ghana. You speak plain English and Twi when asked.\n\nGOAL: Given symptoms, return a 3-tier urgency rating\n(home-care / clinic-today / hospital-now) and 1-2 next steps.\n\nTOOLS:\n- lookup_drug(name): drug interactions, only when a drug is\n  mentioned by the patient.\n- nearby_clinics(town): used only when urgency >= clinic-today.\n\nOUTPUT: Plain text, max 4 short paragraphs. No medical jargon.\n\nWHEN UNSURE: Refer to hospital-now. Never guess on dosages." },
+      { title: "Few-shot beats explaining", body: "Two or three example interactions inside the system prompt teach the agent more than three paragraphs of rules. Show, don't tell." },
+      { title: "Eval before you ship", body: "Write 10 hard inputs. Run them through your agent. Read every output. Tweak the prompt. Re-run. This is the loop that separates working agents from demos." },
+      { title: "Version your prompts", body: "Save every prompt version with a date and a note about what changed. When the agent regresses, you can diff and find the breaking word." },
+    ],
+  },
+  {
+    id: "agent-tools",
+    title: "Designing tools your agent can actually use",
+    sub: "Bad tools are the #1 reason agents fail",
+    icon: Wrench,
+    minutes: 8,
+    steps: [
+      { title: "One verb per tool", body: "search_products is good. handle_inventory is bad — too vague, the agent won't know when to call it. Each tool should do exactly one thing the agent can name." },
+      { title: "Describe inputs like you're talking to a 12-year-old", body: "The description IS the contract. Claude reads it and decides whether to call your tool. If it's vague, calls will be wrong.", code: "{\n  name: 'lookup_drug',\n  description: 'Look up a single drug by its generic\\n  name (e.g. \"paracetamol\", not \"Panadol\").\\n  Returns interactions and standard dose range.\\n  Use ONLY when a specific drug name appears in the\\n  user message.',\n  input_schema: { type:'object',\n    properties:{ name:{type:'string'} },\n    required:['name']\n  }\n}" },
+      { title: "Validate inputs server-side", body: "Never trust the agent's arguments blindly. If a tool deletes data or spends money, validate the input shape, the user's permission, and the value range — before executing." },
+      { title: "Return useful errors, not crashes", body: "If the tool fails, return `{ error: 'no_results', hint: 'try a shorter query' }`. The agent can recover. If it crashes, the loop dies." },
+      { title: "Idempotent where possible", body: "If `send_email` runs twice because the agent retried, your user gets two emails. Either make tools idempotent (use a request_id) or warn the agent in the description that retries are dangerous." },
+      { title: "The 5-tool rule", body: "Until you've shipped your third agent, keep it under 5 tools. More than that and Claude's tool selection accuracy drops — and so does your debug ability." },
+    ],
+  },
+  {
+    id: "agent-cost",
+    title: "Streaming, memory, and not going broke",
+    sub: "Cost, latency, and context — the three knobs every agent needs",
+    icon: DollarSign,
+    minutes: 8,
+    steps: [
+      { title: "Stream the visible reply", body: "Always stream the agent's final text response so users see it forming. Tool calls don't need to stream — they're fast. Use `?stream=1` on the Sankofa proxy or `.stream()` on the SDK." },
+      { title: "Conversation memory ≠ infinite", body: "Cap message history. After 20 turns, summarize the first 15 into a single 'context so far' message. Long histories cost more on EVERY turn, not just the last." },
+      { title: "Prompt caching = 90% off", body: "Anthropic's prompt caching makes the system prompt + tool definitions effectively free after the first hit. Mark long stable prefixes with `cache_control: { type:'ephemeral' }`.", code: "// Inside the API route\nsystem: [{\n  type: 'text',\n  text: BIG_SYSTEM_PROMPT,\n  cache_control: { type: 'ephemeral' }\n}]" },
+      { title: "Pick the smallest model that works", body: "Haiku is 1/12th the price of Opus and finishes most tool-calling jobs just as well. Default to Sonnet, drop to Haiku for triage/classification, escalate to Opus only when reasoning fails." },
+      { title: "Rate-limit per user", body: "A stuck loop on someone's phone can hit your API 60×/min. The Sankofa proxy already rate-limits per IP at 30/min — keep that on, and add a per-account cap once you have auth." },
+      { title: "Watch the bill daily", body: "Log every call's input/output tokens to your DB. Build a tiny /admin dashboard that shows today's spend per user. You'll catch runaway loops before they cost more than dinner." },
+    ],
+  },
+  {
+    id: "agent-deploy",
+    title: "Ship your first AI agent",
+    sub: "End-to-end: Build Studio → GitHub → Vercel → live URL",
+    icon: Activity,
+    minutes: 12,
+    steps: [
+      { title: "Pick the template that fits", body: "Simple chat agent (a friendly Q&A bot for your discipline) is the shortest path to live. Tool-use agent if you need real actions. Voice agent if your users can't type. RAG agent if you have a corpus. Planner agent if the task has steps." },
+      { title: "Make it yours in the Build Studio", body: "Open the template → change the system prompt to your domain → swap or add tools → test with 5 real inputs in the iframe. Don't leave the studio until each one feels right." },
+      { title: "Download the file", body: "Hit the Export button. You get a single index.html. That's your agent — UI, logic, prompts, all in one file." },
+      { title: "Put it on GitHub", body: "Make a new repo. Put your index.html and a one-paragraph README at the root.", code: "git init\ngit add index.html README.md\ngit commit -m \"Ship v1 of TriageAgent\"\ngit remote add origin https://github.com/USER/triage-agent.git\ngit push -u origin main" },
+      { title: "Deploy to Vercel", body: "vercel.com → New Project → import the repo → Framework Preset = 'Other' → Deploy. 40 seconds later, live URL." },
+      { title: "Wire your own API key (optional)", body: "If you want your agent to call Claude on YOUR key (not Sankofa's proxy), set `ANTHROPIC_API_KEY` in Vercel's Environment Variables, add a tiny serverless route `/api/chat`, and point your agent's fetch() there. See the 'Secrets & API keys' and 'Wire your build to an AI API' lessons above." },
+      { title: "Show one person", body: "Send the URL on WhatsApp to a real intended user. Watch them. Note the first 3 things they're confused by. Fix two. Push. Done — Vercel auto-deploys." },
+      { title: "What you just shipped", body: "An autonomous loop, with tools, with memory, with cost controls, on a public URL. That's an AI product. Most CS graduates have never done this. You did." },
+    ],
+  },
+  {
     id: "first-customer",
     title: "Get your first real user",
     sub: "Deploy → share → listen",
@@ -113,9 +189,9 @@ export default function ShipItLessonsPage() {
           From your laptop to a real URL anyone in the world can hit.
         </h1>
         <p className="mt-3 text-muted max-w-2xl leading-relaxed">
-          Six short lessons. Every one ends with you having actually shipped something.
-          Built for the moment you&apos;ve made something in the AI Build Studio and you&apos;re ready
-          to put it in front of a real person.
+          Short lessons that always end with you having shipped something — from your first
+          commit to a deployed AI agent. Built for the moment you&apos;ve made something in the
+          AI Build Studio and you&apos;re ready to put it in front of a real person.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/studio/build" className="bg-emerald text-black font-medium px-5 py-2.5 rounded-full hover:bg-amber transition flex items-center gap-2 text-sm">

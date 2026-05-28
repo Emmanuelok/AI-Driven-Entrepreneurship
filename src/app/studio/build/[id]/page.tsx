@@ -371,21 +371,31 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
               </button>
             </div>
           </div>
-          <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
-            <div
-              className="bg-white rounded-lg overflow-hidden shadow-2xl transition-all"
-              style={{ width: Math.min(deviceWidth, 100000), maxWidth: "100%", height: device === "phone" ? 780 : device === "tablet" ? 900 : "auto", minHeight: device === "desktop" ? 600 : undefined }}
-            >
+          <div className={`flex-1 overflow-auto ${device === "desktop" ? "p-0" : "p-4 flex items-start justify-center"}`}>
+            {device === "desktop" ? (
               <iframe
                 key={previewKey}
                 title="preview"
                 srcDoc={injectConsoleBridge(project.code)}
                 sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
                 allow="microphone; camera; geolocation; clipboard-read; clipboard-write; serial"
-                className="w-full h-full border-0"
-                style={{ minHeight: device === "phone" ? 780 : 600 }}
+                className="w-full h-full border-0 bg-white"
               />
-            </div>
+            ) : (
+              <div
+                className="bg-white rounded-lg overflow-hidden shadow-2xl transition-all"
+                style={{ width: deviceWidth, maxWidth: "100%", height: device === "phone" ? 780 : 900 }}
+              >
+                <iframe
+                  key={previewKey}
+                  title="preview"
+                  srcDoc={injectConsoleBridge(project.code)}
+                  sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                  allow="microphone; camera; geolocation; clipboard-read; clipboard-write; serial"
+                  className="w-full h-full border-0"
+                />
+              </div>
+            )}
           </div>
           {/* Error pill jumps you to the console */}
           {consoleEntries.some((e) => e.level === "error") && tab !== "console" && (
