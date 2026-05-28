@@ -1,6 +1,7 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { moderateOrBlock } from "@/lib/moderation";
+import { createNotification, ownerOf } from "@/lib/notifications-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,23 @@ export async function POST(req: Request) {
     body: text,
   }).select("id, user_id, author_name, body, created_at").single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Notify the artifact owner.
+  const owner = await ownerOf(body.kind as "build" | "venture", body.slug);
+  if (owner.userId) {
+    const url = body.kind === "build" ? `/studio/marketplace/${body.slug}` : `/v/${body.slug}`;
+    void createNotification({
+      userId: owner.userId,
+      kind: "comment",
+      actorId: u.user.id,
+      actorName: authorName,
+      targetKind: body.kind as "build" | "venture",
+      targetSlug: body.slug,
+      title: `${authorName} commented on your ${body.kind}`,
+      body: text.slice(0, 240),
+      url,
+    });
+  }
 
   return Response.json({ ok: true, comment: data });
 }

@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { embed } from "@/lib/embeddings";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
+import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +51,9 @@ export async function POST(req: Request) {
   // Quietly skipped when cloud sync isn't configured or the user is anonymous.
   const ragContext = await retrieveStudentContext(messages[messages.length - 1].content, authToken);
 
-  const { key: apiKey } = resolveAnthropicKey(req);
+  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
+  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
+  if (quotaBlocked) return quotaBlocked;
   if (!apiKey) {
     return new Response(makeFallbackStream(messages[messages.length - 1].content, context), {
       headers: { "Content-Type": "text/plain; charset=utf-8", "x-sage-mode": "demo" },

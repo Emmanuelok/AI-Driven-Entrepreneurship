@@ -1,4 +1,5 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { createNotification, ownerOf } from "@/lib/notifications-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +51,28 @@ export async function POST(req: Request) {
   if (!body.kind || !body.slug) return Response.json({ ok: false, error: "missing fields" }, { status: 400 });
 
   // Idempotent insert (RLS allows duplicate slot, unique constraint rejects dups).
-  await sb.from("claps").insert({ user_id: u.user.id, kind: body.kind, slug: body.slug });
+  const { error: insertError } = await sb.from("claps").insert({ user_id: u.user.id, kind: body.kind, slug: body.slug });
+
+  // Notify the artifact owner — but only on the FIRST clap (insertError null).
+  // Re-clapping after an unclap shouldn't spam another notification.
+  if (!insertError) {
+    const owner = await ownerOf(body.kind as "build" | "venture", body.slug);
+    if (owner.userId) {
+      const meta = (u.user.user_metadata ?? {}) as { name?: string; full_name?: string };
+      const actorName = meta.name || meta.full_name || (u.user.email ? u.user.email.split("@")[0] : "Someone");
+      const url = body.kind === "build" ? `/studio/marketplace/${body.slug}` : `/v/${body.slug}`;
+      void createNotification({
+        userId: owner.userId,
+        kind: "clap",
+        actorId: u.user.id,
+        actorName,
+        targetKind: body.kind as "build" | "venture",
+        targetSlug: body.slug,
+        title: `${actorName} clapped for your ${body.kind}`,
+        url,
+      });
+    }
+  }
 
   // Always re-fetch the count so the client sees the latest authoritative total.
   const { count } = await sb.from("claps").select("*", { count: "exact", head: true }).eq("kind", body.kind).eq("slug", body.slug);

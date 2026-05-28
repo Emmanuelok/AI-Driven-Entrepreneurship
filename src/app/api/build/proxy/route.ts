@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { moderateOrBlock } from "@/lib/moderation";
 import { resolveAnthropicKey, keySourceHeader } from "@/lib/anthropic-key";
+import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +83,8 @@ export async function POST(req: Request) {
   }
 
   const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
+  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
+  if (quotaBlocked) return quotaBlocked;
   if (!apiKey) {
     const demo = "[demo proxy] Wire ANTHROPIC_API_KEY on the server to enable real AI replies. For now, your build is talking to a stub — you can see the message flow, but the response is canned. Last user message: " + body.messages[body.messages.length - 1].content.slice(0, 140);
     if (wantStream) {

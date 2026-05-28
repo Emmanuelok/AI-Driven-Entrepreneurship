@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Brain, Compass, FlaskConical, Rocket, Globe2, LayoutDashboard, ArrowLeft,
-  Users, Wallet, Award, BookMarked, Building2, Settings, Bell, Menu,
+  Users, Wallet, Award, BookMarked, Building2, Settings, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
   User, Timer, Zap, Dna, Mail, Hammer,
@@ -25,6 +25,7 @@ import { ServiceWorker } from "@/components/service-worker";
 import { HelpOverlay } from "@/components/help-overlay";
 import { SearchIndexer } from "@/components/search-indexer";
 import { ErrorReporter } from "@/components/error-reporter";
+import { NotificationsBell } from "@/components/notifications-bell";
 import { useT } from "@/lib/i18n";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
@@ -79,9 +80,8 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { user, hydrated, notifications, markAllRead, streak } = useStore();
+  const { user, hydrated, streak } = useStore();
   const t = useT();
 
   // Mount-once gate to avoid SSR/CSR hydration mismatches caused by
@@ -115,7 +115,6 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   }
 
   const groups = Array.from(new Set(NAV.map((n) => n.group)));
-  const unread = notifications.filter((n) => !n.read).length;
 
   function Logo() {
     return (
@@ -248,35 +247,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
             >
               ?
             </button>
-            <div className="relative">
-              <button
-                onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) markAllRead(); }}
-                aria-label={`Notifications${unread > 0 ? ` — ${unread} unread` : ""}`}
-                aria-expanded={notifOpen}
-                className="relative size-9 rounded-xl border border-border bg-surface hover:bg-surface-2 transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald focus:ring-offset-2 focus:ring-offset-surface"
-              >
-                <Bell className="size-4" />
-                {unread > 0 && (
-                  <span className="absolute -top-1 -right-1 size-4 text-[10px] bg-rust text-white rounded-full flex items-center justify-center">
-                    {unread > 9 ? "9+" : unread}
-                  </span>
-                )}
-              </button>
-              {notifOpen && (
-                <div className="absolute right-0 top-12 w-80 glass rounded-xl overflow-hidden z-30">
-                  <div className="px-4 py-3 border-b border-border text-xs uppercase tracking-widest text-muted">Notifications</div>
-                  <div className="max-h-96 overflow-y-auto divide-y divide-border">
-                    {notifications.length === 0 && <div className="px-4 py-6 text-sm text-muted text-center">All caught up.</div>}
-                    {notifications.map((n) => (
-                      <div key={n.id} className="px-4 py-3 text-sm hover:bg-surface-2 transition">
-                        <div className="font-medium">{n.title}</div>
-                        <div className="text-muted text-xs mt-0.5">{n.body}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <NotificationsBell />
             <Link href="/" className="hidden sm:flex items-center gap-1 text-xs text-muted hover:text-foreground transition px-3 py-2 rounded-xl">
               <ArrowLeft className="size-3" /> Landing
             </Link>

@@ -1,5 +1,6 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { logEvent } from "@/lib/events";
+import { createNotification } from "@/lib/notifications-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +36,28 @@ export async function POST(req: Request) {
     forkerId = u?.user?.id;
   }
   await logEvent({ kind: "fork", scope: "marketplace", userId: forkerId, ctx: { from_slug: slug, original_owner: build.owner_id } });
+
+  // Tell the original author someone forked their work — best moment
+  // for them to drop a comment back or follow the new builder.
+  if (build.owner_id) {
+    let forkerName = "Someone";
+    if (forkerId) {
+      const { data: actor } = await sb.auth.admin.getUserById(forkerId);
+      const meta = (actor?.user?.user_metadata ?? {}) as { name?: string; full_name?: string };
+      forkerName = meta.name || meta.full_name || (actor?.user?.email ? actor.user.email.split("@")[0] : "Someone");
+    }
+    void createNotification({
+      userId: build.owner_id,
+      kind: "fork",
+      actorId: forkerId ?? null,
+      actorName: forkerName,
+      targetKind: "build",
+      targetSlug: slug,
+      title: `${forkerName} forked "${build.title}"`,
+      body: "They'll iterate independently — but it means your work is useful to someone.",
+      url: `/studio/marketplace/${slug}`,
+    });
+  }
 
   return Response.json({
     ok: true,

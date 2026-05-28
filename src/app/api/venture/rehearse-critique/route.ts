@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
+import { resolveAnthropicKey } from "@/lib/anthropic-key";
+import { enforceQuotaForPlatform } from "@/lib/quota";
 import { moderateOrBlock } from "@/lib/moderation";
 
 export const runtime = "nodejs";
@@ -52,7 +54,9 @@ export async function POST(req: Request) {
   const body = (await req.json()) as Body;
   const blocked = await moderateOrBlock(body.transcript, { skipLLM: true });
   if (blocked) return blocked;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
+  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
+  if (quotaBlocked) return quotaBlocked;
   if (!apiKey) return Response.json(fallback(body));
 
   const wordCount = body.transcript.trim().split(/\s+/).filter(Boolean).length;

@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
+import { resolveAnthropicKey } from "@/lib/anthropic-key";
+import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 
@@ -35,7 +37,9 @@ export async function POST(req: Request) {
   const rl = rateLimit({ scope: "launch-page", ipKey: clientIp(req), maxCalls: 10 });
   if (!rl.ok) return rateLimited(rl);
   const body = (await req.json()) as Body;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
+  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
+  if (quotaBlocked) return quotaBlocked;
   if (!apiKey) return Response.json(fallback(body));
 
   const ctx = [
