@@ -205,14 +205,22 @@ function Hello({ onNext }: { onNext: () => void }) {
 
 /* ─── Stage 2: IDENTITY ─── */
 function Identity({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: Form) => void; onNext: () => void; onBack: () => void }) {
+  const nameOk = form.name.trim().length > 1;
+  const emailOk = form.email.trim().length === 0 || form.email.includes("@");
   return (
     <StageShell>
-      <SageBubble text="What should I call you? And where can I reach you when you're not here?" />
+      <SageBubble text="What should I call you? Email is optional — only useful if you want to reach future-you on another device." />
       <div className="glass rounded-2xl p-7 space-y-5">
         <Field label="Your name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ama Mensah" className="bg-surface-2 border border-border rounded-xl px-4 py-3 text-base outline-none focus:border-emerald w-full" /></Field>
-        <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@example.com" className="bg-surface-2 border border-border rounded-xl px-4 py-3 text-base outline-none focus:border-emerald w-full" /></Field>
+        <Field label="Email (optional)"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@example.com — or leave blank" className="bg-surface-2 border border-border rounded-xl px-4 py-3 text-base outline-none focus:border-emerald w-full" /></Field>
+        {form.email.trim().length > 0 && !emailOk && (
+          <p className="text-xs text-amber italic">That doesn&apos;t look like an email yet. Add an @ — or clear the field to skip.</p>
+        )}
+        {!nameOk && form.name.trim().length > 0 && (
+          <p className="text-xs text-amber italic">Just need at least two letters.</p>
+        )}
       </div>
-      <Nav onBack={onBack} onNext={onNext} canNext={form.name.trim().length > 1 && form.email.includes("@")} />
+      <Nav onBack={onBack} onNext={onNext} canNext={nameOk && emailOk} />
     </StageShell>
   );
 }
