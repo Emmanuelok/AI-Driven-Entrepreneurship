@@ -19,6 +19,32 @@ export type BuildChatMessage = {
   content: string;
 };
 
+// ─── Eval harness ───────────────────────────────────────────────────────
+export type EvalTest = {
+  id: string;
+  name?: string;
+  input: string;          // user message sent to the agent
+  rubric: string;         // what "passing" looks like, in natural language
+  mustInclude?: string[]; // optional fast-pass: every substring must appear
+};
+
+export type EvalRun = {
+  id: string;
+  testId: string;
+  ts: number;
+  output: string;
+  passed: boolean;
+  score: number;          // 0..10
+  reasoning: string;
+  systemUsed: string;     // the system prompt at the time of run (for diffing)
+};
+
+export type EvalSuite = {
+  systemPrompt: string;
+  tests: EvalTest[];
+  runs: EvalRun[];        // append-only history (latest first)
+};
+
 export type BuildProject = {
   id: string;
   name: string;
@@ -30,6 +56,7 @@ export type BuildProject = {
   createdAt: number;
   updatedAt: number;
   deployedUrl?: string; // when a real deploy is wired
+  eval?: EvalSuite;
 };
 
 type State = {
@@ -44,6 +71,13 @@ type State = {
   appendChat: (id: string, role: "user" | "assistant", content: string) => string;
   updateLastAssistant: (id: string, content: string) => void;
   setDeployedUrl: (id: string, url: string) => void;
+
+  // eval harness
+  setEvalSystem: (projectId: string, systemPrompt: string) => void;
+  addEvalTest: (projectId: string, test: Omit<EvalTest, "id">) => string;
+  updateEvalTest: (projectId: string, testId: string, patch: Partial<EvalTest>) => void;
+  removeEvalTest: (projectId: string, testId: string) => void;
+  appendEvalRun: (projectId: string, run: Omit<EvalRun, "id">) => void;
 
   _hydrate: () => void;
 };
@@ -116,6 +150,60 @@ export const useBuild = create<State>()(
       },
 
       setDeployedUrl: (id, url) => set({ projects: get().projects.map((p) => p.id === id ? { ...p, deployedUrl: url } : p) }),
+
+      // ─── eval harness ───────────────────────────────────────────────
+      setEvalSystem: (projectId, systemPrompt) => {
+        set({
+          projects: get().projects.map((p) => p.id === projectId ? {
+            ...p,
+            eval: { systemPrompt, tests: p.eval?.tests ?? [], runs: p.eval?.runs ?? [] },
+            updatedAt: Date.now(),
+          } : p),
+        });
+      },
+      addEvalTest: (projectId, test) => {
+        const tid = nanoid(6);
+        set({
+          projects: get().projects.map((p) => p.id === projectId ? {
+            ...p,
+            eval: {
+              systemPrompt: p.eval?.systemPrompt ?? "",
+              tests: [...(p.eval?.tests ?? []), { id: tid, ...test }],
+              runs: p.eval?.runs ?? [],
+            },
+            updatedAt: Date.now(),
+          } : p),
+        });
+        return tid;
+      },
+      updateEvalTest: (projectId, testId, patch) => {
+        set({
+          projects: get().projects.map((p) => p.id === projectId ? {
+            ...p,
+            eval: p.eval ? { ...p.eval, tests: p.eval.tests.map((t) => t.id === testId ? { ...t, ...patch } : t) } : p.eval,
+            updatedAt: Date.now(),
+          } : p),
+        });
+      },
+      removeEvalTest: (projectId, testId) => {
+        set({
+          projects: get().projects.map((p) => p.id === projectId ? {
+            ...p,
+            eval: p.eval ? { ...p.eval, tests: p.eval.tests.filter((t) => t.id !== testId), runs: p.eval.runs.filter((r) => r.testId !== testId) } : p.eval,
+            updatedAt: Date.now(),
+          } : p),
+        });
+      },
+      appendEvalRun: (projectId, run) => {
+        const rid = nanoid(8);
+        set({
+          projects: get().projects.map((p) => p.id === projectId ? {
+            ...p,
+            eval: p.eval ? { ...p.eval, runs: [{ id: rid, ...run }, ...p.eval.runs].slice(0, 200) } : { systemPrompt: run.systemUsed, tests: [], runs: [{ id: rid, ...run }] },
+            updatedAt: Date.now(),
+          } : p),
+        });
+      },
 
       _hydrate: () => set({ hydrated: true }),
     }),

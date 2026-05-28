@@ -4,7 +4,7 @@ import { use } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, notFound } from "next/navigation";
 import { useStore } from "@/store";
-import { Lightbulb, Users, Wrench, TrendingUp, Layout as LayoutIcon, FileText, Wallet, Brain, ArrowLeft, Target, FolderLock, Scale, Megaphone } from "lucide-react";
+import { Lightbulb, Users, Wrench, TrendingUp, Layout as LayoutIcon, FileText, Wallet, Brain, ArrowLeft, Target, FolderLock, Scale, Megaphone, Mic } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -13,6 +13,7 @@ const TABS = [
   { slug: "discover", label: "Discover", icon: Users },
   { slug: "mvp", label: "MVP", icon: Wrench },
   { slug: "pitch", label: "Pitch", icon: FileText },
+  { slug: "rehearse", label: "Rehearse", icon: Mic },
   { slug: "fundraise", label: "Fundraise", icon: Wallet },
   { slug: "growth", label: "Growth", icon: TrendingUp },
   { slug: "okrs", label: "OKRs", icon: Target },
