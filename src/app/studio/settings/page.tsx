@@ -6,6 +6,7 @@ import { useAiUsage } from "@/store/ai-usage";
 import { Card, Button, Input, Badge } from "@/components/ui";
 import { User, Bell, Shield, Download, Trash2, KeyRound, Zap, Globe, AlertTriangle } from "lucide-react";
 import { PushToggle } from "@/components/push-toggle";
+import { ByoKeyPanel } from "@/components/byo-key-panel";
 
 // Every persisted store name → human label, for export + nuke.
 const STORE_KEYS: Record<string, string> = {
@@ -16,6 +17,8 @@ const STORE_KEYS: Record<string, string> = {
   "sankofa-ext-v1": "Extensions & tool state",
   "sankofa-me-v1": "Genome, memories, activity log",
   "sankofa-ai-usage-v1": "AI usage history",
+  "sankofa-byok-v1": "Your personal Anthropic API key (BYOK)",
+  "sankofa-lang-v1": "Language preference",
 };
 
 export default function SettingsPage() {
@@ -134,9 +137,13 @@ export default function SettingsPage() {
       </Card>
 
       <Card className="p-6 mb-6">
-        <h2 className="font-medium flex items-center gap-2 mb-3"><KeyRound className="size-4 text-emerald" /> AI API keys</h2>
-        <p className="text-sm text-muted mb-3">Sage and the coaches run on Anthropic. Add your <code className="text-emerald">ANTHROPIC_API_KEY</code> to <code>.env.local</code> (local) or your Vercel project env vars (deployed) to switch from demo mode to live Claude responses.</p>
-        <div className="bg-surface-2 rounded-xl p-4 font-mono text-xs">ANTHROPIC_API_KEY=sk-ant-…</div>
+        <h2 className="font-medium flex items-center gap-2 mb-4"><KeyRound className="size-4 text-emerald" /> AI keys</h2>
+        <ByoKeyPanel />
+        <div className="mt-5 pt-5 border-t border-border">
+          <div className="text-[10px] uppercase tracking-widest text-muted mb-2">Platform key (operator-set)</div>
+          <p className="text-xs text-muted mb-2">Without a personal key above, AI runs on the platform-wide <code className="text-emerald">ANTHROPIC_API_KEY</code> set in deploy env. Demo mode kicks in when neither is configured.</p>
+          <div className="bg-surface-2 rounded-xl p-3 font-mono text-[10px]">ANTHROPIC_API_KEY=sk-ant-…</div>
+        </div>
       </Card>
 
       <Card className="p-6 mb-6">

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { moderateOrBlock } from "@/lib/moderation";
+import { resolveAnthropicKey, keySourceHeader } from "@/lib/anthropic-key";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +81,7 @@ export async function POST(req: Request) {
     if (sysBlocked) return sysBlocked;
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
   if (!apiKey) {
     const demo = "[demo proxy] Wire ANTHROPIC_API_KEY on the server to enable real AI replies. For now, your build is talking to a stub — you can see the message flow, but the response is canned. Last user message: " + body.messages[body.messages.length - 1].content.slice(0, 140);
     if (wantStream) {
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
           controller.close();
         }
       },
-    }), { headers: { "Content-Type": "text/plain; charset=utf-8", "X-RateLimit-Remaining": String(rl.remaining) } });
+    }), { headers: { "Content-Type": "text/plain; charset=utf-8", "X-RateLimit-Remaining": String(rl.remaining), ...keySourceHeader(keySource) } });
   }
 
   try {
@@ -135,7 +136,7 @@ export async function POST(req: Request) {
       messages,
     });
     const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("");
-    return Response.json({ content: text }, { headers: { "X-RateLimit-Remaining": String(rl.remaining), ...aiUsageHeaders(res) } });
+    return Response.json({ content: text }, { headers: { "X-RateLimit-Remaining": String(rl.remaining), ...aiUsageHeaders(res), ...keySourceHeader(keySource) } });
   } catch (e) {
     return Response.json({ error: "upstream_failed", message: (e as Error).message }, { status: 502 });
   }

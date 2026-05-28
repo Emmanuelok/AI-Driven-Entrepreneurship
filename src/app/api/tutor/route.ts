@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { embed } from "@/lib/embeddings";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
+import { resolveAnthropicKey } from "@/lib/anthropic-key";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
   // Quietly skipped when cloud sync isn't configured or the user is anonymous.
   const ragContext = await retrieveStudentContext(messages[messages.length - 1].content, authToken);
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { key: apiKey } = resolveAnthropicKey(req);
   if (!apiKey) {
     return new Response(makeFallbackStream(messages[messages.length - 1].content, context), {
       headers: { "Content-Type": "text/plain; charset=utf-8", "x-sage-mode": "demo" },

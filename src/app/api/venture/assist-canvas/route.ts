@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { moderateOrBlock } from "@/lib/moderation";
+import { resolveAnthropicKey } from "@/lib/anthropic-key";
 
 export const runtime = "nodejs";
 
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
   const candidate = `${body.ventureName} ${body.tagline} ${Object.values(body.currentCanvas).join(" ")}`;
   const blocked = await moderateOrBlock(candidate, { skipLLM: true });
   if (blocked) return blocked;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { key: apiKey } = resolveAnthropicKey(req);
   if (!apiKey) {
     return Response.json({ text: fallback(body) });
   }

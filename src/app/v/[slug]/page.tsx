@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { Claps, Comments } from "@/components/social";
 
 // Public investor profile. Static-render the SSR'd payload. No auth.
 // Loads the payload server-side so the page is shareable + SEO-able.
@@ -215,6 +216,16 @@ export default async function PublicVenturePage({ params }: { params: Promise<{ 
       )}
 
       {/* Footer */}
+      {/* Social */}
+      <section className="border-t border-[#1f2c28]" aria-label="Reactions and comments">
+        <div className="max-w-5xl mx-auto px-6 sm:px-8 py-12 space-y-6">
+          <div className="flex items-center gap-3">
+            <Claps kind="venture" slug={slug} />
+            <span className="text-xs text-[#6b8079]">Encourage the founder — every clap counts.</span>
+          </div>
+          <Comments kind="venture" slug={slug} />
+        </div>
+      </section>
       </main>
       <footer className="border-t border-[#1f2c28]">
         <div className="max-w-5xl mx-auto px-6 sm:px-8 py-10 flex items-center justify-between flex-wrap gap-3 text-xs text-[#6b8079]">

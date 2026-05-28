@@ -8,6 +8,7 @@ import { Card, Button, Badge } from "@/components/ui";
 import { GitFork, Eye, ArrowLeft, ExternalLink, Smartphone, Monitor, Tablet } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { injectConsoleBridge } from "@/components/build-tools";
+import { Claps, Comments } from "@/components/social";
 
 type Build = {
   slug: string;
@@ -108,7 +109,8 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
             <span>Updated {formatDistanceToNow(new Date(build.updated_at), { addSuffix: true })}</span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Claps kind="build" slug={slug} />
           <Button onClick={fork} disabled={forking} size="lg">
             <GitFork className="size-4" /> {forking ? "Forking…" : "Fork to my studio"}
           </Button>
@@ -140,6 +142,10 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
             />
           </div>
         </div>
+      </Card>
+
+      <Card className="p-5">
+        <Comments kind="build" slug={slug} />
       </Card>
 
       <Card className="p-5">

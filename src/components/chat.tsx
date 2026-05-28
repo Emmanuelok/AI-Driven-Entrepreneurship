@@ -54,9 +54,14 @@ export function ChatPanel({
         }
       } catch { /* anonymous is fine */ }
 
+      // Forward BYOK header so the request uses the student's own
+      // Anthropic key instead of the platform key, when configured.
+      const { byoHeaders } = await import("@/store/byo-key");
+      const headers: Record<string, string> = { "Content-Type": "application/json", ...byoHeaders() };
+
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ messages: next, context: { language }, authToken }),
       });
       const detected = res.headers.get("x-mode") ?? res.headers.get("x-sage-mode");
