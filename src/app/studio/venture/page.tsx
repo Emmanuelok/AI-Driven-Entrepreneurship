@@ -13,9 +13,50 @@ export default function VenturesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const importToken = searchParams.get("import");
+  const acceptToken = searchParams.get("accept");
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [accepting, setAccepting] = useState(false);
   const [importMessage, setImportMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  // Redeem a collaboration invite token (?accept=...) into a real
+  // collaborator row on the cloud venture.
+  useEffect(() => {
+    if (!acceptToken || accepting) return;
+    setAccepting(true);
+    (async () => {
+      try {
+        const { supabaseBrowser } = await import("@/lib/supabase");
+        const sb = supabaseBrowser();
+        if (!sb) {
+          setImportMessage({ kind: "error", text: "Cloud sync isn't configured here. Ask the inviter for a different way." });
+          return;
+        }
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) {
+          setImportMessage({ kind: "error", text: "Sign in first, then click the invite link again." });
+          return;
+        }
+        const res = await fetch("/api/v2/ventures/accept-invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ token: acceptToken }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          setImportMessage({ kind: "error", text: data.error === "expired" ? "This invite has expired." : "Couldn't redeem the invite." });
+          return;
+        }
+        setImportMessage({ kind: "success", text: "You're in. Opening the venture…" });
+        setTimeout(() => router.replace(`/studio/venture/${data.ventureId}`), 600);
+      } catch (e) {
+        setImportMessage({ kind: "error", text: (e as Error).message });
+      } finally {
+        setAccepting(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acceptToken]);
 
   // Redeem a share token from ?import= — clones the shared venture
   // into this user's account.

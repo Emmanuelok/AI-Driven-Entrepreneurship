@@ -10,11 +10,14 @@ import { PROBLEMS } from "@/lib/problems";
 import { Card, Badge, Button } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
 import { ShareVentureButton } from "@/components/share-venture";
+import { CollaborateDialog } from "@/components/collaborate-dialog";
+import { CoPresence } from "@/components/co-presence";
+import { useCloudVenture } from "@/lib/cloud-venture";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import {
   Target, Users, Wallet, Trophy, Lightbulb, Wrench, Megaphone, TrendingUp,
   CheckCircle2, Sparkles, MapPin, Calendar, ArrowRight, Brain,
-  Send, FileText, Bot, Zap, Activity, ChevronRight, Compass,
+  Send, FileText, Bot, Zap, Activity, ChevronRight, Compass, UsersRound,
 } from "lucide-react";
 
 const PHASES = [
@@ -35,6 +38,8 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
   const [akiliBrief, setAkiliBrief] = useState<string>("");
   const [akiliBusy, setAkiliBusy] = useState(false);
   const [daysSinceStart, setDaysSinceStart] = useState(0);
+  const [collabOpen, setCollabOpen] = useState(false);
+  const cloudVenture = useCloudVenture(id);
 
   const found = ventures.find((x) => x.id === id);
   const v = found;
@@ -178,7 +183,16 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
             </motion.h1>
             <p className="text-muted mt-1 max-w-2xl">{v.tagline}</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
+            <CoPresence presence={cloudVenture.presence} myUserId={user?.id} />
+            <button
+              onClick={() => setCollabOpen(true)}
+              className="size-11 rounded-full border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 transition flex items-center justify-center text-muted hover:text-emerald"
+              title={cloudVenture.isCloud ? `${cloudVenture.members.length} member${cloudVenture.members.length === 1 ? "" : "s"} — manage` : "Invite a co-founder"}
+              aria-label="Manage collaborators"
+            >
+              <UsersRound className="size-4" />
+            </button>
             <ShareVentureButton venture={v} />
             <Link
               href={`/studio/venture/${v.id}/coach`}
@@ -393,6 +407,8 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
           </div>
         )}
       </div>
+
+      <CollaborateDialog ventureId={v.id} open={collabOpen} onClose={() => setCollabOpen(false)} />
     </div>
   );
 }
