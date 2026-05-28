@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore, Card as SRSCard } from "@/store";
 import { Card, Button, Input, Textarea, EmptyState, Stat, Dialog } from "@/components/ui";
@@ -12,6 +12,8 @@ export default function SrsPage() {
   const [reviewing, setReviewing] = useState(false);
   const [creatingDeck, setCreatingDeck] = useState(false);
   const [addingCardTo, setAddingCardTo] = useState<string | null>(null);
+  const [now, setNow] = useState(0);
+  useEffect(() => { setNow(Date.now()); }, [decks, cards]);
 
   const due = dueCards();
   const stats = useMemo(
@@ -64,7 +66,7 @@ export default function SrsPage() {
         <div className="grid sm:grid-cols-2 gap-4">
           {decks.map((d) => {
             const deckCards = cards.filter((c) => c.deckId === d.id);
-            const deckDue = deckCards.filter((c) => c.due <= Date.now()).length;
+            const deckDue = deckCards.filter((c) => c.due <= now).length;
             return (
               <Card key={d.id} className="p-6">
                 <div className="flex items-start justify-between gap-3 mb-3">

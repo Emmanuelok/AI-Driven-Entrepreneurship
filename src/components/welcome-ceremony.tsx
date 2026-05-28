@@ -25,18 +25,22 @@ export function WelcomeCeremony() {
   useEffect(() => {
     if (!user) return;
     if (typeof window === "undefined") return;
-    const done = localStorage.getItem(WELCOME_KEY);
-    if (!done) {
-      setOpen(true);
-      setBeat(0);
-      remember({ fact: `First entered the studio on ${new Date().toLocaleDateString()}`, kind: "context", source: "system", importance: 3 });
+    try {
+      const done = localStorage.getItem(WELCOME_KEY);
+      if (!done) {
+        setOpen(true);
+        setBeat(0);
+        remember({ fact: `First entered the studio on ${new Date().toLocaleDateString()}`, kind: "context", source: "system", importance: 3 });
+      }
+    } catch {
+      // localStorage unavailable (private mode, etc) — skip silently
     }
   }, [user]);
 
   if (!user || !open) return null;
 
   const close = () => {
-    localStorage.setItem(WELCOME_KEY, "1");
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch {}
     setOpen(false);
   };
 

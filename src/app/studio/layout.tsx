@@ -66,24 +66,35 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { user, hydrated, notifications, markAllRead, streak } = useStore();
 
+  // Mount-once gate to avoid SSR/CSR hydration mismatches caused by
+  // zustand-persist reading localStorage synchronously on the client.
+  useEffect(() => { setMounted(true); }, []);
+
   useEffect(() => {
-    if (hydrated && !user && pathname !== "/studio/onboarding") {
+    if (mounted && hydrated && !user && pathname !== "/studio/onboarding") {
       router.replace("/studio/onboarding");
     }
-  }, [hydrated, user, pathname, router]);
+  }, [mounted, hydrated, user, pathname, router]);
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  // Skip the studio shell on onboarding (let it own the whole viewport)
   if (pathname === "/studio/onboarding") {
     return <>{children}</>;
   }
 
-  if (!hydrated) {
+  // Render a stable skeleton until the client has mounted AND the persisted
+  // store has rehydrated. This makes SSR HTML match first client render.
+  if (!mounted || !hydrated) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="size-12 rounded-full bg-emerald/20 animate-pulse" />
+      <div className="flex-1 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="size-12 rounded-full bg-emerald/20 mx-auto mb-3 animate-pulse" />
+          <div className="text-xs uppercase tracking-[0.25em] text-muted">Loading your studio…</div>
+        </div>
       </div>
     );
   }

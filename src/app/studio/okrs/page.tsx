@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useExt, KeyResult, Objective } from "@/store/extensions";
 import { Card, Button, Input, Badge, Dialog, EmptyState } from "@/components/ui";
 import { Target, Plus, Trash2, Sparkles, TrendingUp } from "lucide-react";
 
-const QUARTER = (() => {
-  const d = new Date();
-  return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
-})();
-
 export default function OkrsPage() {
   const { objectives, addObjective, updateObjective, removeObjective, addKR, updateKR } = useExt();
   const [creating, setCreating] = useState(false);
+  const [QUARTER, setQuarter] = useState("This quarter");
+  useEffect(() => {
+    const d = new Date();
+    setQuarter(`Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`);
+  }, []);
   const [generating, setGenerating] = useState(false);
 
   async function aiGenerate() {

@@ -35,12 +35,15 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
   const problem = v.problemId ? PROBLEMS.find((p) => p.id === v.problemId) : undefined;
   const activePhaseIdx = PHASES.findIndex((p) => p.id === v.phase);
   const activePhase = PHASES[activePhaseIdx] ?? PHASES[0];
-  const daysSinceStart = Math.floor((Date.now() - v.createdAt) / 86_400_000) || 0;
   const mvpDone = v.mvpTasks.filter((t) => t.done).length;
   const interviewPct = (v.interviews.length / Math.max(1, v.metrics.interviewsTarget)) * 100;
 
   const [akiliBrief, setAkiliBrief] = useState<string>("");
   const [akiliBusy, setAkiliBusy] = useState(false);
+  const [daysSinceStart, setDaysSinceStart] = useState(0);
+  useEffect(() => {
+    setDaysSinceStart(Math.floor((Date.now() - v.createdAt) / 86_400_000) || 0);
+  }, [v.createdAt]);
 
   useEffect(() => {
     // Auto-generate the Akili "right now" brief on mount

@@ -46,6 +46,13 @@ export default function Dashboard() {
   const { brainstorms, agentRuns } = useExt();
   const { goals, recentActivity, memories, prefs, todaysBrief, setBrief, markPriorityDone } = useMe();
   const [briefing, setBriefing] = useState(false);
+  const [greeting, setGreeting] = useState("Welcome back");
+
+  // Compute time-dependent values only on the client to avoid SSR/CSR mismatch.
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -60,8 +67,6 @@ export default function Dashboard() {
   const completed = Object.values(progress).filter((p) => p.status === "completed").length;
   const activeGoals = goals.filter((g) => g.status === "active");
   const rec = getRecommendations(user.field);
-  const todayHour = new Date().getHours();
-  const greeting = todayHour < 12 ? "Good morning" : todayHour < 17 ? "Good afternoon" : "Good evening";
   const activeVenture = ventures[0];
 
   // Adaptive tile order
