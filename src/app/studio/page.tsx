@@ -6,7 +6,7 @@ import {
   Brain, Compass, FlaskConical, Rocket, Globe2, Flame, Trophy, TrendingUp,
   ArrowUpRight, Sparkles, Clock, Target, Wallet, BookMarked, Map, Lightbulb,
   Bot, Network, FileText, Notebook, Paintbrush, MessageSquare, Award,
-  GraduationCap, User, Timer, Sun, RefreshCcw,
+  GraduationCap, User, Timer, Sun, RefreshCcw, Hammer,
 } from "lucide-react";
 import { TRACKS } from "@/lib/curriculum";
 import { PROBLEMS } from "@/lib/problems";
@@ -116,6 +116,28 @@ export default function Dashboard() {
           <StatBadge icon={TrendingUp} label="XP" value={xp.toLocaleString()} color="text-emerald" />
         </div>
       </div>
+
+      {/* AI Build Studio hero */}
+      <Card className="mt-8 p-7 sm:p-10 relative overflow-hidden bg-gradient-to-br from-indigo/15 via-emerald/10 to-amber/10 border-indigo/30">
+        <div className="absolute -top-24 -right-24 size-72 rounded-full bg-indigo opacity-30 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 size-72 rounded-full bg-emerald opacity-20 blur-3xl" />
+        <div className="relative grid lg:grid-cols-[1fr_auto] gap-6 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-indigo border border-indigo/40 bg-indigo/10 px-3 py-1 rounded-full mb-4">
+              <Sparkles className="size-3" /> AI Build Studio · Live artifacts
+            </div>
+            <h2 className="font-[family-name:var(--font-display)] text-3xl sm:text-5xl font-semibold leading-[1.05]">
+              Build real <span className="text-emerald italic">AI products</span> — by prompting or coding.
+            </h2>
+            <p className="mt-4 text-muted leading-relaxed max-w-2xl">
+              A live artifact studio. Describe what you want; Sage writes the HTML, CSS, and JS. See it running in the preview pane. Edit the code if you want. Ship to a real URL when ready. Soft AI, hard AI (yes — robotics too), and everything in between.
+            </p>
+          </div>
+          <Link href="/studio/build" className="bg-emerald text-black font-semibold px-7 py-4 rounded-full hover:bg-amber transition flex items-center gap-2 text-base shrink-0 self-end lg:self-center shadow-xl shadow-emerald/40">
+            <Hammer className="size-5" /> Open Build Studio
+          </Link>
+        </div>
+      </Card>
 
       {/* Ship Hour hero CTA */}
       <Card className="mt-8 p-7 sm:p-10 relative overflow-hidden bg-gradient-to-br from-amber/15 via-emerald/10 to-rust/10 border-amber/30">

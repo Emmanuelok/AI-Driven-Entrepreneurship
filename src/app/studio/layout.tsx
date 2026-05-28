@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Bell, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer, Zap, Dna, Mail,
+  User, Timer, Zap, Dna, Mail, Hammer,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,9 @@ const NAV: NavItem[] = [
   { href: "/studio/learn", label: "Learning Tracks", icon: Compass, group: "Learn" },
   { href: "/studio/lab", label: "Practice Lab", icon: FlaskConical, group: "Learn" },
   { href: "/studio/srs", label: "Daily Review", icon: BookMarked, group: "Learn" },
+  { href: "/studio/ship-it", label: "Ship-it Lessons", icon: Rocket, group: "Learn" },
+
+  { href: "/studio/build", label: "AI Build Studio", icon: Hammer, group: "Build" },
 
   { href: "/studio/brainstorm", label: "Brainstorm", icon: Lightbulb, group: "Build" },
   { href: "/studio/venture", label: "Ventures", icon: Rocket, group: "Build" },

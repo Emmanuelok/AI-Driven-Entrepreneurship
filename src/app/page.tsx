@@ -7,7 +7,7 @@ import {
   ArrowRight, Brain, Compass, FlaskConical, Rocket, Sparkles, Globe2, Users,
   Trophy, CheckCircle2, Languages, Wifi, HeartHandshake, Bot, Lightbulb, Map,
   FileText, Notebook, Target, Paintbrush, Wallet, Network, MessageSquare, Zap,
-  Quote, Play,
+  Quote, Play, Hammer,
 } from "lucide-react";
 import { ConstellationAfrica } from "@/components/constellation-africa";
 import { HeroCanvas } from "@/components/hero-canvas";
@@ -368,6 +368,12 @@ function Scene4ShipHour() {
    ────────────────────────────────────────────────────────────────────────────── */
 
 const PILLARS = [
+  {
+    icon: Hammer,
+    title: "Build real AI products live",
+    body: "An artifact studio with live preview: describe what you want, see it running. Soft AI, robotics controllers, anything. Edit the code if you want. Ship to a real URL.",
+    color: "from-indigo to-emerald",
+  },
   {
     icon: Brain,
     title: "A mentor who knows you",
