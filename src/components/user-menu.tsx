@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { supabaseBrowser } from "@/lib/supabase";
-import { Settings, LogOut, Cloud, CloudOff, ChevronUp, Trophy, Shield } from "lucide-react";
+import { Settings, LogOut, Cloud, CloudOff, ChevronUp, Trophy, Shield, GraduationCap } from "lucide-react";
 
 // Avatar pill in the sidebar footer. Click to open a menu with profile
 // info, sign-out, settings, and a status line about whether the
@@ -101,6 +101,7 @@ export function UserMenu() {
           </div>
           <div className="py-1">
             <MenuLink href="/studio/settings" icon={Settings} onClick={() => setOpen(false)}>Settings</MenuLink>
+            <MenuLink href="/studio/cohorts" icon={GraduationCap} onClick={() => setOpen(false)}>Cohorts</MenuLink>
             <MenuLink href="/leaderboard" icon={Trophy} onClick={() => setOpen(false)}>Leaderboard</MenuLink>
             <MenuLink href="/admin" icon={Shield} onClick={() => setOpen(false)}>Admin (operators only)</MenuLink>
           </div>

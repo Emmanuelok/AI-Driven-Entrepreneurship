@@ -15,6 +15,7 @@ import { useStore, level, xpInLevel, xpToNextLevel } from "@/store";
 import { useExt } from "@/store/extensions";
 import { useMe } from "@/store/me";
 import { Card, Badge, Stat, Button } from "@/components/ui";
+import { CohortAssignmentsWidget } from "@/components/cohort-assignments-widget";
 import { getRecommendations } from "@/lib/recommendations";
 
 // Pool of quick-access tiles. Re-ranked per user by usage frequency.
@@ -223,6 +224,11 @@ export default function Dashboard() {
           <div className="h-full bg-gradient-to-r from-emerald to-amber rounded-full transition-all" style={{ width: `${(xpInLevel(xp) / xpToNextLevel()) * 100}%` }} />
         </div>
       </Card>
+
+      {/* Cohort assignments (only renders if the user is in cohorts with assignments) */}
+      <div className="mt-8">
+        <CohortAssignmentsWidget />
+      </div>
 
       {/* Activity stats */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-8">

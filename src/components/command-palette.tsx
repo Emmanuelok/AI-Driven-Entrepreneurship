@@ -16,7 +16,7 @@ import { COACHES } from "@/lib/coaches";
 import { useStore } from "@/store";
 import { useBuild } from "@/store/build";
 import { useSketch } from "@/store/sketch";
-import { Hammer } from "lucide-react";
+import { Hammer, GraduationCap } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase";
 
 type SemanticHit = { kind: string; ref_id: string; ref_url: string | null; title: string | null; body: string; similarity: number };
@@ -157,6 +157,7 @@ export function CommandPalette() {
               <Item icon={MessageSquare} label="Community" onSelect={() => go("/studio/community")} />
               <Item icon={Folder} label="Portfolio" onSelect={() => go("/studio/portfolio")} />
               <Item icon={Award} label="Credentials" onSelect={() => go("/studio/credentials")} />
+              <Item icon={GraduationCap} label="Cohorts" onSelect={() => go("/studio/cohorts")} />
               <Item icon={TrendingUp} label="Analytics" onSelect={() => go("/studio/analytics")} />
               <Item icon={Settings} label="Settings" onSelect={() => go("/studio/settings")} />
               <Item icon={Building2} label="Institution dashboard" onSelect={() => go("/institution")} />
