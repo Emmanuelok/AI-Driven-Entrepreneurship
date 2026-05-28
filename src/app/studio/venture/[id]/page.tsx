@@ -9,6 +9,7 @@ import { useMe } from "@/store/me";
 import { PROBLEMS } from "@/lib/problems";
 import { Card, Badge, Button } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
+import { ShareVentureButton } from "@/components/share-venture";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import {
   Target, Users, Wallet, Trophy, Lightbulb, Wrench, Megaphone, TrendingUp,
@@ -177,12 +178,15 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
             </motion.h1>
             <p className="text-muted mt-1 max-w-2xl">{v.tagline}</p>
           </div>
-          <Link
-            href={`/studio/venture/${v.id}/coach`}
-            className="flex items-center gap-2 bg-amber text-black font-medium px-5 py-3 rounded-full hover:bg-emerald transition shadow-lg shadow-amber/30"
-          >
-            <Brain className="size-4" /> Talk with Akili
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <ShareVentureButton venture={v} />
+            <Link
+              href={`/studio/venture/${v.id}/coach`}
+              className="flex items-center gap-2 bg-amber text-black font-medium px-5 py-3 rounded-full hover:bg-emerald transition shadow-lg shadow-amber/30"
+            >
+              <Brain className="size-4" /> Talk with Akili
+            </Link>
+          </div>
         </div>
 
         {/* Phase journey */}

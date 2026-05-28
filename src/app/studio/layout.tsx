@@ -178,6 +178,9 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex-1 flex">
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:bg-emerald focus:text-black focus:px-4 focus:py-2 focus:rounded-full focus:font-medium focus:shadow-lg">
+        Skip to content
+      </a>
       <CommandPalette />
       <Companion />
       <WelcomeCeremony />
@@ -202,7 +205,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
         </div>
       )}
 
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main id="main" className="flex-1 min-w-0 flex flex-col">
         <div className="glass sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 h-14 border-b border-border">
           <div className="flex items-center gap-3">
             <button onClick={() => setMobileOpen(true)} className="md:hidden size-8 flex items-center justify-center -ml-2">
@@ -236,14 +239,17 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
                 document.dispatchEvent(ev);
               }}
               title="Help & shortcuts (?)"
-              className="hidden sm:flex size-9 rounded-xl border border-border bg-surface hover:bg-surface-2 transition items-center justify-center text-xs font-semibold text-muted hover:text-foreground"
+              aria-label="Open help and keyboard shortcuts"
+              className="hidden sm:flex size-9 rounded-xl border border-border bg-surface hover:bg-surface-2 transition items-center justify-center text-xs font-semibold text-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-emerald focus:ring-offset-2 focus:ring-offset-surface"
             >
               ?
             </button>
             <div className="relative">
               <button
                 onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) markAllRead(); }}
-                className="relative size-9 rounded-xl border border-border bg-surface hover:bg-surface-2 transition flex items-center justify-center"
+                aria-label={`Notifications${unread > 0 ? ` — ${unread} unread` : ""}`}
+                aria-expanded={notifOpen}
+                className="relative size-9 rounded-xl border border-border bg-surface hover:bg-surface-2 transition flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald focus:ring-offset-2 focus:ring-offset-surface"
               >
                 <Bell className="size-4" />
                 {unread > 0 && (

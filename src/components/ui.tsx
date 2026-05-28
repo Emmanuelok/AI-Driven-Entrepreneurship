@@ -10,7 +10,7 @@ export const Button = forwardRef<
     size?: "sm" | "md" | "lg";
   }
 >(({ className, variant = "primary", size = "md", ...props }, ref) => {
-  const base = "inline-flex items-center justify-center gap-2 rounded-full font-medium transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap";
+  const base = "inline-flex items-center justify-center gap-2 rounded-full font-medium transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0f0d]";
   const sz = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" }[size];
   const v = {
     primary: "bg-emerald text-black hover:bg-amber",
@@ -40,7 +40,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
     <input
       ref={ref}
       className={cn(
-        "bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald w-full placeholder:text-muted",
+        "bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald focus-visible:ring-2 focus-visible:ring-emerald/40 w-full placeholder:text-muted",
         className,
       )}
       {...props}
@@ -54,7 +54,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
     <textarea
       ref={ref}
       className={cn(
-        "bg-surface-2 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald w-full placeholder:text-muted resize-y",
+        "bg-surface-2 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald focus-visible:ring-2 focus-visible:ring-emerald/40 w-full placeholder:text-muted resize-y",
         className,
       )}
       {...props}
@@ -174,15 +174,26 @@ export function Dialog({
   if (!open) return null;
   const w = { sm: "max-w-md", md: "max-w-xl", lg: "max-w-3xl" }[size];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dialog-title"
+      onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+    >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div
         className={cn("relative glass rounded-2xl w-full overflow-hidden shadow-2xl", w)}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-          <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-muted hover:text-foreground transition text-xl leading-none">
+          <h3 id="dialog-title" className="font-[family-name:var(--font-display)] text-lg font-semibold">{title}</h3>
+          <button
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="text-muted hover:text-foreground transition text-xl leading-none focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald rounded"
+          >
             ×
           </button>
         </div>

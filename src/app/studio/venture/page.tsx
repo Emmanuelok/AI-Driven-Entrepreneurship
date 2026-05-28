@@ -1,17 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/store";
 import { PROBLEMS } from "@/lib/problems";
-import { Button, Input, Textarea, Badge, EmptyState, Dialog } from "@/components/ui";
-import { Rocket, Plus, ArrowRight, Users, Target, Wallet, Sparkles } from "lucide-react";
+import { Button, Input, Textarea, Badge, EmptyState, Dialog, Card } from "@/components/ui";
+import { Rocket, Plus, ArrowRight, Users, Target, Wallet, Sparkles, Share2, Check, AlertCircle } from "lucide-react";
 
 export default function VenturesPage() {
   const { ventures, createVenture } = useStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const importToken = searchParams.get("import");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  // Redeem a share token from ?import= — clones the shared venture
+  // into this user's account.
+  useEffect(() => {
+    if (!importToken || importing) return;
+    setImporting(true);
+    (async () => {
+      try {
+        const res = await fetch("/api/venture/import-share", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: importToken }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          setImportMessage({ kind: "error", text: data.error === "expired" ? "This share link has expired." : data.error === "exhausted" ? "This share link has been used too many times." : data.error === "not_found" ? "Share link not found." : "Couldn't import this share." });
+          return;
+        }
+        const payload = data.payload as Record<string, unknown> & { name?: string; tagline?: string; region?: string; problemId?: string };
+        const id = createVenture({
+          name: `${payload.name ?? "Untitled"} (from share)`,
+          tagline: payload.tagline ?? "",
+          region: payload.region ?? "",
+          problemId: payload.problemId,
+          phase: "ideate",
+          ...payload,
+        });
+        setImportMessage({ kind: "success", text: `Imported as a new venture. ${data.usesRemaining} uses left on this link.` });
+        // Strip the query param + jump straight in.
+        setTimeout(() => router.replace(`/studio/venture/${id}`), 700);
+      } catch (e) {
+        setImportMessage({ kind: "error", text: (e as Error).message });
+      } finally {
+        setImporting(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importToken]);
 
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
@@ -25,6 +67,24 @@ export default function VenturesPage() {
           <Plus className="size-4" /> New venture
         </Button>
       </div>
+
+      {(importing || importMessage) && (
+        <Card className={`p-4 mb-6 border ${importMessage?.kind === "error" ? "border-rust/30 bg-rust/5" : "border-emerald/30 bg-emerald/5"}`}>
+          <div className="flex items-start gap-3">
+            {importing ? (
+              <Sparkles className="size-4 text-amber animate-pulse shrink-0 mt-0.5" />
+            ) : importMessage?.kind === "error" ? (
+              <AlertCircle className="size-4 text-rust shrink-0 mt-0.5" />
+            ) : (
+              <Check className="size-4 text-emerald shrink-0 mt-0.5" />
+            )}
+            <div className="text-sm">
+              <div className="font-medium">{importing ? "Importing shared venture…" : importMessage?.kind === "error" ? "Couldn't import" : "Imported"}</div>
+              {importMessage && <p className="text-muted text-xs mt-0.5">{importMessage.text}</p>}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {ventures.length === 0 ? (
         <EmptyState
