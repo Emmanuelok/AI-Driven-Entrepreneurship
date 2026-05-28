@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, notFound } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,15 +20,21 @@ export default function InteractiveLessonPage({ params }: { params: Promise<{ le
   const [sceneIdx, setSceneIdx] = useState(0);
   const [masteryGains, setMasteryGains] = useState<Record<string, number>>({});
   const [done, setDone] = useState(false);
+  const startedRef = useRef(false);
 
   const foundLesson = getInteractiveLesson(lessonId);
+
+  // Start lesson tracking ONCE on mount via effect (NOT in render — that
+  // would trigger an infinite re-render loop and freeze the browser).
+  useEffect(() => {
+    if (!foundLesson || startedRef.current) return;
+    startedRef.current = true;
+    startLesson(foundLesson.trackId, foundLesson.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foundLesson?.id]);
+
   if (!foundLesson) { notFound(); return null; }
   const lesson = foundLesson;
-
-  // start lesson tracking once
-  if (sceneIdx === 0 && Object.keys(masteryGains).length === 0) {
-    startLesson(lesson.trackId, lesson.id);
-  }
 
   const scene = lesson.scenes[sceneIdx];
   const isLast = sceneIdx === lesson.scenes.length - 1;
@@ -330,10 +336,18 @@ function ReflectView({ scene }: { scene: Extract<Scene, { kind: "reflect" }> }) 
 
 /* ─── CELEBRATE (in-scene) ─── */
 function CelebrateView({ scene, onPass }: { scene: Extract<Scene, { kind: "celebrate" }>; onPass: (d: { concept: string; delta: number }[]) => void }) {
-  // record mastery once
-  if (Object.keys(scene.mastery).length > 0) {
-    setTimeout(() => onPass(scene.mastery), 0);
-  }
+  // Record mastery exactly once when the scene first mounts.
+  // Calling onPass during render would trigger parent re-render → re-render →
+  // re-mount of this view → infinite onPass calls.
+  const recordedRef = useRef(false);
+  useEffect(() => {
+    if (recordedRef.current) return;
+    if (scene.mastery.length > 0) {
+      recordedRef.current = true;
+      onPass(scene.mastery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <Card className="p-8 sm:p-12 text-center bg-gradient-to-br from-emerald/15 via-transparent to-amber/15 border-emerald/30 relative overflow-hidden">
       <div className="absolute -top-20 -right-20 size-48 rounded-full bg-emerald/20 blur-3xl" />

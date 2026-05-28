@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -20,17 +20,23 @@ export default function LessonPlayerPage({ params }: { params: Promise<{ trackId
   const [stepIdx, setStepIdx] = useState(0);
   const [stepResult, setStepResult] = useState<Record<number, { correct: boolean; locked: boolean }>>({});
   const [finished, setFinished] = useState(false);
+  const startedRef = useRef(false);
+
+  // Start lesson tracking ONCE on mount. Calling startLesson during render would
+  // trigger a state update → re-render → another call → infinite render loop
+  // that freezes the browser. Effect + ref guard prevents it.
+  useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    startLesson(trackId, lessonId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId, lessonId]);
 
   const foundTrack = getTrack(trackId);
   const foundLesson = getLessonContent(lessonId);
   if (!foundTrack || !foundLesson) { notFound(); return null; }
   const track = foundTrack;
   const lesson = foundLesson;
-
-  // start lesson on mount-ish (idempotent)
-  if (Object.keys(stepResult).length === 0 && stepIdx === 0) {
-    startLesson(trackId, lessonId);
-  }
 
   const step = lesson.steps[stepIdx];
   const isLast = stepIdx === lesson.steps.length - 1;
