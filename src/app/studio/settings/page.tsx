@@ -5,6 +5,7 @@ import { useStore } from "@/store";
 import { useAiUsage } from "@/store/ai-usage";
 import { Card, Button, Input, Badge } from "@/components/ui";
 import { User, Bell, Shield, Download, Trash2, KeyRound, Zap, Globe, AlertTriangle } from "lucide-react";
+import { PushToggle } from "@/components/push-toggle";
 
 // Every persisted store name → human label, for export + nuke.
 const STORE_KEYS: Record<string, string> = {
@@ -140,7 +141,11 @@ export default function SettingsPage() {
 
       <Card className="p-6 mb-6">
         <h2 className="font-medium flex items-center gap-2 mb-5"><Bell className="size-4 text-emerald" /> Notifications</h2>
+        <div className="mb-5 pb-5 border-b border-border">
+          <PushToggle />
+        </div>
         <div className="space-y-3 text-sm">
+          <div className="text-[10px] uppercase tracking-widest text-muted mb-2">In-product reminders</div>
           {[
             "Lesson reminders (daily)",
             "Mentor session reminders (24h before)",

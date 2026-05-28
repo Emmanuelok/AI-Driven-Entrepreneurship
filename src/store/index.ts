@@ -127,7 +127,31 @@ export type Venture = {
   milestones?: { id: string; title: string; by?: string; done: boolean }[];
   risks?: { id: string; type: "market" | "tech" | "team" | "regulatory" | "financial"; description: string; mitigation: string; severity: 1 | 2 | 3 | 4 | 5 }[];
   updates?: { id: string; month: string; highlights: string; lowlights: string; asks: string; metrics: string; created: number }[];
-  publicLaunch?: { headline?: string; subhead?: string; bullets?: string[]; cta?: string; whatsappBlurb?: string; published?: boolean };
+  publicLaunch?: { headline?: string; subhead?: string; bullets?: string[]; cta?: string; whatsappBlurb?: string; published?: boolean; slug?: string };
+  hiring?: {
+    roles: {
+      id: string;
+      title: string;
+      type: "full-time" | "part-time" | "contractor" | "advisor";
+      equityPct?: number;
+      compensationUsd?: number;
+      mustHaves: string[];
+      niceHaves: string[];
+      description: string;
+      status: "open" | "interviewing" | "filled" | "paused";
+      createdAt: number;
+    }[];
+    candidates: {
+      id: string;
+      roleId: string;
+      name: string;
+      contact?: string;
+      stage: "sourced" | "screen" | "interview" | "trial" | "offer" | "hired" | "passed";
+      scores?: { dimension: string; score: number; note?: string }[];
+      notes?: string;
+      addedAt: number;
+    }[];
+  };
 };
 
 export type Notification = {

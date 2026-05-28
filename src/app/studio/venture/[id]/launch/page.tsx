@@ -13,6 +13,7 @@ type Launch = {
   cta?: string;
   whatsappBlurb?: string;
   published?: boolean;
+  slug?: string;
 };
 
 type Update = { id: string; month: string; highlights: string; lowlights: string; asks: string; metrics: string; created: number };
@@ -115,6 +116,59 @@ ${u.metrics}`;
     if (launch.whatsappBlurb) navigator.clipboard.writeText(launch.whatsappBlurb);
   }
 
+  // Publish (or unpublish) this venture as a public investor profile.
+  // Sends an explicit, redacted payload — the owner sees exactly what
+  // goes public before the request fires.
+  async function togglePublish() {
+    const { supabaseBrowser } = await import("@/lib/supabase");
+    const sb = supabaseBrowser();
+    if (!sb) { alert("Cloud sync isn't configured. Set up Supabase to publish."); return; }
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { alert("Sign in first."); return; }
+
+    if (launch.published && launch.slug) {
+      const res = await fetch(`/api/public/publish?slug=${encodeURIComponent(launch.slug)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) { alert("Couldn't unpublish."); return; }
+      setLaunch({ ...launch, published: false });
+      updateVenture(v.id, { publicLaunch: { ...launch, published: false } });
+      return;
+    }
+
+    const proposedSlug = (launch.slug || v.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+    const slug = prompt("Pick a slug for the public URL — sankofa.studio/v/SLUG. Letters, digits, hyphens. 3-40 chars.", proposedSlug);
+    if (!slug) return;
+
+    // Public-safe projection — owner controls what's exposed.
+    const publicPayload = {
+      name: v.name,
+      tagline: v.tagline,
+      region: v.region,
+      publicLaunch: { headline: launch.headline, subhead: launch.subhead, bullets: launch.bullets, cta: launch.cta, whatsappBlurb: launch.whatsappBlurb },
+      metrics: { mrr: v.metrics?.mrr, customers: v.metrics?.customers },
+      fundingRaised: v.fundingRaised,
+      fundingTarget: v.fundingTarget,
+      team: v.team?.map((t) => ({ name: t.name, role: t.role })),
+      achievements: v.achievements,
+      jtbd: v.jtbd ? { when: v.jtbd.when, iWantTo: v.jtbd.iWantTo, soICan: v.jtbd.soICan } : undefined,
+      wedge: v.wedge ? { who: v.wedge.who } : undefined,
+      pitchDeck: v.pitchDeck ? { slides: v.pitchDeck.slides?.slice(0, 6).map((s) => ({ title: s.title, body: s.body })) } : undefined,
+      updates: v.updates?.slice(0, 1).map((u) => ({ month: u.month, highlights: u.highlights })),
+    };
+
+    const res = await fetch("/api/public/publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ ventureId: v.id, slug, payload: publicPayload }),
+    });
+    const data = await res.json();
+    if (!data.ok) { alert(data.error || "Couldn't publish."); return; }
+    setLaunch({ ...launch, published: true, slug: data.slug });
+    updateVenture(v.id, { publicLaunch: { ...launch, published: true, slug: data.slug } });
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 space-y-6">
       <header className="flex items-end justify-between flex-wrap gap-3">
@@ -127,6 +181,31 @@ ${u.metrics}`;
         </div>
         <Button onClick={save}><Save className="size-4" /> Save all</Button>
       </header>
+
+      {/* Publish to the public investor profile */}
+      <Card className={`p-5 ${launch.published ? "border border-emerald/30 bg-emerald/5" : ""}`}>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <Megaphone className="size-4 text-amber shrink-0" />
+              <h3 className="font-medium">Public investor profile</h3>
+              {launch.published && <span className="text-[10px] uppercase tracking-widest text-emerald">Live</span>}
+            </div>
+            {launch.published && launch.slug ? (
+              <a href={`/v/${launch.slug}`} target="_blank" rel="noopener" className="mt-1 inline-flex items-center gap-1 text-sm text-emerald hover:text-amber font-mono break-all">
+                /v/{launch.slug}
+              </a>
+            ) : (
+              <p className="mt-1 text-xs text-muted">
+                Publish a redacted one-pager at <code>sankofa.studio/v/your-slug</code> — investors can view (and only view) without an account.
+              </p>
+            )}
+          </div>
+          <Button variant={launch.published ? "secondary" : "primary"} onClick={togglePublish}>
+            {launch.published ? "Unpublish" : "Publish profile"}
+          </Button>
+        </div>
+      </Card>
 
       {/* Public launch page builder */}
       <Card className="p-6">

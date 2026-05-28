@@ -1,13 +1,15 @@
-// Sankofa Studio — minimal offline shell service worker.
+// Sankofa Studio — minimal offline shell service worker + web-push.
 //
-// Strategy:
+// Caching strategy:
 //   - Static assets (CSS, JS, fonts, images): cache-first.
 //   - HTML pages: network-first, fall back to a cached offline page.
 //   - /api/*: never cached — student data + AI must be live.
 //
-// Cache version bumps invalidate everything. Bump on major UI changes.
+// Push: receives encrypted notifications and shows the system banner.
+//
+// Bump CACHE on major UI changes to invalidate older caches.
 
-const CACHE = "sankofa-v3";
+const CACHE = "sankofa-v4";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -36,11 +38,9 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  // Never cache API or auth flows — keep them live.
   if (url.pathname.startsWith("/api/")) return;
   if (url.pathname.startsWith("/sign-in") || url.pathname.startsWith("/onboarding")) return;
 
-  // HTML — network-first, fall back to offline page.
   if (req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html")) {
     event.respondWith(
       (async () => {
@@ -59,7 +59,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets — cache-first.
   if (/\.(?:js|css|woff2?|svg|png|jpg|jpeg|gif|webp|ico)$/.test(url.pathname)) {
     event.respondWith(
       (async () => {
@@ -76,4 +75,38 @@ self.addEventListener("fetch", (event) => {
       })(),
     );
   }
+});
+
+// ─── Push notifications ───────────────────────────────────────────────────
+self.addEventListener("push", (event) => {
+  let payload = { title: "Sankofa", body: "You have an update.", url: "/studio" };
+  try {
+    if (event.data) payload = { ...payload, ...event.data.json() };
+  } catch {
+    if (event.data) payload.body = event.data.text();
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: payload.icon || "/icon.svg",
+      badge: "/icon.svg",
+      data: { url: payload.url },
+      tag: payload.tag,
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/studio";
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // Focus an existing tab on the right URL if possible.
+      for (const c of all) {
+        if (c.url.includes(url) && "focus" in c) return c.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })(),
+  );
 });
