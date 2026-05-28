@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,8 @@ Output STRICT JSON only. No markdown, no fences. Shape:
 { "passed": boolean, "score": number (0-10), "reasoning": string (2-4 sentences) }`;
 
 export async function POST(req: Request) {
+  const rl = rateLimit({ scope: "eval-judge", ipKey: clientIp(req), maxCalls: 30 });
+  if (!rl.ok) return rateLimited(rl);
   const body = (await req.json()) as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
 

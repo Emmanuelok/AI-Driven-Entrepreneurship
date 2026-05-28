@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,8 @@ Rules:
 - whatsappBlurb: under 280 chars. Greeting, what it is, who it's for, link placeholder "[link]". No emojis.`;
 
 export async function POST(req: Request) {
+  const rl = rateLimit({ scope: "launch-page", ipKey: clientIp(req), maxCalls: 10 });
+  if (!rl.ok) return rateLimited(rl);
   const body = (await req.json()) as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));

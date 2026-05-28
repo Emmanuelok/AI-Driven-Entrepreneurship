@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,6 +85,8 @@ Rules:
 - Wedge: BRUTALLY specific beachhead. "2-acre maize farmers in Tamale" beats "African farmers".`;
 
 export async function POST(req: Request) {
+  const rl = rateLimit({ scope: "distill", ipKey: clientIp(req), maxCalls: 8 });
+  if (!rl.ok) return rateLimited(rl);
   const body = (await req.json()) as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));

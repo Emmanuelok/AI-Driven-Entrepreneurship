@@ -8,6 +8,7 @@ import { useBuild } from "@/store/build";
 import { useStore } from "@/store";
 import { BUILD_TEMPLATES, templatesForDiscipline, getBuildTemplate, BuildTemplate } from "@/lib/build-templates";
 import { Card, Button, Input, Badge, Dialog, EmptyState } from "@/components/ui";
+import { SimilarButton } from "@/components/similar-button";
 import { Zap, Plus, Sparkles, ArrowRight, Code, Cpu, Eye, Brain, Wrench, Hammer, FileText, Trash2, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -87,12 +88,16 @@ export default function BuildHomePage() {
                       <span className="text-emerald flex items-center gap-1 group-hover:gap-2 transition-all">Open <ArrowRight className="size-3" /></span>
                     </div>
                   </Link>
-                  <button
-                    onClick={() => { if (confirm(`Delete "${p.name}"?`)) deleteProject(p.id); }}
-                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition text-muted hover:text-rust size-7 flex items-center justify-center rounded"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                  <div className="absolute top-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                    <SimilarButton seedTitle={p.name} seedBody={p.description || p.name} kind="build" excludeRefId={p.id} />
+                    <button
+                      onClick={() => { if (confirm(`Delete "${p.name}"?`)) deleteProject(p.id); }}
+                      className="text-muted hover:text-rust size-7 flex items-center justify-center rounded"
+                      aria-label={`Delete ${p.name}`}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 </Card>
               );
             })}

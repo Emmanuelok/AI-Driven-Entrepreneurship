@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,10 @@ export const dynamic = "force-dynamic";
 type Body = { systemPrompt: string; input: string };
 
 export async function POST(req: Request) {
+  // Evals get hammered when students "run all" — 30/min covers a suite of 10
+  // tests run 3x in quick succession before hitting the wall.
+  const rl = rateLimit({ scope: "eval-run", ipKey: clientIp(req), maxCalls: 30 });
+  if (!rl.ok) return rateLimited(rl);
   const body = (await req.json()) as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

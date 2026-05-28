@@ -68,8 +68,11 @@ export default async function PublicVenturePage({ params }: { params: Promise<{ 
 
   return (
     <div className="min-h-screen bg-[#0a0f0d] text-[#e7efe9] font-sans">
+      <a href="#about" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:bg-[#2cc295] focus:text-black focus:px-4 focus:py-2 focus:rounded-full focus:font-medium">
+        Skip to content
+      </a>
       {/* Hero */}
-      <section className="relative overflow-hidden">
+      <header className="relative overflow-hidden" aria-label={`${headline} — investor profile`}>
         <div className="absolute -top-40 -right-40 size-[40rem] rounded-full bg-[#2cc295]/15 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-40 -left-40 size-[40rem] rounded-full bg-[#f4a949]/10 blur-3xl pointer-events-none" />
         <div className="relative max-w-5xl mx-auto px-6 sm:px-8 pt-16 sm:pt-24 pb-12">
@@ -112,11 +115,13 @@ export default async function PublicVenturePage({ params }: { params: Promise<{ 
             </div>
           )}
         </div>
-      </section>
+      </header>
+
+      <main id="about">
 
       {/* JTBD + Wedge */}
       {(payload.jtbd?.when || payload.wedge?.who) && (
-        <section className="border-t border-[#1f2c28]">
+        <section className="border-t border-[#1f2c28]" aria-label="Job-to-be-done and wedge">
           <div className="max-w-5xl mx-auto px-6 sm:px-8 py-14 grid sm:grid-cols-2 gap-6">
             {payload.jtbd?.when && (
               <Card>
@@ -210,6 +215,7 @@ export default async function PublicVenturePage({ params }: { params: Promise<{ 
       )}
 
       {/* Footer */}
+      </main>
       <footer className="border-t border-[#1f2c28]">
         <div className="max-w-5xl mx-auto px-6 sm:px-8 py-10 flex items-center justify-between flex-wrap gap-3 text-xs text-[#6b8079]">
           <div>{views} views · updated {new Date(updatedAt).toLocaleDateString()}</div>

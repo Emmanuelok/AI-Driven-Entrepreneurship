@@ -5,7 +5,13 @@ import { notFound } from "next/navigation";
 import { useStore } from "@/store";
 import { Card, Button, Input, Stat, Badge } from "@/components/ui";
 import { TrendingUp, Activity, AlertTriangle, Flame } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
+// Recharts is ~100KB gzipped — lazy-load via the GrowthChart component
+// so the rest of the cockpit paints fast.
+import dynamic from "next/dynamic";
+const GrowthChart = dynamic(() => import("@/components/growth-chart").then((m) => m.GrowthChart), {
+  ssr: false,
+  loading: () => <div className="h-[260px] flex items-center justify-center text-xs text-muted">Loading chart…</div>,
+});
 
 type Econ = {
   pricePoint?: number;
@@ -161,16 +167,7 @@ export default function GrowthPage({ params }: { params: Promise<{ id: string }>
       {/* Forecast */}
       <Card className="p-6">
         <h3 className="font-medium mb-4">6-month forecast (your inputs)</h3>
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={trend}>
-            <CartesianGrid stroke="#1f2c28" strokeDasharray="3 3" />
-            <XAxis dataKey="week" stroke="#8aa39a" fontSize={12} />
-            <YAxis stroke="#8aa39a" fontSize={12} />
-            <Tooltip contentStyle={{ background: "#0f1614", border: "1px solid #1f2c28", borderRadius: 8 }} />
-            <Line type="monotone" dataKey="mrr" stroke="#2cc295" strokeWidth={2} dot={{ r: 3 }} name="MRR" />
-            <Line type="monotone" dataKey="customers" stroke="#f4a949" strokeWidth={2} dot={{ r: 3 }} name="Customers" />
-          </LineChart>
-        </ResponsiveContainer>
+        <GrowthChart data={trend} />
         <p className="text-[10px] text-muted text-center mt-3">Projection: current MRR × (1 − churn) + (new acquisitions × activation rate). For napkin math only.</p>
       </Card>
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSketch } from "@/store/sketch";
 import { Card, Button, Input, Textarea, Dialog, EmptyState, Badge } from "@/components/ui";
+import { SimilarButton } from "@/components/similar-button";
 import { Lightbulb, Plus, ArrowRight, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -65,12 +66,16 @@ export default function BrainstormListPage() {
                   <span className="text-emerald flex items-center gap-1">Open <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition" /></span>
                 </div>
               </Link>
-              <button
-                onClick={() => { if (confirm(`Delete "${b.title}"?`)) deleteBoard(b.id); }}
-                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition text-muted hover:text-rust size-7 flex items-center justify-center rounded"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+              <div className="absolute top-3 right-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                <SimilarButton seedTitle={b.title} seedBody={b.prompt || b.title} kind="brainstorm" excludeRefId={b.id} />
+                <button
+                  onClick={() => { if (confirm(`Delete "${b.title}"?`)) deleteBoard(b.id); }}
+                  className="text-muted hover:text-rust size-7 flex items-center justify-center rounded"
+                  aria-label={`Delete ${b.title}`}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
             </Card>
           ))}
         </div>

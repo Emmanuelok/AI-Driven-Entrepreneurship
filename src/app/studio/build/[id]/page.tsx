@@ -13,7 +13,13 @@ import { Markdown } from "@/components/markdown";
 import { nanoid } from "nanoid";
 import { BuildConsole, ConsoleEntry, SnippetLibrary, ShareDialog, ImageToBuildDialog, injectConsoleBridge } from "@/components/build-tools";
 import { EvalHarness } from "@/components/eval-harness";
-import { CodeEditor } from "@/components/code-editor";
+// CodeMirror is ~140KB gzipped — lazy-load so the chat tab paints
+// instantly. Falls back to a styled stub until the chunk arrives.
+import dynamic from "next/dynamic";
+const CodeEditor = dynamic(() => import("@/components/code-editor").then((m) => m.CodeEditor), {
+  ssr: false,
+  loading: () => <div className="flex-1 bg-[#06100d] text-xs text-muted p-4 font-[family-name:var(--font-mono)]">Loading editor…</div>,
+});
 import {
   ArrowLeft, Send, Sparkles, Play, RefreshCcw, Download, Copy, Check,
   Maximize2, Minimize2, History, GitBranch, Rocket, Code as CodeIcon,

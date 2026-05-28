@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +39,8 @@ Rules:
 Bias: if the venture's wedge or region implies specific context (e.g. Northern Ghana agritech, mobile-money fintech), surface it as a must-have. Don't import Silicon Valley templates into African markets.`;
 
 export async function POST(req: Request) {
+  const rl = rateLimit({ scope: "role-spec", ipKey: clientIp(req), maxCalls: 8 });
+  if (!rl.ok) return rateLimited(rl);
   const body = (await req.json()) as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));

@@ -1,0 +1,63 @@
+name: CI
+
+# Runs on every PR to main + on direct pushes to main.
+# Three jobs run in parallel:
+#   - typecheck: strict TS check via `tsc --noEmit`
+#   - lint: ESLint via Next's wrapper
+#   - build: full production build
+# If any fail, the PR is blocked from merging when branch protection is on.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - run: npx tsc --noEmit
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - run: npx eslint . --max-warnings 200
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run build
+        env:
+          # The build mustn't depend on cloud env at compile time — these
+          # are intentionally absent so we catch any new code that breaks
+          # local-first.
+          NODE_ENV: production

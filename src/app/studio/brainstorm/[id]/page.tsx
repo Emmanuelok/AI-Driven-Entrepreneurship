@@ -8,7 +8,13 @@ import { useSketch } from "@/store/sketch";
 import { useBuild } from "@/store/build";
 import { useStore } from "@/store";
 import { getBuildTemplate } from "@/lib/build-templates";
-import { SketchCanvas } from "@/components/sketch-canvas";
+// SketchCanvas is heavy (500+ LOC + uses window/SVG APIs that don't SSR).
+// Lazy-load so the page chrome paints first.
+import dynamic from "next/dynamic";
+const SketchCanvas = dynamic(() => import("@/components/sketch-canvas").then((m) => m.SketchCanvas), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 flex items-center justify-center text-xs text-muted">Loading canvas…</div>,
+});
 import { Dialog, Button, Badge } from "@/components/ui";
 import { ArrowLeft, Rocket, Hammer, Sparkles, ArrowRight, Check } from "lucide-react";
 

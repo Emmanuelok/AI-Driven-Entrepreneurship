@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { moderateOrBlock } from "@/lib/moderation";
 
 export const runtime = "nodejs";
@@ -38,6 +39,9 @@ const BLOCK_PROMPTS: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
+  // Generous cap — students legitimately ask for 9 blocks back-to-back.
+  const rl = rateLimit({ scope: "assist-canvas", ipKey: clientIp(req), maxCalls: 25 });
+  if (!rl.ok) return rateLimited(rl);
   const body = (await req.json()) as Body;
   // Pattern-only moderation: canvas content is dense business text where
   // a Haiku judge call would add 600ms × 9 blocks of latency for marginal gain.

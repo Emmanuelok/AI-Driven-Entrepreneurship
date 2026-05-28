@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -29,6 +30,11 @@ Rules:
 - Next three moves: surgical, dated by week. Tie each to evidence from the interviews.`;
 
 export async function POST(req: Request) {
+  // 8 syntheses/min/IP — protects against accidental loop-clicks burning
+  // 2k+ output tokens each.
+  const rl = rateLimit({ scope: "synthesize", ipKey: clientIp(req), maxCalls: 8 });
+  if (!rl.ok) return rateLimited(rl);
+
   const body = (await req.json()) as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

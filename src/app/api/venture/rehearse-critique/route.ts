@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { moderateOrBlock } from "@/lib/moderation";
 
 export const runtime = "nodejs";
@@ -44,8 +45,11 @@ Output STRICT JSON only. No markdown fences. Shape:
 }`;
 
 export async function POST(req: Request) {
+  // Heavy route (2200 max tokens) — strictest cap.
+  const rl = rateLimit({ scope: "rehearse-critique", ipKey: clientIp(req), maxCalls: 4 });
+  if (!rl.ok) return rateLimited(rl);
+
   const body = (await req.json()) as Body;
-  // Transcripts are user-generated free speech — pattern-block only.
   const blocked = await moderateOrBlock(body.transcript, { skipLLM: true });
   if (blocked) return blocked;
   const apiKey = process.env.ANTHROPIC_API_KEY;
