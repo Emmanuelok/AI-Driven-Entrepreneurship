@@ -13,6 +13,9 @@ import { Markdown } from "@/components/markdown";
 import { nanoid } from "nanoid";
 import { BuildConsole, ConsoleEntry, SnippetLibrary, ShareDialog, ImageToBuildDialog, injectConsoleBridge } from "@/components/build-tools";
 import { EvalHarness } from "@/components/eval-harness";
+import { BuildCollaborateDialog } from "@/components/build-collaborate-dialog";
+import { CoPresence } from "@/components/co-presence";
+import { useCloudBuild } from "@/lib/cloud-build";
 import { PublishBuildButton } from "@/components/publish-build";
 // CodeMirror is ~140KB gzipped — lazy-load so the chat tab paints
 // instantly. Falls back to a styled stub until the chunk arrives.
@@ -25,7 +28,7 @@ import {
   ArrowLeft, Send, Sparkles, Play, RefreshCcw, Download, Copy, Check,
   Maximize2, Minimize2, History, GitBranch, Rocket, Code as CodeIcon,
   MessageSquare, ExternalLink, Brain, Eye, Smartphone, Monitor, Tablet,
-  Wrench, Share2, ImageIcon, Terminal, Wand2, FlaskConical,
+  Wrench, Share2, ImageIcon, Terminal, Wand2, FlaskConical, UsersRound,
 } from "lucide-react";
 
 type Tab = "chat" | "code" | "history" | "console" | "eval";
@@ -51,9 +54,11 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
   const [snippetOpen, setSnippetOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [imageOpen, setImageOpen] = useState(false);
+  const [collabOpen, setCollabOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const project = projects.find((p) => p.id === id);
+  const cloudBuild = useCloudBuild(id);
   const template = project ? getBuildTemplate(project.templateId) : undefined;
 
   // Sync editor when project loads / external code change happens.
@@ -218,6 +223,10 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           <button onClick={() => setShareOpen(true)} title="Share / QR" className="size-8 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition">
             <Share2 className="size-4" />
           </button>
+          <button onClick={() => setCollabOpen(true)} title={cloudBuild.isCloud ? `${cloudBuild.members.length} member${cloudBuild.members.length === 1 ? "" : "s"} — manage` : "Pair on this build"} className="size-8 rounded-lg text-muted hover:text-emerald hover:bg-surface-2 flex items-center justify-center transition" aria-label="Manage build collaborators">
+            <UsersRound className="size-4" />
+          </button>
+          <div className="ml-1"><CoPresence presence={cloudBuild.presence} myUserId={user?.id} /></div>
           <div className="w-px h-5 bg-border mx-1" />
           <button onClick={copyCode} title="Copy code" className="size-8 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition">
             {copied ? <Check className="size-4 text-emerald" /> : <Copy className="size-4" />}
@@ -234,6 +243,13 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           </Link>
         </div>
       </header>
+
+      {cloudBuild.myRole === "viewer" && (
+        <div className="bg-amber/10 border-b border-amber/30 text-amber px-5 py-2 text-xs flex items-center gap-2" role="status" aria-live="polite">
+          <span className="size-1.5 rounded-full bg-amber" />
+          <span><strong className="text-amber">Viewer mode</strong> — your edits stay local. Ask the owner for editor access to sync.</span>
+        </div>
+      )}
 
       {/* Split layout */}
       <div className="flex-1 grid lg:grid-cols-2 overflow-hidden">
@@ -435,6 +451,8 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
         html={project.code}
         projectName={project.name}
       />
+
+      <BuildCollaborateDialog buildId={project.id} open={collabOpen} onClose={() => setCollabOpen(false)} />
       <ImageToBuildDialog
         open={imageOpen}
         onClose={() => setImageOpen(false)}

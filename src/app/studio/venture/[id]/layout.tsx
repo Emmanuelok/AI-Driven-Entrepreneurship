@@ -6,6 +6,7 @@ import { usePathname, useRouter, notFound } from "next/navigation";
 import { useStore } from "@/store";
 import { Lightbulb, Users, Wrench, TrendingUp, Layout as LayoutIcon, FileText, Wallet, Brain, ArrowLeft, Target, FolderLock, Scale, Megaphone, Mic, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VentureReadonlyBanner } from "@/components/venture-readonly-banner";
 
 const TABS = [
   { slug: "", label: "Overview", icon: LayoutIcon },
@@ -65,6 +66,7 @@ export default function VentureLayout({ children, params }: { children: React.Re
           </div>
         </div>
       </div>
+      <VentureReadonlyBanner ventureId={id} />
       {children}
     </div>
   );

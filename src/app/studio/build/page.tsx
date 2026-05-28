@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useBuild } from "@/store/build";
 import { useStore } from "@/store";
@@ -26,9 +26,42 @@ export default function BuildHomePage() {
   const { projects, createProject, deleteProject } = useBuild();
   const { user } = useStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const acceptToken = searchParams.get("accept");
   const [picking, setPicking] = useState(false);
   const [selectedTpl, setSelectedTpl] = useState<BuildTemplate | null>(null);
   const [name, setName] = useState("");
+  const [acceptMessage, setAcceptMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+
+  // Redeem a build-collab invite token (?accept=…) — adds the signed-in
+  // user as a collaborator on the build, then routes them straight in.
+  useEffect(() => {
+    if (!acceptToken) return;
+    (async () => {
+      try {
+        const { supabaseBrowser } = await import("@/lib/supabase");
+        const sb = supabaseBrowser();
+        if (!sb) { setAcceptMessage({ kind: "error", text: "Cloud sync isn't configured here." }); return; }
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) { setAcceptMessage({ kind: "error", text: "Sign in first, then click the invite link again." }); return; }
+        const res = await fetch("/api/v2/builds/accept-invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ token: acceptToken }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          setAcceptMessage({ kind: "error", text: data.error === "expired" ? "This invite has expired." : "Couldn't redeem the invite." });
+          return;
+        }
+        setAcceptMessage({ kind: "success", text: "You're in. Opening the build…" });
+        setTimeout(() => router.replace(`/studio/build/${data.buildId}`), 600);
+      } catch (e) {
+        setAcceptMessage({ kind: "error", text: (e as Error).message });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acceptToken]);
 
   const tplOrder = templatesForDiscipline(user?.field);
 
@@ -39,6 +72,11 @@ export default function BuildHomePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
+      {acceptMessage && (
+        <div className={`mb-6 rounded-2xl p-4 text-sm ${acceptMessage.kind === "error" ? "border border-rust/30 bg-rust/5 text-rust" : "border border-emerald/30 bg-emerald/5 text-emerald"}`} role="status">
+          {acceptMessage.text}
+        </div>
+      )}
       <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-emerald mb-2 flex items-center gap-1.5">
