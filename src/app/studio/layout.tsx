@@ -24,6 +24,7 @@ import { OnboardingTour } from "@/components/onboarding-tour";
 import { ServiceWorker } from "@/components/service-worker";
 import { HelpOverlay } from "@/components/help-overlay";
 import { SearchIndexer } from "@/components/search-indexer";
+import { ErrorReporter } from "@/components/error-reporter";
 import { useT } from "@/lib/i18n";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
@@ -191,6 +192,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
       <ServiceWorker />
       <HelpOverlay />
       <SearchIndexer />
+      <ErrorReporter />
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-border bg-surface/40 sticky top-0 h-screen">

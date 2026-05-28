@@ -13,6 +13,7 @@ import { Markdown } from "@/components/markdown";
 import { nanoid } from "nanoid";
 import { BuildConsole, ConsoleEntry, SnippetLibrary, ShareDialog, ImageToBuildDialog, injectConsoleBridge } from "@/components/build-tools";
 import { EvalHarness } from "@/components/eval-harness";
+import { PublishBuildButton } from "@/components/publish-build";
 // CodeMirror is ~140KB gzipped — lazy-load so the chat tab paints
 // instantly. Falls back to a styled stub until the chunk arrives.
 import dynamic from "next/dynamic";
@@ -227,6 +228,7 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           <button onClick={openInNewTab} title="Open standalone" className="size-8 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition">
             <ExternalLink className="size-4" />
           </button>
+          <PublishBuildButton projectId={project.id} name={project.name} description={project.description} code={project.code} templateId={project.templateId} />
           <Link href="/studio/ship-it" title="Deploy lesson" className="ml-1 px-3 py-1.5 rounded-lg bg-emerald text-black text-xs font-semibold hover:bg-amber transition flex items-center gap-1.5">
             <Rocket className="size-3.5" /> Deploy
           </Link>

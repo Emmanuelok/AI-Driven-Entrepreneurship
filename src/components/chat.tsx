@@ -42,10 +42,22 @@ export function ChatPanel({
     setMsgs([...next, { role: "assistant", content: "" }]);
     setBusy(true);
     try {
+      // Forward the user's Supabase access token so tutor / coach
+      // endpoints can run RAG over the student's own corpus.
+      let authToken: string | undefined;
+      try {
+        const { supabaseBrowser } = await import("@/lib/supabase");
+        const sb = supabaseBrowser();
+        if (sb) {
+          const { data: { session } } = await sb.auth.getSession();
+          authToken = session?.access_token;
+        }
+      } catch { /* anonymous is fine */ }
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, context: { language } }),
+        body: JSON.stringify({ messages: next, context: { language }, authToken }),
       });
       const detected = res.headers.get("x-mode") ?? res.headers.get("x-sage-mode");
       if (detected === "live" || detected === "demo") setMode(detected);

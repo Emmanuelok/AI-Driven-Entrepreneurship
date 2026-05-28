@@ -143,6 +143,7 @@ export function CommandPalette() {
               <Item icon={Map} label="Atlas (Africa map)" onSelect={() => go("/studio/atlas")} />
               <Item icon={Lightbulb} label="Brainstorm Canvases" onSelect={() => go("/studio/brainstorm")} />
               <Item icon={Bot} label="AI Agents Marketplace" onSelect={() => go("/studio/agents")} />
+              <Item icon={Bot} label="Build Marketplace (publish & fork)" onSelect={() => go("/studio/marketplace")} />
               <Item icon={Trophy} label="Pitch Arena" onSelect={() => go("/studio/arena")} />
               <Item icon={Network} label="Conglomerate Portfolio" onSelect={() => go("/studio/conglomerate")} />
               <Item icon={FileText} label="Document Studio" onSelect={() => go("/studio/documents")} />

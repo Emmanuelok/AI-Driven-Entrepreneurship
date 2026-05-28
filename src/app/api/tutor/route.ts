@@ -1,4 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { embed } from "@/lib/embeddings";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,14 +31,23 @@ Output in clean markdown. Use code blocks for code. Keep responses focused — u
 type Msg = { role: "user" | "assistant"; content: string };
 
 export async function POST(req: Request) {
-  const { messages, context } = (await req.json()) as {
+  // 40 questions / min covers a rapid Q&A session without breaking a sweat.
+  const rl = rateLimit({ scope: "tutor", ipKey: clientIp(req), maxCalls: 40 });
+  if (!rl.ok) return rateLimited(rl);
+
+  const { messages, context, authToken } = (await req.json()) as {
     messages: Msg[];
     context?: { lessonId?: string; problemId?: string; ventureId?: string; language?: string };
+    authToken?: string;
   };
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return Response.json({ error: "messages required" }, { status: 400 });
   }
+
+  // RAG: pull the student's own most-relevant prior work as grounding.
+  // Quietly skipped when cloud sync isn't configured or the user is anonymous.
+  const ragContext = await retrieveStudentContext(messages[messages.length - 1].content, authToken);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -55,6 +67,9 @@ export async function POST(req: Request) {
         .filter(Boolean)
         .join("\n")}`
     : "";
+  const ragLine = ragContext
+    ? `\n\nRELEVANT WORK FROM THE STUDENT'S OWN HISTORY (use to ground your answer — but only mention it when it actually helps):\n${ragContext}`
+    : "";
 
   const stream = await client.messages.stream({
     model: "claude-sonnet-4-6",
@@ -62,7 +77,7 @@ export async function POST(req: Request) {
     system: [
       {
         type: "text",
-        text: SYSTEM + contextLine,
+        text: SYSTEM + contextLine + ragLine,
         cache_control: { type: "ephemeral" },
       },
     ],
@@ -89,6 +104,31 @@ export async function POST(req: Request) {
   return new Response(readable, {
     headers: { "Content-Type": "text/plain; charset=utf-8", "x-sage-mode": "live" },
   });
+}
+
+// Look up the student's own prior work that's semantically relevant to
+// the question. Returns a compact context string, or empty when we
+// can't (no Supabase, no auth token, no matches). Best-effort; failure
+// never blocks the tutor's response.
+async function retrieveStudentContext(question: string, authToken?: string): Promise<string> {
+  if (!authToken || !isSupabaseConfigured()) return "";
+  if (!question || question.trim().length < 8) return "";
+  try {
+    const sb = supabaseAdmin();
+    if (!sb) return "";
+    const { data: u } = await sb.auth.getUser(authToken);
+    if (!u?.user) return "";
+    const [qVec] = await embed([question.slice(0, 600)]);
+    const { data } = await sb.rpc("search_artifacts", { uid: u.user.id, query_embedding: qVec, match_count: 4, kind_filter: null });
+    if (!data || data.length === 0) return "";
+    return (data as { kind: string; title: string | null; body: string; similarity: number }[])
+      .filter((r) => r.similarity > 0.3)
+      .slice(0, 4)
+      .map((r, i) => `[${i + 1}] (${r.kind}, ${(r.similarity * 100).toFixed(0)}% match) ${r.title ? `"${r.title}" — ` : ""}${r.body.slice(0, 360)}`)
+      .join("\n");
+  } catch {
+    return "";
+  }
 }
 
 function makeFallbackStream(userMsg: string, ctx?: { problemId?: string }) {
