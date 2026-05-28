@@ -11,6 +11,7 @@ type Body = {
   genomeVoice?: string;
   userName?: string;
   field?: string;
+  imageDataUrl?: string; // when set, Claude vision is used to rebuild the UI in the image
 };
 
 const SYSTEM = `You are an expert front-end engineer pair-programming with a student inside the Sankofa Studio AI Build Studio.
@@ -45,16 +46,36 @@ export async function POST(req: Request) {
     return new Response(makeFallback(body), { headers: { "Content-Type": "text/plain; charset=utf-8", "x-mode": "demo" } });
   }
 
-  const messages: { role: "user" | "assistant"; content: string }[] = [];
+  type ContentBlock =
+    | { type: "text"; text: string }
+    | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+  type MultiMsg = { role: "user" | "assistant"; content: string | ContentBlock[] };
+  const messages: MultiMsg[] = [];
 
   // Trim history to last 8 turns
   for (const m of (body.history ?? []).slice(-8)) messages.push(m);
 
   // Always include the current code as the latest context
-  messages.push({
-    role: "user",
-    content: `Current code in the editor:\n\n${body.currentCode || "(empty)"}\n\n---\n\nMy request: ${body.prompt}`,
-  });
+  if (body.imageDataUrl && body.imageDataUrl.startsWith("data:image/")) {
+    // Vision call: send the image alongside the text instruction.
+    const m = body.imageDataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+    if (m) {
+      const mediaType = m[1];
+      const data = m[2];
+      messages.push({
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data } },
+          { type: "text", text: `Rebuild the UI shown in the image inside my project.\n\nCurrent code (replace it entirely):\n\n${body.currentCode || "(empty)"}\n\nAdditional notes from me: ${body.prompt || "(none)"}\n\nMatch the layout and visual hierarchy of the image. Use Sankofa's design tokens (dark bg #0a0f0d, emerald accent, amber, mobile-first). Make it interactive on first render.` },
+        ],
+      });
+    }
+  } else {
+    messages.push({
+      role: "user",
+      content: `Current code in the editor:\n\n${body.currentCode || "(empty)"}\n\n---\n\nMy request: ${body.prompt}`,
+    });
+  }
 
   const sysParts: string[] = [SYSTEM];
   if (body.userName || body.field) sysParts.push(`\n\nThe student is ${body.userName ?? "a learner"}${body.field ? ` studying ${body.field}` : ""}.`);
@@ -66,7 +87,9 @@ export async function POST(req: Request) {
     model: "claude-sonnet-4-6",
     max_tokens: 6000,
     system: [{ type: "text", text: sysParts.join(""), cache_control: { type: "ephemeral" } }],
-    messages,
+    // The Anthropic SDK accepts text-only or multi-modal content; cast to its
+    // expected shape since our local MultiMsg type is broader.
+    messages: messages as unknown as Parameters<typeof client.messages.stream>[0]["messages"],
   });
 
   const encoder = new TextEncoder();

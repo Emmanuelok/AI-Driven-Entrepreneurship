@@ -10,13 +10,16 @@ import { useMe } from "@/store/me";
 import { getBuildTemplate } from "@/lib/build-templates";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import { Markdown } from "@/components/markdown";
+import { nanoid } from "nanoid";
+import { BuildConsole, ConsoleEntry, SnippetLibrary, ShareDialog, ImageToBuildDialog, injectConsoleBridge } from "@/components/build-tools";
 import {
   ArrowLeft, Send, Sparkles, Play, RefreshCcw, Download, Copy, Check,
   Maximize2, Minimize2, History, GitBranch, Rocket, Code as CodeIcon,
   MessageSquare, ExternalLink, Brain, Eye, Smartphone, Monitor, Tablet,
+  Wrench, Share2, ImageIcon, Terminal, Wand2,
 } from "lucide-react";
 
-type Tab = "chat" | "code" | "history";
+type Tab = "chat" | "code" | "history" | "console";
 type Device = "phone" | "tablet" | "desktop";
 
 export default function BuildStudioPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,6 +38,10 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
   const [previewKey, setPreviewKey] = useState(0);
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
+  const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
+  const [snippetOpen, setSnippetOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const project = projects.find((p) => p.id === id);
@@ -49,19 +56,36 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [project?.chat.length, busy]);
 
+  // Capture console / errors from the preview iframe via postMessage.
+  useEffect(() => {
+    function onMsg(e: MessageEvent) {
+      const d = e.data;
+      if (!d || typeof d !== "object" || !d.__sankofa) return;
+      const lvl: ConsoleEntry["level"] = d.level === "error" ? "error" : d.level === "warn" ? "warn" : "log";
+      setConsoleEntries((prev) => [...prev.slice(-200), { id: nanoid(6), level: lvl, text: String(d.text ?? ""), ts: Date.now() }]);
+    }
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
+  // Reset console when preview reloads
+  useEffect(() => { setConsoleEntries([]); }, [previewKey, project?.id]);
+
   if (!hydrated) {
     return <div className="min-h-[60vh] flex items-center justify-center text-muted text-sm">Loading your build…</div>;
   }
   if (!project) { notFound(); return null; }
 
-  async function send(text?: string) {
+  async function send(text?: string, opts?: { imageDataUrl?: string }) {
     if (!project) return;
     const content = (text ?? prompt).trim();
-    if (!content || busy) return;
+    if (!content && !opts?.imageDataUrl) return;
+    if (busy) return;
     setPrompt("");
-    appendChat(project.id, "user", content);
+    appendChat(project.id, "user", opts?.imageDataUrl ? `[image attached] ${content}` : content);
     appendChat(project.id, "assistant", "");
     setBusy(true);
+    setTab("chat");
     logActivity({ kind: "agent", title: `Build: ${content.slice(0, 60)}`, href: `/studio/build/${project.id}` });
     if (template) touchConcept(template.name, "build", 0.08, template.conceptsTouched);
 
@@ -77,6 +101,7 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           genomeVoice: genomeVoiceInstruction(genome),
           userName: user?.name,
           field: user?.field,
+          imageDataUrl: opts?.imageDataUrl,
         }),
       });
       const reader = res.body?.getReader();
@@ -157,6 +182,16 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button onClick={() => setSnippetOpen(true)} title="Add a capability (voice, vision, map…)" className="size-8 rounded-lg text-muted hover:text-emerald hover:bg-surface-2 flex items-center justify-center transition">
+            <Wrench className="size-4" />
+          </button>
+          <button onClick={() => setImageOpen(true)} title="Build from an image (paste screenshot)" className="size-8 rounded-lg text-muted hover:text-amber hover:bg-surface-2 flex items-center justify-center transition">
+            <ImageIcon className="size-4" />
+          </button>
+          <button onClick={() => setShareOpen(true)} title="Share / QR" className="size-8 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition">
+            <Share2 className="size-4" />
+          </button>
+          <div className="w-px h-5 bg-border mx-1" />
           <button onClick={copyCode} title="Copy code" className="size-8 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition">
             {copied ? <Check className="size-4 text-emerald" /> : <Copy className="size-4" />}
           </button>
@@ -166,9 +201,9 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           <button onClick={openInNewTab} title="Open standalone" className="size-8 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition">
             <ExternalLink className="size-4" />
           </button>
-          <button onClick={() => alert("Hook this up to a deploy provider — see /studio/build for the deployment lesson.")} title="Deploy" className="ml-1 px-3 py-1.5 rounded-lg bg-emerald text-black text-xs font-semibold hover:bg-amber transition flex items-center gap-1.5">
+          <Link href="/studio/ship-it" title="Deploy lesson" className="ml-1 px-3 py-1.5 rounded-lg bg-emerald text-black text-xs font-semibold hover:bg-amber transition flex items-center gap-1.5">
             <Rocket className="size-3.5" /> Deploy
-          </button>
+          </Link>
         </div>
       </header>
 
@@ -176,19 +211,25 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
       <div className="flex-1 grid lg:grid-cols-2 overflow-hidden">
         {/* LEFT: tabs (chat / code / history) */}
         <div className={`flex flex-col border-r border-border min-h-0 ${fullscreenPreview ? "hidden" : ""}`}>
-          <div className="border-b border-border px-3 py-2 flex items-center gap-1">
-            {(["chat", "code", "history"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 ${tab === t ? "bg-emerald/15 text-emerald" : "text-muted hover:text-foreground"}`}
-              >
-                {t === "chat" && <MessageSquare className="size-3.5" />}
-                {t === "code" && <CodeIcon className="size-3.5" />}
-                {t === "history" && <History className="size-3.5" />}
-                {t === "chat" ? "Build with Sage" : t === "code" ? "Code" : `Versions (${project.versions.length})`}
-              </button>
-            ))}
+          <div className="border-b border-border px-3 py-2 flex items-center gap-1 overflow-x-auto">
+            {(["chat", "code", "console", "history"] as Tab[]).map((t) => {
+              const errorCount = t === "console" ? consoleEntries.filter((e) => e.level === "error").length : 0;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition flex items-center gap-1.5 shrink-0 ${tab === t ? "bg-emerald/15 text-emerald" : "text-muted hover:text-foreground"} ${errorCount > 0 && tab !== "console" ? "text-rust" : ""}`}
+                >
+                  {t === "chat" && <MessageSquare className="size-3.5" />}
+                  {t === "code" && <CodeIcon className="size-3.5" />}
+                  {t === "console" && <Terminal className="size-3.5" />}
+                  {t === "history" && <History className="size-3.5" />}
+                  {t === "chat" ? "Build with Sage" : t === "code" ? "Code" : t === "console" ? (
+                    <>Console {errorCount > 0 && <span className="bg-rust text-white text-[10px] px-1.5 rounded-full">{errorCount}</span>}</>
+                  ) : `Versions (${project.versions.length})`}
+                </button>
+              );
+            })}
           </div>
 
           {/* Chat tab */}
@@ -285,6 +326,15 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
 
+          {/* Console tab */}
+          {tab === "console" && (
+            <BuildConsole
+              entries={consoleEntries}
+              onClear={() => setConsoleEntries([])}
+              onFix={(err) => { setTab("chat"); send(`There's an error in the preview:\n\n${err}\n\nFind it in the code and fix it. Reply with the full corrected HTML file.`); }}
+            />
+          )}
+
           {/* History tab */}
           {tab === "history" && (
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -296,7 +346,7 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
         </div>
 
         {/* RIGHT: preview */}
-        <div className={`flex flex-col bg-[#06100d] min-h-0 ${fullscreenPreview ? "col-span-2" : ""}`}>
+        <div className={`flex flex-col bg-[#06100d] min-h-0 relative ${fullscreenPreview ? "col-span-2" : ""}`}>
           <div className="px-3 py-2 border-b border-border flex items-center justify-between bg-background/60">
             <div className="flex items-center gap-1">
               <Eye className="size-3.5 text-muted" />
@@ -329,15 +379,44 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
               <iframe
                 key={previewKey}
                 title="preview"
-                srcDoc={project.code}
-                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox"
+                srcDoc={injectConsoleBridge(project.code)}
+                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                allow="microphone; camera; geolocation; clipboard-read; clipboard-write; serial"
                 className="w-full h-full border-0"
                 style={{ minHeight: device === "phone" ? 780 : 600 }}
               />
             </div>
           </div>
+          {/* Error pill jumps you to the console */}
+          {consoleEntries.some((e) => e.level === "error") && tab !== "console" && (
+            <button
+              onClick={() => setTab("console")}
+              className="absolute bottom-4 left-4 bg-rust text-white text-xs px-3 py-2 rounded-full shadow-2xl flex items-center gap-2 hover:bg-rust/90 transition"
+            >
+              <Terminal className="size-3.5" />
+              {consoleEntries.filter((e) => e.level === "error").length} error{consoleEntries.filter((e) => e.level === "error").length > 1 ? "s" : ""} in the preview · view
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Tool dialogs */}
+      <SnippetLibrary
+        open={snippetOpen}
+        onClose={() => setSnippetOpen(false)}
+        onPick={(s) => { setSnippetOpen(false); send(s.prompt); }}
+      />
+      <ShareDialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        html={project.code}
+        projectName={project.name}
+      />
+      <ImageToBuildDialog
+        open={imageOpen}
+        onClose={() => setImageOpen(false)}
+        onSubmit={(dataUrl, p) => { setImageOpen(false); send(p || "Rebuild the UI from the attached image.", { imageDataUrl: dataUrl }); }}
+      />
     </div>
   );
 }
