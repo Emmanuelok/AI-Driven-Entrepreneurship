@@ -12,6 +12,8 @@ import {
 import { TRACKS } from "@/lib/curriculum";
 import { PROBLEMS } from "@/lib/problems";
 import { format } from "date-fns";
+import { useCohortProgress, type ProgressStatus, type ProgressRow } from "@/lib/cohort-progress";
+import { Circle, CheckCircle2, MinusCircle, Loader2 } from "lucide-react";
 
 type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
 type Member = { user_id: string; role: "owner" | "instructor" | "student"; email: string | null; display_name: string | null; joined_at: string };
@@ -62,6 +64,22 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
   if (!cohort) return <div className="max-w-5xl mx-auto px-5 sm:px-8 py-10 text-sm text-muted">Loading…</div>;
 
   const isInstructor = myRole === "owner" || myRole === "instructor";
+
+  // Progress lives in its own table; the hook handles read + realtime
+  // subscribe so the instructor matrix updates as students check off.
+  const progress = useCohortProgress(id);
+
+  // Quick lookup: my own status on each assignment.
+  const myProgressByAssignment = new Map<string, ProgressRow>();
+  if (!isInstructor) {
+    for (const r of progress.rows) {
+      myProgressByAssignment.set(r.assignment_id, r);
+    }
+  }
+  const studentProgressByPair = new Map<string, ProgressRow>();
+  if (isInstructor) {
+    for (const r of progress.rows) studentProgressByPair.set(`${r.user_id}:${r.assignment_id}`, r);
+  }
 
   async function deleteCohort() {
     if (!confirm(`Delete "${(cohort as Cohort).name}" and everything in it? This can't be undone.`)) return;
@@ -133,6 +151,56 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
         </div>
       </header>
 
+      {/* Progress matrix — instructor view. Rows = students, cols = assignments. */}
+      {isInstructor && assignments.length > 0 && members.some((m) => m.role === "student") && (
+        <Card className="p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs uppercase tracking-[0.22em] text-emerald flex items-center gap-1.5">
+              <Loader2 className={`size-3 ${progress.loading ? "animate-spin" : "opacity-0"}`} />
+              Progress at a glance
+            </h2>
+            <span className="text-[10px] text-muted">Live — students update by checking off on their device</span>
+          </div>
+          <div className="overflow-x-auto -mx-1 px-1">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-widest text-muted">
+                  <th className="text-left pb-2 pr-3 sticky left-0 bg-surface z-10">Student</th>
+                  {assignments.map((a) => (
+                    <th key={a.id} className="pb-2 px-2 font-normal align-bottom" title={a.title}>
+                      <div className="rotate-0 sm:rotate-[-30deg] sm:origin-bottom-left max-w-[140px] truncate inline-block">{a.title}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {members.filter((m) => m.role === "student").map((s) => (
+                  <tr key={s.user_id} className="border-t border-border hover:bg-surface-2/40">
+                    <td className="py-1.5 pr-3 sticky left-0 bg-surface z-10 max-w-[160px] truncate">
+                      {s.display_name || s.email || s.user_id}
+                    </td>
+                    {assignments.map((a) => {
+                      const cell = studentProgressByPair.get(`${s.user_id}:${a.id}`);
+                      return (
+                        <td key={a.id} className="py-1.5 px-2 text-center">
+                          <StatusDot status={cell?.status ?? "not_started"} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex items-center gap-3 text-[10px] text-muted flex-wrap">
+            <Legend status="not_started" label="Not started" />
+            <Legend status="in_progress" label="In progress" />
+            <Legend status="completed" label="Completed" />
+            <Legend status="submitted" label="Submitted" />
+          </div>
+        </Card>
+      )}
+
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         {/* Assignments column */}
         <div>
@@ -154,24 +222,42 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
                   a.kind === "venture" ? `/studio/venture${a.target_id ? `/${a.target_id}` : ""}` :
                   null;
                 const overdue = a.due_at && new Date(a.due_at) < new Date();
+                const myRow = myProgressByAssignment.get(a.id);
+                const totalStudents = members.filter((m) => m.role === "student").length;
+                const doneStudents = isInstructor
+                  ? new Set(progress.rows.filter((r) => r.assignment_id === a.id && (r.status === "completed" || r.status === "submitted")).map((r) => r.user_id)).size
+                  : 0;
                 return (
                   <li key={a.id} className="group">
                     <Card className="p-4 flex items-start gap-3">
                       <Icon className="size-4 text-emerald shrink-0 mt-1" />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <Badge color="muted">{KIND_LABEL[a.kind]}</Badge>
                           {a.due_at && (
                             <span className={`text-[10px] flex items-center gap-1 ${overdue ? "text-rust" : "text-muted"}`}>
                               <Calendar className="size-2.5" /> due {format(new Date(a.due_at), "MMM d")}
                             </span>
                           )}
+                          {isInstructor && totalStudents > 0 && (
+                            <span className="text-[10px] text-muted">
+                              {doneStudents}/{totalStudents} done
+                            </span>
+                          )}
                         </div>
                         <div className="font-medium text-sm">{a.title}</div>
                         {a.description && <p className="text-xs text-muted mt-1 leading-relaxed">{a.description}</p>}
-                        {targetHref && (
-                          <Link href={targetHref} className="mt-2 inline-block text-xs text-emerald hover:text-amber">Open →</Link>
-                        )}
+                        <div className="mt-2 flex items-center gap-3 flex-wrap">
+                          {targetHref && (
+                            <Link href={targetHref} className="text-xs text-emerald hover:text-amber">Open →</Link>
+                          )}
+                          {!isInstructor && (
+                            <StudentStatusControl
+                              current={myRow?.status ?? "not_started"}
+                              onChange={(s) => progress.setStatus(a.id, s)}
+                            />
+                          )}
+                        </div>
                       </div>
                       {isInstructor && (
                         <button onClick={() => deleteAssignment(a.id)} className="opacity-0 group-hover:opacity-100 transition text-muted hover:text-rust" aria-label="Delete assignment">
@@ -421,5 +507,66 @@ function AssignmentDialog({ open, onClose, cohortId, onDone }: { open: boolean; 
         </div>
       </div>
     </Dialog>
+  );
+}
+
+// ─── Progress UI helpers ────────────────────────────────────────────────
+function StudentStatusControl({ current, onChange }: { current: ProgressStatus; onChange: (next: ProgressStatus) => void }) {
+  const cfg = STATUS_CFG[current];
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <button
+        onClick={() => onChange(advance(current))}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] uppercase tracking-widest transition ${cfg.color}`}
+        aria-label={`Advance status from ${cfg.label}`}
+        title="Click to advance status"
+      >
+        <cfg.Icon className="size-3" /> {cfg.label}
+      </button>
+      <select
+        value={current}
+        onChange={(e) => onChange(e.target.value as ProgressStatus)}
+        className="bg-surface-2 border border-border rounded text-[10px] px-1.5 py-0.5 outline-none focus:border-emerald"
+        aria-label="Pick status"
+      >
+        <option value="not_started">Not started</option>
+        <option value="in_progress">In progress</option>
+        <option value="completed">Completed</option>
+        <option value="submitted">Submitted</option>
+      </select>
+    </div>
+  );
+}
+
+const STATUS_CFG: Record<ProgressStatus, { Icon: typeof Circle; label: string; color: string; dot: string }> = {
+  not_started: { Icon: Circle, label: "Not started", color: "text-muted border-border bg-surface-2", dot: "bg-muted/40" },
+  in_progress: { Icon: Loader2, label: "In progress", color: "text-amber border-amber/40 bg-amber/5", dot: "bg-amber" },
+  completed: { Icon: CheckCircle2, label: "Completed", color: "text-emerald border-emerald/40 bg-emerald/5", dot: "bg-emerald" },
+  submitted: { Icon: MinusCircle, label: "Submitted", color: "text-indigo border-indigo/40 bg-indigo/5", dot: "bg-indigo" },
+};
+
+function advance(s: ProgressStatus): ProgressStatus {
+  const order: ProgressStatus[] = ["not_started", "in_progress", "completed", "submitted"];
+  return order[(order.indexOf(s) + 1) % order.length];
+}
+
+function StatusDot({ status }: { status: ProgressStatus }) {
+  const cfg = STATUS_CFG[status];
+  return (
+    <span
+      className={`inline-block size-2.5 rounded-full ${cfg.dot}`}
+      title={cfg.label}
+      aria-label={cfg.label}
+    />
+  );
+}
+
+function Legend({ status, label }: { status: ProgressStatus; label: string }) {
+  const cfg = STATUS_CFG[status];
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={`size-2 rounded-full ${cfg.dot}`} />
+      {label}
+    </span>
   );
 }

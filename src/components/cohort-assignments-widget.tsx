@@ -24,7 +24,20 @@ type Assignment = {
   due_at: string | null;
 };
 
-type Item = Assignment & { cohortId: string; cohortName: string };
+type Item = Assignment & { cohortId: string; cohortName: string; status: "not_started" | "in_progress" | "completed" | "submitted" };
+
+const STATUS_DOT: Record<Item["status"], string> = {
+  not_started: "bg-muted/40",
+  in_progress: "bg-amber",
+  completed: "bg-emerald",
+  submitted: "bg-indigo",
+};
+const STATUS_LABEL: Record<Item["status"], string> = {
+  not_started: "Not started",
+  in_progress: "In progress",
+  completed: "Completed",
+  submitted: "Submitted",
+};
 
 const ICON = { lesson: BookOpen, track: FlaskConical, problem: Globe2, build: Hammer, venture: Rocket, free: ClipboardList } as const;
 
@@ -46,9 +59,22 @@ export function CohortAssignmentsWidget() {
         if (cohorts.length === 0) { setItems([]); return; }
 
         const all = await Promise.all(cohorts.map(async (c) => {
-          const r = await fetch(`/api/v2/cohorts/${c.id}/assignments`, { headers });
-          const d = await r.json();
-          return ((d.results ?? []) as Assignment[]).map((a) => ({ ...a, cohortId: c.id, cohortName: c.name }));
+          const [aRes, pRes] = await Promise.all([
+            fetch(`/api/v2/cohorts/${c.id}/assignments`, { headers }),
+            fetch(`/api/v2/cohorts/${c.id}/progress`, { headers }),
+          ]);
+          const aData = await aRes.json();
+          const pData = await pRes.json();
+          const status = new Map<string, Item["status"]>();
+          for (const r of (pData.results ?? []) as Array<{ assignment_id: string; status: Item["status"] }>) {
+            status.set(r.assignment_id, r.status);
+          }
+          return ((aData.results ?? []) as Assignment[]).map((a) => ({
+            ...a,
+            cohortId: c.id,
+            cohortName: c.name,
+            status: status.get(a.id) ?? "not_started",
+          }));
         }));
         const merged = all.flat();
         merged.sort((a, b) => {
@@ -58,7 +84,10 @@ export function CohortAssignmentsWidget() {
           if (b.due_at) return 1;
           return 0;
         });
-        setItems(merged.slice(0, 6));
+        // Hide items the student has already marked completed/submitted so
+        // the dashboard stays a "what's next" list, not a history view.
+        const pending = merged.filter((m) => m.status === "not_started" || m.status === "in_progress");
+        setItems(pending.slice(0, 6));
       } catch {
         // Silent — dashboard keeps working.
       }
@@ -97,6 +126,10 @@ export function CohortAssignmentsWidget() {
                     </div>
                     <div className="text-[10px] text-muted flex items-center gap-2 flex-wrap">
                       <span className="truncate">{a.cohortName}</span>
+                      <span className="inline-flex items-center gap-1" title={STATUS_LABEL[a.status]}>
+                        <span className={`size-1.5 rounded-full ${STATUS_DOT[a.status]}`} />
+                        {STATUS_LABEL[a.status]}
+                      </span>
                       {a.due_at && (
                         <span className={`inline-flex items-center gap-1 ${overdue ? "text-rust" : ""}`}>
                           <Calendar className="size-2.5" /> {format(new Date(a.due_at), "MMM d")}
