@@ -102,7 +102,7 @@ export default function MvpPage({ params }: { params: Promise<{ id: string }> })
       {tasks.length === 0 ? (
         <EmptyState icon={Wrench} title="Empty board" body="Break the MVP into shippable units. Each card ≤ 2 days of work. If a card feels bigger, split it." />
       ) : (
-        <div className="grid lg:grid-cols-3 gap-4">
+        <div className="grid grid-flow-col auto-cols-[minmax(260px,1fr)] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-3 gap-4 overflow-x-auto pb-2">
           {LANES.map((lane) => {
             const items = byLane(lane.id);
             return (

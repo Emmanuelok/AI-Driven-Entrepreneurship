@@ -116,7 +116,7 @@ function InvestorCRM({ venture, onSave }: { venture: { investors?: Investor[] };
         <Button onClick={() => setAdding(true)}><Plus className="size-4" /> Add investor</Button>
       </div>
 
-      <div className="grid lg:grid-cols-7 gap-3 overflow-x-auto">
+      <div className="grid grid-flow-col auto-cols-[minmax(170px,1fr)] lg:grid-flow-row lg:auto-cols-auto lg:grid-cols-7 gap-3 overflow-x-auto pb-2">
         {STAGES.map((stg) => {
           const items = investors.filter((i) => i.stage === stg.id);
           return (
@@ -332,7 +332,8 @@ function CapTable({ venture, onSave }: { venture: { team?: { name: string; role:
 
       <Card className="p-5">
         <h3 className="font-medium mb-3">Ownership trajectory</h3>
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto -mx-5 px-5">
+        <table className="w-full text-sm min-w-[520px]">
           <thead className="text-xs text-muted uppercase tracking-widest">
             <tr>
               <th className="text-left py-2">Round</th>
@@ -354,6 +355,7 @@ function CapTable({ venture, onSave }: { venture: { team?: { name: string; role:
             ))}
           </tbody>
         </table>
+        </div>
         <p className="text-[10px] text-muted mt-3">Simplified model: SAFEs converted at cap, no anti-dilution provisions, ESOP carved pre-money. Use this for napkin math, not legal docs.</p>
       </Card>
     </div>
