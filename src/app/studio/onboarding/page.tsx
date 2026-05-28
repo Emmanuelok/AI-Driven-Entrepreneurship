@@ -206,19 +206,44 @@ function Hello({ onNext }: { onNext: () => void }) {
 /* ─── Stage 2: IDENTITY ─── */
 function Identity({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: Form) => void; onNext: () => void; onBack: () => void }) {
   const nameOk = form.name.trim().length > 1;
-  const emailOk = form.email.trim().length === 0 || form.email.includes("@");
+  const emailRaw = form.email.trim();
+  // Lenient email shape: has @, has a dot after it, no spaces
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw);
+  const emailStarted = emailRaw.length > 0;
   return (
     <StageShell>
-      <SageBubble text="What should I call you? Email is optional — only useful if you want to reach future-you on another device." />
+      <SageBubble text="What should I call you? And what email do you use most? I'll use it to sign you in when you switch to your phone." />
       <div className="glass rounded-2xl p-7 space-y-5">
-        <Field label="Your name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ama Mensah" className="bg-surface-2 border border-border rounded-xl px-4 py-3 text-base outline-none focus:border-emerald w-full" /></Field>
-        <Field label="Email (optional)"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@example.com — or leave blank" className="bg-surface-2 border border-border rounded-xl px-4 py-3 text-base outline-none focus:border-emerald w-full" /></Field>
-        {form.email.trim().length > 0 && !emailOk && (
-          <p className="text-xs text-amber italic">That doesn&apos;t look like an email yet. Add an @ — or clear the field to skip.</p>
-        )}
-        {!nameOk && form.name.trim().length > 0 && (
-          <p className="text-xs text-amber italic">Just need at least two letters.</p>
-        )}
+        <Field label="Your name">
+          <input
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="Ama Mensah"
+            className={`bg-surface-2 border rounded-xl px-4 py-3 text-base outline-none w-full transition ${
+              nameOk || form.name.trim().length === 0 ? "border-border focus:border-emerald" : "border-amber/50 focus:border-amber"
+            }`}
+          />
+          {!nameOk && form.name.trim().length > 0 && (
+            <p className="text-xs text-amber italic mt-1.5">Just need at least two letters.</p>
+          )}
+        </Field>
+        <Field label="Email">
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            placeholder="you@example.com"
+            className={`bg-surface-2 border rounded-xl px-4 py-3 text-base outline-none w-full transition ${
+              emailOk || !emailStarted ? "border-border focus:border-emerald" : "border-amber/50 focus:border-amber"
+            }`}
+          />
+          {emailStarted && !emailOk && (
+            <p className="text-xs text-amber italic mt-1.5">That doesn&apos;t look like a valid email yet. Format: <span className="font-mono">name@domain.com</span></p>
+          )}
+          {!emailStarted && (
+            <p className="text-xs text-muted mt-1.5">We&apos;ll use this for sign-in when you switch devices. We never spam or sell it.</p>
+          )}
+        </Field>
       </div>
       <Nav onBack={onBack} onNext={onNext} canNext={nameOk && emailOk} />
     </StageShell>

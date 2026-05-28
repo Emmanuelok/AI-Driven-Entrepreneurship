@@ -62,6 +62,7 @@ function Nav() {
           <a href="#ship" className="hover:text-foreground transition">Ship Hour</a>
           <a href="#voices" className="hover:text-foreground transition">Voices</a>
           <Link href="/studio/atlas" className="hover:text-foreground transition">Atlas</Link>
+          <Link href="/sign-in" className="hover:text-foreground transition">Sign in</Link>
         </nav>
         <Link href="/studio" className="flex items-center gap-1.5 bg-emerald text-black font-medium text-sm px-4 py-2 rounded-full hover:bg-amber transition shadow-lg shadow-emerald/30">
           Enter Studio <ArrowRight className="size-3.5" />
