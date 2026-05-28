@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { PROBLEMS } from "@/lib/problems";
-import { Card, Button, Input, Textarea, Badge, EmptyState, Dialog } from "@/components/ui";
+import { Button, Input, Textarea, Badge, EmptyState, Dialog } from "@/components/ui";
 import { Rocket, Plus, ArrowRight, Users, Target, Wallet, Sparkles } from "lucide-react";
 
 export default function VenturesPage() {

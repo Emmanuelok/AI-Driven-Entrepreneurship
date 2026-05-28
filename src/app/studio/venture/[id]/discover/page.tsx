@@ -5,15 +5,29 @@ import { notFound } from "next/navigation";
 import { useStore } from "@/store";
 import { PROBLEMS } from "@/lib/problems";
 import { Card, Button, Input, Textarea, Badge, Dialog, EmptyState } from "@/components/ui";
-import { Users, Plus, Sparkles, CheckCircle2, AlertCircle, XCircle } from "lucide-react";
+import { Users, Plus, Sparkles, CheckCircle2, AlertCircle, XCircle, Brain, FlaskConical, Quote } from "lucide-react";
 import { Markdown } from "@/components/markdown";
+
+type Cluster = { theme: string; count: number; evidence: string[] };
+type Persona = { name: string; role: string; goals: string; pains: string; quote?: string };
+type Synthesis = {
+  clusters: Cluster[];
+  personas: Persona[];
+  willingness: { median: number; p25: number; p75: number; note?: string };
+  verdict: "go" | "pivot" | "kill";
+  verdictReason: string;
+  nextThreeMoves: string[];
+};
 
 export default function DiscoverPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { ventures, addInterview } = useStore();
+  const { ventures, addInterview, updateVenture } = useStore();
   const [adding, setAdding] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [script, setScript] = useState<{ category: string; q: string }[] | null>(null);
+  const [syn, setSyn] = useState<Synthesis | null>(null);
+  const [synthBusy, setSynthBusy] = useState(false);
+
   const found = ventures.find((x) => x.id === id);
   if (!found) { notFound(); return null; }
   const v = found;
@@ -27,7 +41,7 @@ export default function DiscoverPage({ params }: { params: Promise<{ id: string 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           problem: problem?.title ?? v.tagline ?? "the problem this venture solves",
-          persona: v.canvas.Customer ?? "the target customer",
+          persona: v.canvas.Customer ?? v.wedge?.who ?? "the target customer",
           ventureName: v.name,
         }),
       });
@@ -38,31 +52,80 @@ export default function DiscoverPage({ params }: { params: Promise<{ id: string 
     }
   }
 
+  async function synthesize() {
+    setSynthBusy(true);
+    try {
+      const res = await fetch("/api/venture/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ventureName: v.name,
+          tagline: v.tagline,
+          canvas: v.canvas,
+          interviews: v.interviews,
+        }),
+      });
+      const data = await res.json();
+      if (data.clusters) {
+        setSyn(data);
+        // Persist to venture
+        updateVenture(v.id, {
+          insightClusters: data.clusters.map((c: Cluster, i: number) => ({ id: `c${i}`, theme: c.theme, count: c.count, evidence: c.evidence })),
+          personas: data.personas.map((p: Persona, i: number) => ({ id: `p${i}`, name: p.name, role: p.role, goals: p.goals, pains: p.pains, quote: p.quote })),
+        });
+      }
+    } finally {
+      setSynthBusy(false);
+    }
+  }
+
   const validated = v.interviews.filter((i) => i.verdict === "validated").length;
+  const insight = v.interviews.filter((i) => i.verdict === "insight").length;
+  const rejected = v.interviews.filter((i) => i.verdict === "rejected").length;
   const rate = v.interviews.length ? validated / v.interviews.length : 0;
+  const wtps = v.interviews.map((i) => i.willingnessToPay).filter((n): n is number => typeof n === "number");
+  const medianWtp = wtps.length ? wtps.sort((a, b) => a - b)[Math.floor(wtps.length / 2)] : 0;
 
   return (
-    <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10">
-      <div className="flex items-end justify-between flex-wrap gap-3 mb-6">
+    <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 space-y-6">
+      <header className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-1 flex items-center gap-1.5">
             <Users className="size-3.5" /> Phase 2 — Customer Discovery
           </p>
-          <h2 className="font-[family-name:var(--font-display)] text-2xl font-semibold">{v.interviews.length} of {v.metrics.interviewsTarget} interviews logged</h2>
-          <p className="text-sm text-muted mt-1">Validate rate: <span className={`font-semibold ${rate >= 0.5 ? "text-emerald" : "text-amber"}`}>{Math.round(rate * 100)}%</span> · Move to MVP at ≥50%.</p>
+          <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold">{v.interviews.length} of {v.metrics.interviewsTarget} interviews</h2>
+          <p className="text-sm text-muted mt-1">Validated <span className="text-emerald font-semibold">{validated}</span> · Insight <span className="text-amber font-semibold">{insight}</span> · Rejected <span className="text-rust font-semibold">{rejected}</span> · Median WTP <span className="text-emerald font-mono">${medianWtp}</span></p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={generateScript} disabled={generating}>
-            <Sparkles className="size-4" /> {generating ? "Akili is drafting…" : "Generate interview script"}
+            <Sparkles className="size-4" /> {generating ? "Drafting…" : "Interview script"}
+          </Button>
+          <Button variant="secondary" onClick={synthesize} disabled={synthBusy || v.interviews.length < 3}>
+            <Brain className="size-4" /> {synthBusy ? "Synthesizing…" : "Synthesize patterns"}
           </Button>
           <Button onClick={() => setAdding(true)}><Plus className="size-4" /> Log interview</Button>
         </div>
-      </div>
+      </header>
+
+      {/* Mom Test rubric — always visible reminder */}
+      <Card className="p-5 bg-gradient-to-r from-emerald/10 to-amber/10 border-emerald/20">
+        <div className="flex items-start gap-3">
+          <FlaskConical className="size-5 text-emerald shrink-0 mt-0.5" />
+          <div className="text-sm space-y-1">
+            <div className="font-medium">The Mom Test — three rules every interview</div>
+            <ul className="text-xs text-muted leading-relaxed space-y-0.5">
+              <li>1. Talk about <strong>their</strong> life, not your idea.</li>
+              <li>2. Ask about <strong>specific past behavior</strong>, never opinions about a hypothetical future.</li>
+              <li>3. Talk less. <strong>Listen more.</strong> Silence pulls truth out.</li>
+            </ul>
+          </div>
+        </div>
+      </Card>
 
       {script && (
-        <Card className="p-6 mb-6 border border-emerald/30 bg-emerald/5">
+        <Card className="p-6 border border-emerald/30 bg-emerald/5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-medium flex items-center gap-2"><Sparkles className="size-4 text-emerald" /> Customer Discovery Script (12 questions)</h3>
+            <h3 className="font-medium flex items-center gap-2"><Sparkles className="size-4 text-emerald" /> 12-question discovery script</h3>
             <button onClick={() => setScript(null)} className="text-xs text-muted hover:text-foreground">Close</button>
           </div>
           <ol className="space-y-3">
@@ -76,12 +139,65 @@ export default function DiscoverPage({ params }: { params: Promise<{ id: string 
               </li>
             ))}
           </ol>
-          <p className="text-xs text-muted mt-4">Tip: Never read these like a survey. Use them as anchors — let the conversation breathe.</p>
+          <p className="text-xs text-muted mt-4">Use these as anchors — never as a script. Let the conversation breathe.</p>
+        </Card>
+      )}
+
+      {syn && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-medium flex items-center gap-2"><Brain className="size-4 text-amber" /> Pattern synthesis</h3>
+            <Badge color={syn.verdict === "go" ? "emerald" : syn.verdict === "pivot" ? "amber" : "rust"}>
+              Verdict: {syn.verdict.toUpperCase()}
+            </Badge>
+          </div>
+          <p className="text-sm text-foreground/90 leading-relaxed mb-5">{syn.verdictReason}</p>
+
+          <div className="grid lg:grid-cols-2 gap-4 mb-5">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-emerald mb-2">Clusters</div>
+              <div className="space-y-2">
+                {syn.clusters.map((c, i) => (
+                  <div key={i} className="rounded-xl border border-border bg-surface-2/40 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-sm">{c.theme}</div>
+                      <Badge color="muted">{c.count} mentions</Badge>
+                    </div>
+                    <ul className="mt-2 space-y-1 text-xs text-muted italic">
+                      {c.evidence.slice(0, 3).map((e, j) => (<li key={j}>— {e}</li>))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-amber mb-2">Personas</div>
+              <div className="space-y-2">
+                {syn.personas.map((p, i) => (
+                  <div key={i} className="rounded-xl border border-border bg-surface-2/40 p-3">
+                    <div className="font-medium text-sm">{p.name} <span className="text-muted text-xs">· {p.role}</span></div>
+                    <div className="mt-1.5 text-xs"><strong className="text-emerald">Goals:</strong> {p.goals}</div>
+                    <div className="text-xs"><strong className="text-rust">Pains:</strong> {p.pains}</div>
+                    {p.quote && (<div className="mt-2 text-xs italic text-muted flex gap-1.5"><Quote className="size-3 shrink-0 mt-0.5" />&ldquo;{p.quote}&rdquo;</div>)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-emerald/30 bg-emerald/5 p-4">
+            <div className="text-[10px] uppercase tracking-widest text-emerald mb-2">Next 3 moves</div>
+            <ol className="space-y-1.5 text-sm">
+              {syn.nextThreeMoves.map((m, i) => (
+                <li key={i} className="flex gap-2"><span className="font-mono text-emerald text-xs mt-0.5">0{i + 1}.</span><span>{m}</span></li>
+              ))}
+            </ol>
+          </div>
         </Card>
       )}
 
       {v.interviews.length === 0 ? (
-        <EmptyState icon={Users} title="No interviews yet" body="Talk to 20 people before you build. Log each conversation here." action={<Button onClick={() => setAdding(true)}><Plus className="size-4" /> Log first interview</Button>} />
+        <EmptyState icon={Users} title="No interviews yet" body="Talk to 20 real people before you build. Log each conversation here." action={<Button onClick={() => setAdding(true)}><Plus className="size-4" /> Log first interview</Button>} />
       ) : (
         <Card className="overflow-hidden">
           <table className="w-full text-sm">
@@ -136,17 +252,17 @@ function AddInterviewForm({ onSubmit }: { onSubmit: (iv: { name: string; role: s
         <Input placeholder="Person's name" value={name} onChange={(e) => setName(e.target.value)} />
         <Input placeholder="Role / context" value={role} onChange={(e) => setRole(e.target.value)} />
       </div>
-      <Textarea placeholder="Verdict notes — what did you learn?" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} />
+      <Textarea placeholder="What did they actually say? Verbatim where you can — quotes are gold." value={notes} onChange={(e) => setNotes(e.target.value)} rows={5} />
       <div className="grid grid-cols-2 gap-3">
         <div>
           <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Verdict</div>
           <select value={verdict} onChange={(e) => setVerdict(e.target.value as typeof verdict)} className="bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald w-full">
-            <option value="validated">Validated</option>
-            <option value="insight">Insight</option>
-            <option value="rejected">Rejected</option>
+            <option value="validated">Validated — pain confirmed, would buy</option>
+            <option value="insight">Insight — adjacent pain or new info</option>
+            <option value="rejected">Rejected — no real pain here</option>
           </select>
         </div>
-        <Input placeholder="Willingness to pay ($)" type="number" value={wtp} onChange={(e) => setWtp(e.target.value)} />
+        <Input placeholder="Willingness to pay ($, optional)" type="number" value={wtp} onChange={(e) => setWtp(e.target.value)} />
       </div>
       <div className="flex justify-end">
         <Button

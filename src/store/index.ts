@@ -62,18 +62,72 @@ export type Venture = {
   region: string;
   interviews: Interview[];
   canvas: Record<string, string>;
-  mvpTasks: { id: string; title: string; done: boolean; due?: string }[];
+  mvpTasks: { id: string; title: string; done: boolean; due?: string; status?: "todo" | "doing" | "done" }[];
   metrics: {
     interviewsTarget: number;
     revenue: number;
     customers: number;
     mrr: number;
   };
-  team: { name: string; role: string }[];
-  pitchDeck?: { id: string; title: string; slides: { title: string; body: string }[] };
+  team: { name: string; role: string; equityPct?: number; vestingMonths?: number; cliffMonths?: number }[];
+  pitchDeck?: { id: string; title: string; slides: { title: string; body: string; notes?: string }[] };
   fundingRaised: number;
   fundingTarget: number;
   achievements: string[];
+
+  // ─── Industry-standard extensions (all optional for back-compat) ───
+  jtbd?: { when: string; iWantTo: string; soICan: string; today: string }; // Jobs-To-Be-Done framing
+  wedge?: { who: string; pain: string; alternative: string; insight: string }; // beachhead segment
+  personas?: { id: string; name: string; role: string; goals: string; pains: string; quote?: string }[];
+  insightClusters?: { id: string; theme: string; count: number; evidence: string[] }[]; // from interview synthesis
+  economics?: {
+    pricePoint?: number;
+    marginalCost?: number;
+    cacUsd?: number;
+    payingCustomers?: number;
+    churnMonthlyPct?: number;
+    burnMonthlyUsd?: number;
+    cashOnHandUsd?: number;
+  };
+  funnel?: { acquisition: number; activation: number; retention: number; referral: number; revenue: number }; // AARRR (last 30d counts)
+  channels?: { id: string; name: string; reach: number; cvrPct: number; cacUsd?: number; notes?: string }[];
+  investors?: {
+    id: string;
+    name: string;
+    firm: string;
+    stage: "researching" | "intro" | "first-meet" | "diligence" | "term-sheet" | "closed" | "passed";
+    checkSizeUsd?: number;
+    lastContact?: string;
+    notes?: string;
+    type?: "angel" | "vc" | "grant" | "accelerator" | "strategic";
+  }[];
+  capTable?: {
+    rounds: { id: string; name: string; date?: string; amountUsd: number; preMoneyUsd: number; instrument: "SAFE" | "Equity" | "Convertible" | "Grant"; valuationCapUsd?: number; discountPct?: number }[];
+    esopPct?: number;
+  };
+  safeTemplates?: { id: string; investor: string; amount: number; cap?: number; discountPct?: number; postMoney: boolean; created: string }[];
+  okrs?: {
+    quarter: string; // "2026-Q2"
+    objective: string;
+    keyResults: { id: string; kr: string; targetValue: number; currentValue: number; unit: string }[];
+  }[];
+  weeklyReviews?: { id: string; weekOf: string; did: string; planned: string; blockers: string; learnings: string }[];
+  dataRoom?: { id: string; name: string; status: "missing" | "draft" | "ready"; category: string; url?: string }[];
+  legal?: {
+    incorporated?: boolean;
+    jurisdiction?: string; // e.g. "Ghana — Limited Company", "Delaware C-Corp"
+    incorporationDate?: string;
+    cofounderAgreement?: boolean;
+    ipAssignment?: boolean;
+    vestingApplied?: boolean;
+    ndaTemplate?: boolean;
+    privacyPolicy?: boolean;
+    termsOfService?: boolean;
+  };
+  milestones?: { id: string; title: string; by?: string; done: boolean }[];
+  risks?: { id: string; type: "market" | "tech" | "team" | "regulatory" | "financial"; description: string; mitigation: string; severity: 1 | 2 | 3 | 4 | 5 }[];
+  updates?: { id: string; month: string; highlights: string; lowlights: string; asks: string; metrics: string; created: number }[];
+  publicLaunch?: { headline?: string; subhead?: string; bullets?: string[]; cta?: string; whatsappBlurb?: string; published?: boolean };
 };
 
 export type Notification = {

@@ -12,7 +12,7 @@ import { Markdown } from "@/components/markdown";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import {
   Target, Users, Wallet, Trophy, Lightbulb, Wrench, Megaphone, TrendingUp,
-  CheckCircle2, Clock, Sparkles, MapPin, Calendar, ArrowRight, Brain,
+  CheckCircle2, Sparkles, MapPin, Calendar, ArrowRight, Brain,
   Send, FileText, Bot, Zap, Activity, ChevronRight, Compass,
 } from "lucide-react";
 
@@ -254,7 +254,7 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
             ) : akiliBusy ? (
               <p className="text-sm text-muted italic">Akili is reading your state and deciding your next move…</p>
             ) : (
-              <p className="text-sm text-muted italic">Tap Re-think for Akili's read.</p>
+              <p className="text-sm text-muted italic">Tap Re-think for Akili&apos;s read.</p>
             )}
           </div>
         </Card>
@@ -431,15 +431,15 @@ function phaseActions(v: { id: string }, phase: "ideate" | "discover" | "mvp" | 
     { label: "Ask Akili to scope it smaller", desc: "If MVP is more than 7 days, it's too big.", icon: Brain, href: `/studio/venture/${id}/coach` },
   ];
   if (phase === "launch") return [
-    { label: "Send your outreach", desc: "WhatsApp 5 people today. No exceptions.", icon: Send, href: `/studio/venture/${id}/coach` },
-    { label: "Build the pitch", desc: "60-second version, then 12-slide.", icon: FileText, href: `/studio/venture/${id}/pitch` },
-    { label: "Submit to the Arena", desc: "Get scored. Get an investor intro.", icon: Trophy, href: `/studio/arena` },
+    { label: "Ship the one-pager", desc: "Public launch + WhatsApp blurb.", icon: Megaphone, href: `/studio/venture/${id}/launch` },
+    { label: "Build the pitch", desc: "12-slide Sequoia narrative.", icon: FileText, href: `/studio/venture/${id}/pitch` },
+    { label: "Open the investor CRM", desc: "Pipeline from intro to closed.", icon: Wallet, href: `/studio/venture/${id}/fundraise` },
     { label: "Update your metrics", desc: "First sale moves everything.", icon: TrendingUp, href: `/studio/venture/${id}/growth` },
   ];
   return [
-    { label: "Track growth metrics", desc: "MRR, customer count, retention.", icon: TrendingUp, href: `/studio/venture/${id}/growth` },
-    { label: "Find next funding", desc: "Match to grants and investors.", icon: Wallet, href: `/studio/venture/${id}/fundraise` },
-    { label: "Start a second venture", desc: "Or layer onto this one.", icon: Sparkles, href: `/studio/venture` },
-    { label: "Book a growth mentor", desc: "Channel-by-channel optimization.", icon: Brain, href: `/studio/mentors` },
+    { label: "Set this quarter's OKRs", desc: "Objective + 3-5 numeric KRs.", icon: Target, href: `/studio/venture/${id}/okrs` },
+    { label: "Tighten unit economics", desc: "LTV/CAC ≥ 3. Payback &lt; 12 mo.", icon: TrendingUp, href: `/studio/venture/${id}/growth` },
+    { label: "Close the data room", desc: "Diligence pauses kill deals.", icon: Sparkles, href: `/studio/venture/${id}/dataroom` },
+    { label: "Send the monthly update", desc: "Investors fund founders who write.", icon: Send, href: `/studio/venture/${id}/launch` },
   ];
 }
