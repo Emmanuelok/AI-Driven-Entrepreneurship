@@ -16,11 +16,18 @@ const WELCOME_KEY = "sankofa-welcomed-v1";
 //  3. discipline tuning
 //  4. ship promise
 //  5. doorway in
+// Total number of beats in the sequence (kept in sync with BEATS below).
+const TOTAL_BEATS = 5;
+
 export function WelcomeCeremony() {
   const [open, setOpen] = useState(false);
   const [beat, setBeat] = useState(0);
   const { user, xp, streak } = useStore();
   const { genome, remember } = useMe();
+
+  // ────────────────────────────────────────────────────────────────────────
+  // ALL HOOKS MUST RUN ON EVERY RENDER — no early returns above this line.
+  // ────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!user) return;
@@ -33,9 +40,19 @@ export function WelcomeCeremony() {
         remember({ fact: `First entered the studio on ${new Date().toLocaleDateString()}`, kind: "context", source: "system", importance: 3 });
       }
     } catch {
-      // localStorage unavailable (private mode, etc) — skip silently
+      // localStorage unavailable — skip silently
     }
   }, [user]);
+
+  // Auto-advance beats. The duration table mirrors the BEATS array below.
+  useEffect(() => {
+    if (!open) return;
+    const durations = [3200, 3800, 4400, 4200, -1];
+    const d = durations[beat];
+    if (d === undefined || d < 0) return;
+    const t = setTimeout(() => setBeat((b) => b + 1), d);
+    return () => clearTimeout(t);
+  }, [beat, open]);
 
   if (!user || !open) return null;
 
@@ -163,15 +180,6 @@ export function WelcomeCeremony() {
       ),
     },
   ];
-
-  // Auto-advance
-  useEffect(() => {
-    const b = BEATS[beat];
-    if (!b || b.duration < 0) return;
-    const t = setTimeout(() => setBeat(beat + 1), b.duration);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [beat]);
 
   return (
     <AnimatePresence>

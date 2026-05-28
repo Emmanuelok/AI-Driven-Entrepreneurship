@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { useStore } from "@/store";
 import { Card, Button, Textarea, Badge } from "@/components/ui";
@@ -21,11 +21,16 @@ const CANVAS_BLOCKS = [
 export default function IdeatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { ventures, updateVenture } = useStore();
+  const [canvas, setCanvas] = useState<Record<string, string>>({});
+
   const found = ventures.find((x) => x.id === id);
+
+  useEffect(() => {
+    if (found) setCanvas(found.canvas ?? {});
+  }, [found?.id]);
+
   if (!found) { notFound(); return null; }
   const v = found;
-
-  const [canvas, setCanvas] = useState<Record<string, string>>(v.canvas);
   const dirty = JSON.stringify(canvas) !== JSON.stringify(v.canvas);
 
   function save() { updateVenture(v.id, { canvas }); }

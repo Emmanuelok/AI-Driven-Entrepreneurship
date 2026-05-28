@@ -10,12 +10,11 @@ import { Star, MapPin, Clock, ArrowLeft, Calendar, MessageSquare, Sparkles, Chec
 
 export default function MentorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const mentor = getMentor(id);
-  if (!mentor) { notFound(); return null; }
-
   const { bookMentor, unlockBadge } = useStore();
   const [booking, setBooking] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const mentor = getMentor(id);
+  if (!mentor) { notFound(); return null; }
 
   return (
     <div className="max-w-4xl mx-auto px-5 sm:px-8 py-10">

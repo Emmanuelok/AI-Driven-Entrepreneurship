@@ -15,17 +15,17 @@ import { ArrowLeft, CheckCircle2, XCircle, Sparkles, ArrowRight, Trophy } from "
 export default function LessonPlayerPage({ params }: { params: Promise<{ trackId: string; lessonId: string }> }) {
   const { trackId, lessonId } = use(params);
   const router = useRouter();
-  const foundTrack = getTrack(trackId);
-  const foundLesson = getLessonContent(lessonId);
-  if (!foundTrack || !foundLesson) { notFound(); return null; }
-  const track = foundTrack;
-  const lesson = foundLesson;
-
   const { startLesson, completeLesson } = useStore();
   const { touchConcept, logActivity, remember } = useMe();
   const [stepIdx, setStepIdx] = useState(0);
   const [stepResult, setStepResult] = useState<Record<number, { correct: boolean; locked: boolean }>>({});
   const [finished, setFinished] = useState(false);
+
+  const foundTrack = getTrack(trackId);
+  const foundLesson = getLessonContent(lessonId);
+  if (!foundTrack || !foundLesson) { notFound(); return null; }
+  const track = foundTrack;
+  const lesson = foundLesson;
 
   // start lesson on mount-ish (idempotent)
   if (Object.keys(stepResult).length === 0 && stepIdx === 0) {

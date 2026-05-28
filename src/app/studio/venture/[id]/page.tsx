@@ -28,9 +28,69 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
   const { id } = use(params);
   const { ventures, updateVenture, user } = useStore();
   const { genome, recentActivity, logActivity, remember } = useMe();
+
+  // ALL HOOKS BEFORE ANY CONDITIONAL RETURN — keeps hook order stable
+  // across rehydration of zustand state.
+  const [akiliBrief, setAkiliBrief] = useState<string>("");
+  const [akiliBusy, setAkiliBusy] = useState(false);
+  const [daysSinceStart, setDaysSinceStart] = useState(0);
+
   const found = ventures.find((x) => x.id === id);
-  if (!found) { notFound(); return null; }
   const v = found;
+
+  useEffect(() => {
+    if (!v) return;
+    setDaysSinceStart(Math.floor((Date.now() - v.createdAt) / 86_400_000) || 0);
+  }, [v?.createdAt]);
+
+  useEffect(() => {
+    if (!v || !user) return;
+    if (akiliBrief || akiliBusy) return;
+    // Inline the brief generation so v is captured non-null.
+    const venture = v;
+    const problemHere = venture.problemId ? PROBLEMS.find((p) => p.id === venture.problemId) : undefined;
+    const days = Math.floor((Date.now() - venture.createdAt) / 86_400_000) || 0;
+    const mvp = venture.mvpTasks.filter((t) => t.done).length;
+    (async () => {
+      setAkiliBusy(true);
+      setAkiliBrief("");
+      try {
+        const res = await fetch("/api/coach/akili", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [{
+              role: "user",
+              content: `I'm working on my venture "${venture.name}" — "${venture.tagline}". Current phase: ${venture.phase}. Days in: ${days}. Interviews logged: ${venture.interviews.length}/${venture.metrics.interviewsTarget}. MVP tasks done: ${mvp}/${venture.mvpTasks.length}. MRR: $${venture.metrics.mrr}. ${problemHere ? `Problem we're solving: ${problemHere.title}.` : ""} What is the single most important move I should make in the next 48 hours, and why? Keep it to 3 short paragraphs. End with one concrete first step.`,
+            }],
+            context: {
+              ventureName: venture.name,
+              phase: venture.phase,
+              interviews: venture.interviews.length,
+              mrr: venture.metrics.mrr,
+              genomeVoice: genomeVoiceInstruction(genome),
+            },
+          }),
+        });
+        const reader = res.body?.getReader();
+        const dec = new TextDecoder();
+        let acc = "";
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            acc += dec.decode(value, { stream: true });
+            setAkiliBrief(acc);
+          }
+        }
+      } finally {
+        setAkiliBusy(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v?.id, user?.id]);
+
+  if (!found || !v) { notFound(); return null; }
 
   const problem = v.problemId ? PROBLEMS.find((p) => p.id === v.problemId) : undefined;
   const activePhaseIdx = PHASES.findIndex((p) => p.id === v.phase);
@@ -38,59 +98,45 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
   const mvpDone = v.mvpTasks.filter((t) => t.done).length;
   const interviewPct = (v.interviews.length / Math.max(1, v.metrics.interviewsTarget)) * 100;
 
-  const [akiliBrief, setAkiliBrief] = useState<string>("");
-  const [akiliBusy, setAkiliBusy] = useState(false);
-  const [daysSinceStart, setDaysSinceStart] = useState(0);
-  useEffect(() => {
-    setDaysSinceStart(Math.floor((Date.now() - v.createdAt) / 86_400_000) || 0);
-  }, [v.createdAt]);
-
-  useEffect(() => {
-    // Auto-generate the Akili "right now" brief on mount
-    if (!akiliBrief && !akiliBusy && user) {
-      generateAkiliBrief();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v.id]);
-
-  async function generateAkiliBrief() {
-    setAkiliBusy(true);
-    setAkiliBrief("");
-    try {
-      const res = await fetch("/api/coach/akili", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{
-            role: "user",
-            content: `I'm working on my venture "${v.name}" — "${v.tagline}". Current phase: ${v.phase}. Days in: ${daysSinceStart}. Interviews logged: ${v.interviews.length}/${v.metrics.interviewsTarget}. MVP tasks done: ${mvpDone}/${v.mvpTasks.length}. MRR: $${v.metrics.mrr}. ${problem ? `Problem we're solving: ${problem.title}.` : ""} What is the single most important move I should make in the next 48 hours, and why? Keep it to 3 short paragraphs. End with one concrete first step.`,
-          }],
-          context: {
-            ventureName: v.name,
-            phase: v.phase,
-            interviews: v.interviews.length,
-            mrr: v.metrics.mrr,
-            genomeVoice: genomeVoiceInstruction(genome),
-          },
-        }),
-      });
-      const reader = res.body?.getReader();
-      const dec = new TextDecoder();
-      let acc = "";
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += dec.decode(value, { stream: true });
-          setAkiliBrief(acc);
+  function regenerateBrief() {
+    // Trigger by clearing the brief — useEffect will refire via deps. But it also has akiliBrief guard.
+    // Simpler: just call inline with current v.
+    if (!v) return;
+    const venture = v;
+    const problemHere = venture.problemId ? PROBLEMS.find((p) => p.id === venture.problemId) : undefined;
+    const days = Math.floor((Date.now() - venture.createdAt) / 86_400_000) || 0;
+    const mvp = venture.mvpTasks.filter((t) => t.done).length;
+    (async () => {
+      setAkiliBusy(true);
+      setAkiliBrief("");
+      try {
+        const res = await fetch("/api/coach/akili", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [{ role: "user", content: `I'm working on my venture "${venture.name}" — "${venture.tagline}". Phase: ${venture.phase}. Day ${days}. Interviews: ${venture.interviews.length}/${venture.metrics.interviewsTarget}. MVP: ${mvp}/${venture.mvpTasks.length}. MRR: $${venture.metrics.mrr}. ${problemHere ? `Problem: ${problemHere.title}.` : ""} What's the single most important move I should make in the next 48 hours? Keep to 3 short paragraphs ending with one concrete first step.` }],
+            context: { ventureName: venture.name, phase: venture.phase, genomeVoice: genomeVoiceInstruction(genome) },
+          }),
+        });
+        const reader = res.body?.getReader();
+        const dec = new TextDecoder();
+        let acc = "";
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            acc += dec.decode(value, { stream: true });
+            setAkiliBrief(acc);
+          }
         }
+      } finally {
+        setAkiliBusy(false);
       }
-    } finally {
-      setAkiliBusy(false);
-    }
+    })();
   }
 
   function advancePhase() {
+    if (!v) return;
     if (activePhaseIdx >= PHASES.length - 1) return;
     const next = PHASES[activePhaseIdx + 1];
     updateVenture(v.id, { phase: next.id });
@@ -197,7 +243,7 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-amber">
                 <Brain className="size-3.5" /> Akili · what to do right now
               </div>
-              <button onClick={generateAkiliBrief} disabled={akiliBusy} className="text-xs text-muted hover:text-foreground transition flex items-center gap-1">
+              <button onClick={regenerateBrief} disabled={akiliBusy} className="text-xs text-muted hover:text-foreground transition flex items-center gap-1">
                 <Sparkles className={`size-3 ${akiliBusy ? "animate-pulse" : ""}`} /> {akiliBusy ? "Thinking…" : "Re-think"}
               </button>
             </div>

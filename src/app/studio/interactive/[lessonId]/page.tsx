@@ -15,16 +15,15 @@ import { ArrowLeft, ArrowRight, Sparkles, Brain, CheckCircle2, XCircle, Lightbul
 export default function InteractiveLessonPage({ params }: { params: Promise<{ lessonId: string }> }) {
   const { lessonId } = use(params);
   const router = useRouter();
-  const foundLesson = getInteractiveLesson(lessonId);
-  if (!foundLesson) { notFound(); return null; }
-  const lesson = foundLesson;
-
   const { user, addXp, completeLesson, startLesson } = useStore();
   const { genome, touchConcept, logActivity, remember } = useMe();
-
   const [sceneIdx, setSceneIdx] = useState(0);
   const [masteryGains, setMasteryGains] = useState<Record<string, number>>({});
   const [done, setDone] = useState(false);
+
+  const foundLesson = getInteractiveLesson(lessonId);
+  if (!foundLesson) { notFound(); return null; }
+  const lesson = foundLesson;
 
   // start lesson tracking once
   if (sceneIdx === 0 && Object.keys(masteryGains).length === 0) {

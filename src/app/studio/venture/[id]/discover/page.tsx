@@ -11,13 +11,12 @@ import { Markdown } from "@/components/markdown";
 export default function DiscoverPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { ventures, addInterview } = useStore();
-  const found = ventures.find((x) => x.id === id);
-  if (!found) { notFound(); return null; }
-  const v = found;
-
   const [adding, setAdding] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [script, setScript] = useState<{ category: string; q: string }[] | null>(null);
+  const found = ventures.find((x) => x.id === id);
+  if (!found) { notFound(); return null; }
+  const v = found;
 
   async function generateScript() {
     setGenerating(true);

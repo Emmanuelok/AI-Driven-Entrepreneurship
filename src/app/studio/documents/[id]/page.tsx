@@ -9,12 +9,12 @@ import { ArrowLeft, Download, Copy, Check, ShieldAlert, Sparkles } from "lucide-
 
 export default function DocumentBuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const [vars, setVars] = useState<Record<string, string>>({});
+  const [copied, setCopied] = useState(false);
+
   const found = getLegalDoc(id);
   if (!found) { notFound(); return null; }
   const doc = found;
-
-  const [vars, setVars] = useState<Record<string, string>>({});
-  const [copied, setCopied] = useState(false);
   const filled = renderDoc(doc, vars);
 
   function copy() {

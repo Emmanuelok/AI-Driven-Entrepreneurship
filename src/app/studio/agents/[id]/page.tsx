@@ -13,18 +13,17 @@ import { useMe } from "@/store/me";
 
 export default function AgentRunPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const found = getAgent(id);
-  if (!found) { notFound(); return null; }
-  const agent = found;
-
   const { logAgentRun } = useExt();
   const { addXp } = useStore();
   const { touchConcept, logActivity } = useMe();
-
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [output, setOutput] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const found = getAgent(id);
+  if (!found) { notFound(); return null; }
+  const agent = found;
 
   async function run() {
     setBusy(true);

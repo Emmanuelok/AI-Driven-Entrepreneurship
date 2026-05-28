@@ -9,12 +9,11 @@ import { Wrench, Plus, CheckCircle2, Circle, Calendar, Trash2 } from "lucide-rea
 export default function MvpPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { ventures, toggleMvpTask, addMvpTask, updateVenture } = useStore();
+  const [newTask, setNewTask] = useState("");
+  const [newDue, setNewDue] = useState("");
   const found = ventures.find((x) => x.id === id);
   if (!found) { notFound(); return null; }
   const v = found;
-
-  const [newTask, setNewTask] = useState("");
-  const [newDue, setNewDue] = useState("");
 
   const done = v.mvpTasks.filter((t) => t.done);
   const todo = v.mvpTasks.filter((t) => !t.done);

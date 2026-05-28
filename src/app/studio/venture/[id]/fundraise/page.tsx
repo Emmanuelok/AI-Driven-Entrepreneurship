@@ -11,13 +11,8 @@ import { Wallet, Calendar, ExternalLink, TrendingUp, Sparkles, Search, Filter } 
 export default function FundraisePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { ventures, updateVenture, notify, unlockBadge } = useStore();
-  const found = ventures.find((x) => x.id === id);
-  if (!found) { notFound(); return null; }
-  const v = found;
-
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [q, setQ] = useState("");
-
   const matched = useMemo(() => {
     return FUNDING.filter((f) => {
       if (stageFilter !== "all" && !f.stage.includes(stageFilter as "Idea" | "MVP" | "Revenue" | "Growth")) return false;
@@ -25,6 +20,10 @@ export default function FundraisePage({ params }: { params: Promise<{ id: string
       return true;
     });
   }, [stageFilter, q]);
+
+  const found = ventures.find((x) => x.id === id);
+  if (!found) { notFound(); return null; }
+  const v = found;
 
   const pct = (v.fundingRaised / v.fundingTarget) * 100;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { useStore } from "@/store";
 import { PROBLEMS } from "@/lib/problems";
@@ -12,13 +12,18 @@ type Slide = { title: string; body: string };
 export default function PitchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { ventures, updateVenture, unlockBadge } = useStore();
-  const found = ventures.find((x) => x.id === id);
-  if (!found) { notFound(); return null; }
-  const v = found;
-
   const [generating, setGenerating] = useState(false);
   const [slideIdx, setSlideIdx] = useState(0);
-  const [deck, setDeck] = useState<Slide[] | null>(v.pitchDeck?.slides ?? null);
+  const [deck, setDeck] = useState<Slide[] | null>(null);
+
+  const found = ventures.find((x) => x.id === id);
+
+  useEffect(() => {
+    if (found?.pitchDeck?.slides) setDeck(found.pitchDeck.slides);
+  }, [found?.id]);
+
+  if (!found) { notFound(); return null; }
+  const v = found;
 
   async function generate() {
     setGenerating(true);

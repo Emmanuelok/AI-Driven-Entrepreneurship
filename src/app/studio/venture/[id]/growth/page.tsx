@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import { useStore } from "@/store";
 import { Card, Button, Input, Stat } from "@/components/ui";
@@ -21,12 +21,19 @@ const SEED_GROWTH = [
 export default function GrowthPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { ventures, updateVenture } = useStore();
+  const [mrr, setMrr] = useState("0");
+  const [customers, setCustomers] = useState("0");
+
   const found = ventures.find((x) => x.id === id);
+
+  useEffect(() => {
+    if (!found) return;
+    setMrr(String(found.metrics.mrr));
+    setCustomers(String(found.metrics.customers));
+  }, [found?.id]);
+
   if (!found) { notFound(); return null; }
   const v = found;
-
-  const [mrr, setMrr] = useState(String(v.metrics.mrr));
-  const [customers, setCustomers] = useState(String(v.metrics.customers));
 
   function update() {
     updateVenture(v.id, {
