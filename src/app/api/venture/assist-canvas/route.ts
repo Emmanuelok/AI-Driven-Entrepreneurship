@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiUsageHeaders } from "@/lib/ai-headers";
 
 export const runtime = "nodejs";
 
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     messages: [{ role: "user", content: `${ctx}\n\nDraft this block: ${body.block}\nGuidance: ${blockHint}` }],
   });
   const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();
-  return Response.json({ text });
+  return Response.json({ text }, { headers: aiUsageHeaders(res) });
 }
 
 function fallback(b: Body) {

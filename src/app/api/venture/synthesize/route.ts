@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiUsageHeaders } from "@/lib/ai-headers";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
   const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();
   const cleaned = text.replace(/^```json\n?|\n?```$/g, "").trim();
   try {
-    return Response.json(JSON.parse(cleaned));
+    return Response.json(JSON.parse(cleaned), { headers: aiUsageHeaders(res) });
   } catch {
     return Response.json(fallback(body));
   }

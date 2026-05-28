@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiUsageHeaders } from "@/lib/ai-headers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,7 +107,7 @@ ${body.notes.length > 0 ? body.notes.map((n, i) => `  ${i + 1}. ${n}`).join("\n"
     });
     const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();
     const cleaned = text.replace(/^```json\n?|\n?```$/g, "").trim();
-    return Response.json(JSON.parse(cleaned));
+    return Response.json(JSON.parse(cleaned), { headers: aiUsageHeaders(res) });
   } catch (e) {
     return Response.json({ error: (e as Error).message, ...fallback(body) }, { status: 502 });
   }

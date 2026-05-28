@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiUsageHeaders } from "@/lib/ai-headers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
       messages: [{ role: "user", content: body.input }],
     });
     const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("");
-    return Response.json({ output: text });
+    return Response.json({ output: text }, { headers: aiUsageHeaders(res) });
   } catch (e) {
     return Response.json({ output: "", error: (e as Error).message }, { status: 502 });
   }

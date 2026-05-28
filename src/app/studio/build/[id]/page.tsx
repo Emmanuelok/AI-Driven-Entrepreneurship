@@ -13,6 +13,7 @@ import { Markdown } from "@/components/markdown";
 import { nanoid } from "nanoid";
 import { BuildConsole, ConsoleEntry, SnippetLibrary, ShareDialog, ImageToBuildDialog, injectConsoleBridge } from "@/components/build-tools";
 import { EvalHarness } from "@/components/eval-harness";
+import { CodeEditor } from "@/components/code-editor";
 import {
   ArrowLeft, Send, Sparkles, Play, RefreshCcw, Download, Copy, Check,
   Maximize2, Minimize2, History, GitBranch, Rocket, Code as CodeIcon,
@@ -322,29 +323,8 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
                   <Play className="size-3" /> Run
                 </button>
               </div>
-              <textarea
-                value={editorCode}
-                onChange={(e) => setEditorCode(e.target.value)}
-                onKeyDown={(e) => {
-                  // Allow tab to indent
-                  if (e.key === "Tab") {
-                    e.preventDefault();
-                    const t = e.target as HTMLTextAreaElement;
-                    const s = t.selectionStart, en = t.selectionEnd;
-                    const v = t.value;
-                    t.value = v.substring(0, s) + "  " + v.substring(en);
-                    t.selectionStart = t.selectionEnd = s + 2;
-                    setEditorCode(t.value);
-                  }
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault();
-                    runPreview();
-                  }
-                }}
-                spellCheck={false}
-                className="flex-1 bg-[#06100d] text-foreground/95 font-[family-name:var(--font-mono)] text-[12px] leading-[1.6] p-4 outline-none resize-none w-full"
-              />
-              <div className="px-3 py-1.5 border-t border-border text-[10px] text-muted">⌘↵ to run · Tab to indent</div>
+              <CodeEditor value={editorCode} onChange={setEditorCode} onRun={runPreview} />
+              <div className="px-3 py-1.5 border-t border-border text-[10px] text-muted">⌘↵ to run · syntax-highlighted · auto-close tags</div>
             </div>
           )}
 

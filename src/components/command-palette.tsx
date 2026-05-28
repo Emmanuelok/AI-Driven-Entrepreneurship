@@ -14,12 +14,17 @@ import { MENTORS } from "@/lib/mentors";
 import { AGENTS } from "@/lib/agents";
 import { COACHES } from "@/lib/coaches";
 import { useStore } from "@/store";
+import { useBuild } from "@/store/build";
+import { useSketch } from "@/store/sketch";
+import { Hammer } from "lucide-react";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const router = useRouter();
-  const { ventures, createVenture, addXp } = useStore();
+  const { ventures, createVenture } = useStore();
+  const builds = useBuild((s) => s.projects);
+  const boards = useSketch((s) => s.boards);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -119,6 +124,18 @@ export function CommandPalette() {
             <Command.Group heading="Active ventures" className="text-[10px] uppercase tracking-widest text-muted px-2 mt-3 mb-1.5">
               {ventures.map((v) => (
                 <Item key={v.id} icon={Rocket} label={v.name} sub={v.tagline} onSelect={() => go(`/studio/venture/${v.id}`)} />
+              ))}
+            </Command.Group>
+
+            <Command.Group heading="AI builds" className="text-[10px] uppercase tracking-widest text-muted px-2 mt-3 mb-1.5">
+              {builds.slice(0, 10).map((b) => (
+                <Item key={b.id} icon={Hammer} label={b.name} sub={b.description} onSelect={() => go(`/studio/build/${b.id}`)} />
+              ))}
+            </Command.Group>
+
+            <Command.Group heading="Brainstorm canvases" className="text-[10px] uppercase tracking-widest text-muted px-2 mt-3 mb-1.5">
+              {boards.slice(0, 10).map((b) => (
+                <Item key={b.id} icon={Lightbulb} label={b.title} sub={b.prompt} onSelect={() => go(`/studio/brainstorm/${b.id}`)} />
               ))}
             </Command.Group>
 

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiUsageHeaders } from "@/lib/ai-headers";
 
 export const runtime = "nodejs";
 
@@ -56,7 +57,7 @@ Monthly churn: ${body.economics?.churnMonthlyPct ?? "?"}%`;
   });
   const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();
   const cleaned = text.replace(/^```json\n?|\n?```$/g, "").trim();
-  try { return Response.json(JSON.parse(cleaned)); } catch { return Response.json(fallback(body)); }
+  try { return Response.json(JSON.parse(cleaned), { headers: aiUsageHeaders(res) }); } catch { return Response.json(fallback(body)); }
 }
 
 function fallback(b: Body) {

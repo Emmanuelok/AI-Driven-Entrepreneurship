@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiUsageHeaders } from "@/lib/ai-headers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
       passed: !!parsed.passed,
       score: Math.max(0, Math.min(10, Number(parsed.score) || 0)),
       reasoning: String(parsed.reasoning || ""),
-    });
+    }, { headers: aiUsageHeaders(res) });
   } catch (e) {
     return Response.json({ passed: false, score: 0, reasoning: `Judge error: ${(e as Error).message}` }, { status: 502 });
   }

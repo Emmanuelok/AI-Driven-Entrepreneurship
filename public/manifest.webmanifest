@@ -1,0 +1,23 @@
+{
+  "name": "Sankofa Studio",
+  "short_name": "Sankofa",
+  "description": "Learn. Build. Solve Africa.",
+  "start_url": "/studio",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0f0d",
+  "theme_color": "#0a0f0d",
+  "orientation": "any",
+  "categories": ["education", "productivity", "business"],
+  "lang": "en",
+  "icons": [
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "AI Build Studio", "url": "/studio/build", "description": "Build an AI product" },
+    { "name": "Venture Studio", "url": "/studio/venture", "description": "Open your ventures" },
+    { "name": "Brainstorm", "url": "/studio/brainstorm", "description": "Open the sketch canvas" },
+    { "name": "Tutor", "url": "/studio/tutor", "description": "Ask Sage" }
+  ]
+}

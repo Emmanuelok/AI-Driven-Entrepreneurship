@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/command-palette";
 import { Companion } from "@/components/companion";
 import { WelcomeCeremony } from "@/components/welcome-ceremony";
+import { AiUsageBadge } from "@/components/ai-usage-badge";
+import { AiUsageWatcher } from "@/components/ai-usage-watcher";
+import { LangSwitcher } from "@/components/lang-switcher";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
 
@@ -171,6 +174,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
       <CommandPalette />
       <Companion />
       <WelcomeCeremony />
+      <AiUsageWatcher />
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-border bg-surface/40 sticky top-0 h-screen">
@@ -209,6 +213,8 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
             <kbd className="text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 border border-border rounded">⌘K</kbd>
           </button>
           <div className="flex items-center gap-2">
+            <LangSwitcher />
+            <AiUsageBadge />
             <div className="hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-surface-2 border border-border">
               <span className="size-1.5 rounded-full bg-emerald pulse-dot" /> Live
             </div>

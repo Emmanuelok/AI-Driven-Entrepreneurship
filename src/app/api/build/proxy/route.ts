@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiUsageHeaders } from "@/lib/ai-headers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -122,7 +123,7 @@ export async function POST(req: Request) {
       messages,
     });
     const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("");
-    return Response.json({ content: text }, { headers: { "X-RateLimit-Remaining": String(rl.remaining) } });
+    return Response.json({ content: text }, { headers: { "X-RateLimit-Remaining": String(rl.remaining), ...aiUsageHeaders(res) } });
   } catch (e) {
     return Response.json({ error: "upstream_failed", message: (e as Error).message }, { status: 502 });
   }
