@@ -26,6 +26,7 @@ import { HelpOverlay } from "@/components/help-overlay";
 import { SearchIndexer } from "@/components/search-indexer";
 import { ErrorReporter } from "@/components/error-reporter";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { UserMenu } from "@/components/user-menu";
 import { useT } from "@/lib/i18n";
 
 type NavItem = { href: string; label: string; icon: typeof Brain; group?: string };
@@ -161,17 +162,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
           ))}
         </nav>
         <div className="px-4 py-3 border-t border-border shrink-0">
-          {user && (
-            <Link href="/studio/settings" className="flex items-center gap-3 hover:bg-surface-2 -m-1 p-1 rounded-xl transition">
-              <div className="size-8 rounded-full bg-gradient-to-br from-amber to-rust flex items-center justify-center text-black font-semibold text-xs">
-                {user.name?.[0] ?? "?"}
-              </div>
-              <div className="leading-tight flex-1 min-w-0">
-                <div className="text-xs font-medium truncate">{user.name}</div>
-                <div className="text-[10px] text-muted truncate">🔥 {streak}d streak</div>
-              </div>
-            </Link>
-          )}
+          <UserMenu />
         </div>
       </>
     );

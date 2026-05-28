@@ -44,6 +44,19 @@ jobs:
       - run: npm ci --prefer-offline --no-audit
       - run: npx eslint . --max-warnings 200
 
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm test
+
   build:
     name: Build
     runs-on: ubuntu-latest
