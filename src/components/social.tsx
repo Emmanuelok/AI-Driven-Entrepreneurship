@@ -5,6 +5,20 @@ import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase";
 import { Hand, MessageCircle, Send, AlertCircle, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components/mention-autocomplete";
+
+// Highlight @mentions as bold (mirrors cohort-discussions) so threads
+// read consistently across surfaces. We do this with a markdown-free
+// inline render — comments here use plain whitespace-preserving text,
+// not markdown, so a regex pass is enough.
+function renderWithMentions(body: string): React.ReactNode {
+  const parts = body.split(/((?:^|\s)@[a-zA-Z][a-zA-Z0-9._-]{1,30})/g);
+  return parts.map((p, i) => {
+    const m = p.match(/^(\s*)(@[a-zA-Z][a-zA-Z0-9._-]{1,30})$/);
+    if (m) return <span key={i}>{m[1]}<strong className="text-emerald">{m[2]}</strong></span>;
+    return <span key={i}>{p}</span>;
+  });
+}
 
 type Kind = "build" | "venture";
 
@@ -67,6 +81,24 @@ export function Claps({ kind, slug }: { kind: Kind; slug: string }) {
 
 // ─── Comments ─────────────────────────────────────────────────────────────
 type Comment = { id: string; user_id: string; author_name: string; body: string; created_at: string };
+
+// Mention candidates for the marketplace comments composer: every
+// prior commenter on this thread except yourself. The server enforces
+// the same scope, so the UI can't offer mentions that won't actually
+// notify.
+function mentionCandidates(comments: Comment[], myUserId: string | null): MentionCandidate[] {
+  const seen = new Set<string>();
+  const out: MentionCandidate[] = [];
+  for (const c of comments) {
+    if (c.user_id === myUserId) continue;
+    if (seen.has(c.user_id)) continue;
+    seen.add(c.user_id);
+    const token = c.author_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (!token) continue;
+    out.push({ id: c.user_id, display: c.author_name, token });
+  }
+  return out;
+}
 
 export function Comments({ kind, slug }: { kind: Kind; slug: string }) {
   const [comments, setComments] = useState<Comment[]>([]);
@@ -144,13 +176,13 @@ export function Comments({ kind, slug }: { kind: Kind; slug: string }) {
           </div>
         ) : (
           <>
-            <textarea
+            <MentionAutocompleteTextarea
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Share what you noticed — what worked, what to improve, what to remix."
+              onChange={setDraft}
+              candidates={mentionCandidates(comments, me)}
               rows={3}
-              maxLength={2000}
-              className="w-full bg-transparent text-sm outline-none resize-y placeholder:text-muted"
+              placeholder="Share what you noticed — what worked, what to improve, what to remix. @name to ping a fellow commenter."
+              className="!bg-transparent !border-0 !p-0 !text-sm"
             />
             <div className="flex items-center justify-between mt-2">
               <span className="text-[10px] text-muted">{draft.length}/2000</span>
@@ -184,7 +216,7 @@ export function Comments({ kind, slug }: { kind: Kind; slug: string }) {
                   </button>
                 )}
               </div>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">{c.body}</p>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">{renderWithMentions(c.body)}</p>
             </li>
           ))}
         </ul>

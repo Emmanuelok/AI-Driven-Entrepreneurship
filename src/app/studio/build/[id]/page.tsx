@@ -15,6 +15,7 @@ import { BuildConsole, ConsoleEntry, SnippetLibrary, ShareDialog, ImageToBuildDi
 import { EvalHarness } from "@/components/eval-harness";
 import { McpPanel } from "@/components/mcp-panel";
 import { ConnectionsPanel } from "@/components/connections-panel";
+import { ConnectionsBanner } from "@/components/connections-banner";
 import { BuildCollaborateDialog } from "@/components/build-collaborate-dialog";
 import { CoPresence } from "@/components/co-presence";
 import { useCloudBuild } from "@/lib/cloud-build";
@@ -375,7 +376,8 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           {tab === "mcp" && <McpPanel buildId={project.id} isCloud={cloudBuild.isCloud} isOwner={cloudBuild.myRole === "owner"} />}
 
           {tab === "links" && (
-            <div className="p-4">
+            <div className="p-4 space-y-4">
+              <ConnectionsBanner kind="build" id={project.id} title={project.name} />
               <ConnectionsPanel kind="build" id={project.id} title={project.name} />
             </div>
           )}

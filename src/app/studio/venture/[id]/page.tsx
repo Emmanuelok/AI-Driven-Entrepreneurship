@@ -15,6 +15,7 @@ import { CoPresence } from "@/components/co-presence";
 import { useCloudVenture } from "@/lib/cloud-venture";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import { ConnectionsPanel } from "@/components/connections-panel";
+import { ConnectionsBanner } from "@/components/connections-banner";
 import {
   Target, Users, Wallet, Trophy, Lightbulb, Wrench, Megaphone, TrendingUp,
   CheckCircle2, Sparkles, MapPin, Calendar, ArrowRight, Brain,
@@ -203,6 +204,8 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
             </Link>
           </div>
         </div>
+
+        <ConnectionsBanner kind="venture" id={v.id} title={v.name} />
 
         {/* Phase journey */}
         <div className="mb-8">
