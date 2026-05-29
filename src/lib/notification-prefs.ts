@@ -15,6 +15,10 @@ export type EmailCategory =
   | "email_student_digest"
   | "email_instructor_digest";
 
+export type InAppCategory =
+  | "in_app_social"
+  | "in_app_system";
+
 type Row = {
   user_id: string;
   push_mention: boolean;
@@ -23,6 +27,8 @@ type Row = {
   push_system: boolean;
   email_student_digest: boolean;
   email_instructor_digest: boolean;
+  in_app_social: boolean;
+  in_app_system: boolean;
 };
 
 const TTL_MS = 30_000;
@@ -35,7 +41,7 @@ async function load(userId: string): Promise<Row | null> {
   const sb = supabaseAdmin();
   if (!sb) return null;
   const { data } = await sb.from("notification_prefs")
-    .select("user_id, push_mention, push_reply, push_announcement, push_system, email_student_digest, email_instructor_digest")
+    .select("user_id, push_mention, push_reply, push_announcement, push_system, email_student_digest, email_instructor_digest, in_app_social, in_app_system")
     .eq("user_id", userId)
     .maybeSingle();
   cache.set(userId, { ts: Date.now(), row: (data as Row) ?? null });
@@ -59,6 +65,12 @@ export async function shouldPush(userId: string, category: NotificationCategory)
 }
 
 export async function shouldEmail(userId: string, category: EmailCategory): Promise<boolean> {
+  const row = await load(userId);
+  if (!row) return true;
+  return row[category];
+}
+
+export async function shouldInApp(userId: string, category: InAppCategory): Promise<boolean> {
   const row = await load(userId);
   if (!row) return true;
   return row[category];

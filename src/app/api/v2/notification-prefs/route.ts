@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const FIELDS = [
   "push_mention", "push_reply", "push_announcement", "push_system",
   "email_student_digest", "email_instructor_digest",
+  "in_app_social", "in_app_system",
 ] as const;
 type Field = (typeof FIELDS)[number];
 
@@ -21,6 +22,8 @@ const DEFAULTS: Record<Field, boolean> = {
   push_system: true,
   email_student_digest: true,
   email_instructor_digest: true,
+  in_app_social: true,
+  in_app_system: true,
 };
 
 async function authedUserId(req: Request): Promise<string | null> {
@@ -41,7 +44,7 @@ export async function GET(req: Request) {
   if (!sb) return Response.json({ ok: false, error: "admin_unavailable" }, { status: 500 });
 
   const { data } = await sb.from("notification_prefs")
-    .select("push_mention, push_reply, push_announcement, push_system, email_student_digest, email_instructor_digest")
+    .select("push_mention, push_reply, push_announcement, push_system, email_student_digest, email_instructor_digest, in_app_social, in_app_system")
     .eq("user_id", me).maybeSingle();
   return Response.json({ ok: true, prefs: (data as Partial<Record<Field, boolean>>) ?? DEFAULTS });
 }

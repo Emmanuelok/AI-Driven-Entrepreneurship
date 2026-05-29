@@ -1,4 +1,5 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { shouldInApp } from "@/lib/notification-prefs";
 
 // Server-side helper to create a notification for a user. Called from
 // the social endpoints (clap, comment), marketplace fork, etc. Best-
@@ -24,6 +25,12 @@ export async function createNotification(n: NotificationInsert): Promise<void> {
   if (!isSupabaseConfigured()) return;
   if (!n.userId) return;
   if (n.actorId && n.actorId === n.userId) return;     // don't notify yourself
+
+  // Honor in-app pref. System notifications use a separate gate from
+  // social ones — the user might want clap/comment/fork off while
+  // keeping security alerts on.
+  const category = n.kind === "system" ? "in_app_system" : "in_app_social";
+  if (!(await shouldInApp(n.userId, category))) return;
 
   try {
     const sb = supabaseAdmin();

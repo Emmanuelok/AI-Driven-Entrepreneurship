@@ -59,13 +59,20 @@ export default function ConnectionGraphPage() {
       </Link>
 
       <header className="mb-8">
-        <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
-          <Network className="size-3.5" /> Connection graph
-        </p>
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">Your web of work.</h1>
-        <p className="mt-3 text-muted max-w-2xl">
-          Every link you&apos;ve drawn across Sankofa — sketches into ventures, builds into problems, letters into venture pitches. Sage uses this graph as context on every AI call.
-        </p>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
+              <Network className="size-3.5" /> Connection graph
+            </p>
+            <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">Your web of work.</h1>
+            <p className="mt-3 text-muted max-w-2xl">
+              Every link you&apos;ve drawn across Sankofa — sketches into ventures, builds into problems, letters into venture pitches. Sage uses this graph as context on every AI call.
+            </p>
+          </div>
+          <Link href="/studio/connections/insights" className="text-xs text-emerald hover:text-amber inline-flex items-center gap-1.5 shrink-0">
+            <Network className="size-3" /> Insights →
+          </Link>
+        </div>
       </header>
 
       {loading ? (

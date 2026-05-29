@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { Card } from "@/components/ui";
-import { Bell, AtSign, MessageSquare, Megaphone, ShieldAlert, Mail, Loader2, Check } from "lucide-react";
+import { Bell, AtSign, MessageSquare, Megaphone, ShieldAlert, Mail, Loader2, Check, Heart } from "lucide-react";
 
 // Per-user notification preferences panel. Mount in Settings →
 // Notifications. Reads/writes /api/v2/notification-prefs. Renders
@@ -17,6 +17,8 @@ type Prefs = {
   push_system: boolean;
   email_student_digest: boolean;
   email_instructor_digest: boolean;
+  in_app_social: boolean;
+  in_app_system: boolean;
 };
 
 const DEFAULTS: Prefs = {
@@ -26,13 +28,17 @@ const DEFAULTS: Prefs = {
   push_system: true,
   email_student_digest: true,
   email_instructor_digest: true,
+  in_app_social: true,
+  in_app_system: true,
 };
 
-const ROWS: { key: keyof Prefs; icon: React.ComponentType<{ className?: string }>; label: string; desc: string; group: "push" | "email" }[] = [
+const ROWS: { key: keyof Prefs; icon: React.ComponentType<{ className?: string }>; label: string; desc: string; group: "push" | "email" | "in_app" }[] = [
   { key: "push_mention",            icon: AtSign,         group: "push",  label: "@mentions",        desc: "When someone @-mentions you in a cohort thread or marketplace comment." },
   { key: "push_reply",              icon: MessageSquare,  group: "push",  label: "Replies",          desc: "When someone replies to a cohort thread you started." },
   { key: "push_announcement",       icon: Megaphone,      group: "push",  label: "Announcements",    desc: "Cohort-wide announcements from an instructor or owner." },
   { key: "push_system",             icon: ShieldAlert,    group: "push",  label: "System",           desc: "Account & security alerts. Rarely sent." },
+  { key: "in_app_social",           icon: Heart,          group: "in_app", label: "Social activity", desc: "Claps, comments, and forks on your published ventures and builds." },
+  { key: "in_app_system",           icon: ShieldAlert,    group: "in_app", label: "System events",   desc: "Account-level events surfaced in your bell. Rarely off." },
   { key: "email_student_digest",    icon: Mail,           group: "email", label: "Weekly digest",    desc: "Your Sankofa week — interviews, shipped tasks, AI spend. Sunday 6pm UTC." },
   { key: "email_instructor_digest", icon: Mail,           group: "email", label: "Instructor digest", desc: "If you own or co-instruct a cohort: completion rates, stuck students, pending questions. Monday 2pm UTC." },
 ];
@@ -78,6 +84,7 @@ export function NotificationPrefsPanel() {
   if (!prefs) return null;
 
   const pushRows = ROWS.filter((r) => r.group === "push");
+  const inAppRows = ROWS.filter((r) => r.group === "in_app");
   const emailRows = ROWS.filter((r) => r.group === "email");
 
   return (
@@ -88,12 +95,17 @@ export function NotificationPrefsPanel() {
       </div>
 
       <p className="text-xs text-muted leading-relaxed mb-4">
-        Every notification Sankofa sends — push to your devices, email digests — is opt-in per category. Toggle anything you don&apos;t want to hear about.
+        Every notification Sankofa sends — push to your devices, in-app bell, email digests — is opt-in per category. Toggle anything you don&apos;t want to hear about.
       </p>
 
       <div className="text-[10px] uppercase tracking-widest text-muted mb-2 mt-2">Push (device notifications)</div>
       <ul className="space-y-1.5 mb-5">
         {pushRows.map((r) => <Row key={r.key} row={r} value={prefs[r.key]} saving={saving === r.key} onToggle={() => toggle(r.key)} />)}
+      </ul>
+
+      <div className="text-[10px] uppercase tracking-widest text-muted mb-2 mt-2">In-app (bell)</div>
+      <ul className="space-y-1.5 mb-5">
+        {inAppRows.map((r) => <Row key={r.key} row={r} value={prefs[r.key]} saving={saving === r.key} onToggle={() => toggle(r.key)} />)}
       </ul>
 
       <div className="text-[10px] uppercase tracking-widest text-muted mb-2 mt-2">Email</div>

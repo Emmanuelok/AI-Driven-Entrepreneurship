@@ -16,6 +16,8 @@ import { EvalHarness } from "@/components/eval-harness";
 import { McpPanel } from "@/components/mcp-panel";
 import { ConnectionsPanel } from "@/components/connections-panel";
 import { ConnectionsBanner } from "@/components/connections-banner";
+import { useMentionAutocomplete, MentionDropdown, type MentionCandidate } from "@/components/use-mention-autocomplete";
+import { supabaseBrowser } from "@/lib/supabase";
 import { BuildCollaborateDialog } from "@/components/build-collaborate-dialog";
 import { CoPresence } from "@/components/co-presence";
 import { useCloudBuild } from "@/lib/cloud-build";
@@ -46,6 +48,10 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
   const [tab, setTab] = useState<Tab>("chat");
   const [device, setDevice] = useState<Device>("phone");
   const [prompt, setPrompt] = useState("");
+  // MCP tools for @tool_name autocomplete in the chat textarea.
+  // Lazy-fetched once the build is known to be cloud-collaborative
+  // (only cloud builds can publish MCP).
+  const [mcpTools, setMcpTools] = useState<MentionCandidate[]>([]);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
@@ -87,6 +93,28 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
 
   // Reset console when preview reloads
   useEffect(() => { setConsoleEntries([]); }, [previewKey, project?.id]);
+
+  // Pull the build's MCP tool list so the chat textarea can offer
+  // @tool_name autocomplete. Only cloud builds can publish MCP, so
+  // local-only builds skip this entirely.
+  useEffect(() => {
+    if (!cloudBuild.isCloud) { setMcpTools([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const sb = supabaseBrowser();
+        if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) return;
+        const res = await fetch(`/api/v2/builds/${id}/mcp-config`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const data = await res.json();
+        if (cancelled) return;
+        const tools = ((data.config?.tools as Array<{ name: string; description: string }> | undefined) ?? []);
+        setMcpTools(tools.map((t) => ({ id: t.name, display: t.name, token: t.name, hint: t.description?.slice(0, 60) || "MCP tool" })));
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [cloudBuild.isCloud, id]);
 
   // If this project was just spawned from the Brainstorm canvas, auto-fire the
   // opening prompt that Akili distilled. Single-shot, then key removed.
@@ -327,23 +355,14 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
                   <ChatBubble key={m.id} role={m.role} content={m.content} busy={busy && i === project.chat.length - 1 && m.role === "assistant"} />
                 ))}
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); send(); }} className="border-t border-border p-3">
-                <div className="glass rounded-xl flex items-end gap-2 p-2 pl-3">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-                    placeholder={busy ? "Sage is building…" : "Tell Sage what to build or change…"}
-                    rows={2}
-                    disabled={busy}
-                    className="flex-1 bg-transparent resize-none outline-none py-1.5 placeholder:text-muted text-foreground text-sm max-h-40"
-                  />
-                  <button type="submit" disabled={busy || !prompt.trim()} className="size-9 rounded-lg bg-emerald text-black hover:bg-amber disabled:opacity-30 transition flex items-center justify-center">
-                    <Send className="size-4" />
-                  </button>
-                </div>
-                <div className="mt-1.5 text-[10px] text-muted px-1">Sage will rewrite the whole HTML file on each turn. Use the Code tab if you want to hand-edit.</div>
-              </form>
+              <BuildChatComposer
+                value={prompt}
+                onChange={setPrompt}
+                onSend={() => send()}
+                busy={busy}
+                candidates={mcpTools}
+              />
+              <div className="border-t border-border px-3 pb-3 text-[10px] text-muted">Sage will rewrite the whole HTML file on each turn. Use the Code tab if you want to hand-edit.</div>
             </>
           )}
 
@@ -477,6 +496,52 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
         onSubmit={(dataUrl, p) => { setImageOpen(false); send(p || "Rebuild the UI from the attached image.", { imageDataUrl: dataUrl }); }}
       />
     </div>
+  );
+}
+
+// Chat composer with @tool_name autocomplete when MCP tools are
+// defined on the build. Same Enter-to-send behavior as the original
+// bare textarea, but Tab/Enter inserts a tool when the picker is open.
+function BuildChatComposer({
+  value, onChange, onSend, busy, candidates,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  onSend: () => void;
+  busy: boolean;
+  candidates: MentionCandidate[];
+}) {
+  const a = useMentionAutocomplete({ value, candidates, onChange });
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); onSend(); }} className="border-t border-border p-3">
+      <div className="glass rounded-xl flex items-end gap-2 p-2 pl-3 relative">
+        <textarea
+          ref={a.ref}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onClick={a.onClick}
+          onKeyDown={(e) => {
+            if (a.handleKey(e)) return;
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+          }}
+          placeholder={busy ? "Sage is building…" : candidates.length > 0 ? "Tell Sage what to build or change… (use @tool to reference an MCP tool)" : "Tell Sage what to build or change…"}
+          rows={2}
+          disabled={busy}
+          className="flex-1 bg-transparent resize-none outline-none py-1.5 placeholder:text-muted text-foreground text-sm max-h-40"
+        />
+        <button type="submit" disabled={busy || !value.trim()} className="size-9 rounded-lg bg-emerald text-black hover:bg-amber disabled:opacity-30 transition flex items-center justify-center">
+          <Send className="size-4" />
+        </button>
+        {a.open && (
+          <MentionDropdown
+            filtered={a.filtered}
+            active={a.active}
+            onInsert={a.insert}
+            className="absolute left-2 bottom-full mb-2 min-w-[260px] max-w-[360px]"
+          />
+        )}
+      </div>
+    </form>
   );
 }
 
