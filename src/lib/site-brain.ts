@@ -78,6 +78,14 @@ export type SiteContextSnapshot = {
     toKind: string; toId: string; toTitle?: string;
     label: string | null;
   }[];
+  // Patterns surfaced from the connection graph — see lib/insights.ts.
+  // These are the same numbers the /studio/connections/insights page
+  // displays, so Sage and the user agree on the facts.
+  insights?: {
+    topProblem?: { id: string; degree: number };
+    ventureFromSketch?: { id: string; name: string }[];
+    orphanBuilds?: { id: string; name: string }[];
+  };
   // What route this is — lets the brain bias toward relevant sections
   // (e.g. the brain trims `recentBuilds` for venture-tab calls).
   callerScope?: string;
@@ -178,6 +186,21 @@ export function formatSiteContext(snap: SiteContextSnapshot | null | undefined):
       return `- ${from}${verb} ${to}`;
     }).join("\n");
     lines.push(`[CONNECTIONS]\n${rendered}`);
+  }
+
+  if (snap.insights) {
+    const i = snap.insights;
+    const bits: string[] = [];
+    if (i.topProblem) bits.push(`- most-connected problem: "${i.topProblem.id}" (${i.topProblem.degree} edges) — they keep returning to it`);
+    if (i.ventureFromSketch?.length) {
+      const names = i.ventureFromSketch.slice(0, 3).map((v) => `"${v.name}"`).join(", ");
+      bits.push(`- ventures with sketch ancestry (${i.ventureFromSketch.length}): ${names}`);
+    }
+    if (i.orphanBuilds?.length) {
+      const names = i.orphanBuilds.slice(0, 3).map((b) => `"${b.name}"`).join(", ");
+      bits.push(`- ${i.orphanBuilds.length} build${i.orphanBuilds.length === 1 ? "" : "s"} sitting with no connections: ${names}`);
+    }
+    if (bits.length > 0) lines.push(`[GRAPH INSIGHTS]\n${bits.join("\n")}`);
   }
 
   if (lines.length === 0) return "";

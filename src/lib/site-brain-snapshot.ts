@@ -131,6 +131,7 @@ export async function buildSiteContextSnapshotAsync(scope?: string): Promise<Ret
   const snap = buildSiteContextSnapshot(scope);
   try {
     const { fetchUserConnectionsCached } = await import("@/lib/connections-client");
+    const { computeInsights } = await import("@/lib/insights");
     const rows = await fetchUserConnectionsCached();
     if (rows.length > 0) {
       // Build local title lookup tables so we can hydrate IDs into
@@ -157,6 +158,18 @@ export async function buildSiteContextSnapshotAsync(scope?: string): Promise<Ret
         toTitle: titleFor(r.to_kind, r.to_id),
         label: r.label,
       }));
+
+      // Surface graph-level patterns — same numbers the insights page
+      // shows the user, so Sage can act on them by name.
+      const summary = computeInsights(rows, {
+        builds: builds.projects.map((b) => ({ id: b.id, name: b.name })),
+        ventures: s.ventures.map((v) => ({ id: v.id, name: v.name })),
+      });
+      snap.insights = {
+        topProblem: summary.topProblem ?? undefined,
+        ventureFromSketch: summary.ventureFromSketch.length > 0 ? summary.ventureFromSketch : undefined,
+        orphanBuilds: summary.orphanBuilds.length > 0 ? summary.orphanBuilds : undefined,
+      };
     }
   } catch { /* connections are optional — never block the AI call */ }
   return snap;

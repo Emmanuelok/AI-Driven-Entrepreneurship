@@ -10,6 +10,7 @@ import { useLetters } from "@/store/letters";
 import { Card } from "@/components/ui";
 import { ArrowLeft, Network, TrendingUp, Sprout, Unplug, Loader2 } from "lucide-react";
 import { KIND_LABEL, hrefForEntity, type ConnectionRow, type ConnectionKind } from "@/lib/connections";
+import { computeInsights } from "@/lib/insights";
 
 // Patterns surfaced from the user's connection graph. Useful only for
 // users who've drawn a non-trivial number of edges — small graphs get
@@ -46,45 +47,16 @@ export default function ConnectionInsightsPage() {
     })();
   }, []);
 
-  const titleFor = (kind: string, id: string): string | null => {
-    switch (kind) {
-      case "venture": return ventures.find((v) => v.id === id)?.name ?? null;
-      case "build": return builds.find((p) => p.id === id)?.name ?? null;
-      case "sketch": return sketches.find((s) => s.id === id)?.title ?? null;
-      case "letter": return letters.find((l) => l.id === id)?.title ?? null;
-      default: return null;
-    }
-  };
-
   const insights = useMemo<Insight[]>(() => {
     if (rows.length === 0) return [];
 
-    // ── Most-connected problem ────────────────────────────────────────
-    const problemDegree = new Map<string, number>();
-    for (const r of rows) {
-      if (r.from_kind === "problem") problemDegree.set(r.from_id, (problemDegree.get(r.from_id) ?? 0) + 1);
-      if (r.to_kind === "problem") problemDegree.set(r.to_id, (problemDegree.get(r.to_id) ?? 0) + 1);
-    }
-    const topProblem = Array.from(problemDegree.entries()).sort((a, b) => b[1] - a[1])[0];
-
-    // ── Sketches that became ventures (sketch → venture edges) ────────
-    const sketchToVenture = rows.filter((r) =>
-      (r.from_kind === "sketch" && r.to_kind === "venture") ||
-      (r.from_kind === "venture" && r.to_kind === "sketch")
-    );
-    const seededVentures = new Set<string>();
-    for (const r of sketchToVenture) {
-      const vid = r.from_kind === "venture" ? r.from_id : r.to_id;
-      seededVentures.add(vid);
-    }
-
-    // ── Builds without any connections ───────────────────────────────
-    const connectedBuildIds = new Set<string>();
-    for (const r of rows) {
-      if (r.from_kind === "build") connectedBuildIds.add(r.from_id);
-      if (r.to_kind === "build") connectedBuildIds.add(r.to_id);
-    }
-    const orphanBuilds = builds.filter((b) => !connectedBuildIds.has(b.id));
+    const summary = computeInsights(rows, {
+      builds: builds.map((b) => ({ id: b.id, name: b.name })),
+      ventures: ventures.map((v) => ({ id: v.id, name: v.name })),
+      sketches: sketches.map((s) => ({ id: s.id, title: s.title })),
+      letters: letters.map((l) => ({ id: l.id, title: l.title })),
+    });
+    const { topProblem, ventureFromSketch, orphanBuilds } = summary;
 
     return [
       {
@@ -93,7 +65,7 @@ export default function ConnectionInsightsPage() {
         empty: !topProblem,
         body: topProblem ? (
           <p className="text-sm text-foreground/95 leading-relaxed">
-            <Link href={hrefForEntity("problem", topProblem[0]) ?? "#"} className="font-mono text-emerald hover:text-amber">{topProblem[0]}</Link> has <strong>{topProblem[1]}</strong> edges pointing at it from your work. That&apos;s where you keep coming back — worth a serious wedge.
+            <Link href={hrefForEntity("problem", topProblem.id) ?? "#"} className="font-mono text-emerald hover:text-amber">{topProblem.id}</Link> has <strong>{topProblem.degree}</strong> edges pointing at it from your work. That&apos;s where you keep coming back — worth a serious wedge.
           </p>
         ) : (
           <p className="text-sm text-muted italic">No problem has more than one connection yet. As you tie ventures and builds to Atlas problems, this pattern emerges.</p>
@@ -102,16 +74,15 @@ export default function ConnectionInsightsPage() {
       {
         title: "Sketches that became ventures",
         icon: Sprout,
-        empty: seededVentures.size === 0,
-        body: seededVentures.size > 0 ? (
+        empty: ventureFromSketch.length === 0,
+        body: ventureFromSketch.length > 0 ? (
           <ul className="text-sm text-foreground/95 space-y-1.5">
-            {Array.from(seededVentures).slice(0, 5).map((vid) => {
-              const name = titleFor("venture", vid) ?? vid.slice(0, 12);
-              const href = hrefForEntity("venture", vid);
+            {ventureFromSketch.slice(0, 5).map((v) => {
+              const href = hrefForEntity("venture", v.id);
               return (
-                <li key={vid} className="flex items-center gap-2">
+                <li key={v.id} className="flex items-center gap-2">
                   <Sprout className="size-3 text-emerald shrink-0" />
-                  {href ? <Link href={href} className="hover:text-emerald transition">{name}</Link> : <span>{name}</span>}
+                  {href ? <Link href={href} className="hover:text-emerald transition">{v.name}</Link> : <span>{v.name}</span>}
                   <span className="text-[10px] text-muted">seeded from a sketch</span>
                 </li>
               );
@@ -147,14 +118,11 @@ export default function ConnectionInsightsPage() {
     ];
   }, [rows, builds, ventures, sketches, letters]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── kind tallies for the header strip ─────────────────────────────
+  // Tallies for the header strip come from the same shared summary.
   const tallies = useMemo(() => {
-    const m = new Map<ConnectionKind, number>();
-    for (const r of rows) {
-      m.set(r.from_kind as ConnectionKind, (m.get(r.from_kind as ConnectionKind) ?? 0) + 1);
-      m.set(r.to_kind as ConnectionKind, (m.get(r.to_kind as ConnectionKind) ?? 0) + 1);
-    }
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+    if (rows.length === 0) return [] as Array<[ConnectionKind, number]>;
+    const summary = computeInsights(rows, { builds: [], ventures: [] });
+    return summary.byKind.map((b) => [b.kind as ConnectionKind, b.count] as [ConnectionKind, number]);
   }, [rows]);
 
   return (
