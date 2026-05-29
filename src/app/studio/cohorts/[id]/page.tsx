@@ -13,12 +13,15 @@ import { TRACKS } from "@/lib/curriculum";
 import { PROBLEMS } from "@/lib/problems";
 import { format } from "date-fns";
 import { useCohortProgress, type ProgressStatus, type ProgressRow } from "@/lib/cohort-progress";
-import { Circle, CheckCircle2, MinusCircle, Loader2 } from "lucide-react";
+import { Circle, CheckCircle2, MinusCircle, Loader2, DollarSign, Lock } from "lucide-react";
+import { CohortPricingDialog, CohortPriceBadge } from "@/components/cohort-pricing-dialog";
 
 type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
 type Member = { user_id: string; role: "owner" | "instructor" | "student"; email: string | null; display_name: string | null; joined_at: string };
 type Invite = { id: string; email: string; role: string; expires_at: string; created_at: string };
 type Assignment = { id: string; kind: "lesson" | "track" | "problem" | "build" | "venture" | "free"; target_id: string | null; title: string; description: string | null; due_at: string | null; created_at: string; created_by: string };
+type Pricing = { price_cents: number; currency: string; application_fee_pct: number } | null;
+type Enrollment = { paid_at: string; amount_cents: number; currency: string } | null;
 
 const KIND_ICON = { lesson: BookOpen, track: FlaskConical, problem: Globe2, build: Hammer, venture: Rocket, free: ClipboardList } as const;
 const KIND_LABEL = { lesson: "Lesson", track: "Track", problem: "Problem", build: "Build", venture: "Venture", free: "Custom" } as const;
@@ -34,6 +37,10 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
   const [myRole, setMyRole] = useState<"owner" | "instructor" | "student" | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricing, setPricing] = useState<Pricing>(null);
+  const [enrollment, setEnrollment] = useState<Enrollment>(null);
+  const [enrolling, setEnrolling] = useState(false);
 
   const refresh = useCallback(async () => {
     const sb = supabaseBrowser();
@@ -56,6 +63,14 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
     setMembers(mData.members ?? []);
     setInvites(mData.pendingInvites ?? []);
     setAssignments(aData.results ?? []);
+
+    // Pricing is public-read; enrollment is per-user.
+    const [pRes, eRes] = await Promise.all([
+      fetch(`/api/v2/cohorts/${id}/pricing`).then((r) => r.json()).catch(() => ({})),
+      fetch(`/api/v2/cohorts/${id}/enrollment`, { headers }).then((r) => r.json()).catch(() => ({})),
+    ]);
+    setPricing(pRes.pricing ?? null);
+    setEnrollment(eRes.enrollment ?? null);
   }, [id]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -92,6 +107,27 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
     if (res.ok) router.push("/studio/cohorts");
+  }
+
+  async function startCheckout() {
+    setEnrolling(true);
+    try {
+      const sb = supabaseBrowser();
+      if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { alert("Sign in to enroll."); return; }
+      const res = await fetch(`/api/v2/cohorts/${id}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (data.alreadyPaid) { refresh(); return; }
+      if (!data.ok || !data.url) { alert(data.message || data.error || "Couldn't start checkout."); return; }
+      window.location.href = data.url;
+    } finally {
+      setEnrolling(false);
+    }
   }
 
   async function removeMember(uid: string) {
@@ -145,11 +181,41 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
           {cohort.description && <p className="mt-3 text-sm text-muted max-w-2xl">{cohort.description}</p>}
         </div>
         <div className="flex gap-2 shrink-0">
+          <CohortPriceBadge pricing={pricing} />
+          {myRole === "owner" && <Button variant="secondary" onClick={() => setPricingOpen(true)}><DollarSign className="size-4" /> {pricing ? "Pricing" : "Set price"}</Button>}
           {isInstructor && <Button variant="secondary" onClick={() => setInviteOpen(true)}><UserPlus className="size-4" /> Invite</Button>}
           {isInstructor && <Button onClick={() => setAssignOpen(true)}><Plus className="size-4" /> Assignment</Button>}
           {myRole === "owner" && <Button variant="ghost" onClick={deleteCohort}><Trash2 className="size-4 text-rust" /></Button>}
         </div>
       </header>
+
+      {/* Paywall — student hasn't paid and the cohort is priced */}
+      {!isInstructor && pricing && pricing.price_cents > 0 && !enrollment && (
+        <Card className="p-5 mb-6 border border-amber/30 bg-amber/5">
+          <div className="flex items-start gap-3">
+            <Lock className="size-5 text-amber shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium">This cohort requires enrollment.</div>
+              <p className="text-sm text-muted mt-1 leading-relaxed">
+                Pay <strong className="text-foreground">{(pricing.price_cents / 100).toFixed(2)} {pricing.currency.toUpperCase()}</strong> to access all assignments + roster + progress tracking. Stripe collects securely; refunds handled by the instructor.
+              </p>
+            </div>
+            <Button onClick={startCheckout} disabled={enrolling}>
+              {enrolling ? "Opening Stripe…" : `Pay ${(pricing.price_cents / 100).toFixed(2)} ${pricing.currency.toUpperCase()}`}
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Enrollment confirmed banner */}
+      {!isInstructor && enrollment && (
+        <Card className="p-3 mb-6 border border-emerald/30 bg-emerald/5">
+          <div className="text-xs text-emerald flex items-center gap-2">
+            <Check className="size-3.5" />
+            Enrolled · paid {(enrollment.amount_cents / 100).toFixed(2)} {enrollment.currency.toUpperCase()} on {new Date(enrollment.paid_at).toLocaleDateString()}
+          </div>
+        </Card>
+      )}
 
       {/* Progress matrix — instructor view. Rows = students, cols = assignments. */}
       {isInstructor && assignments.length > 0 && members.some((m) => m.role === "student") && (
@@ -323,6 +389,7 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
 
       <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} cohortId={id} onDone={refresh} />
       <AssignmentDialog open={assignOpen} onClose={() => setAssignOpen(false)} cohortId={id} onDone={refresh} />
+      <CohortPricingDialog cohortId={id} open={pricingOpen} onClose={() => setPricingOpen(false)} onSaved={refresh} />
     </div>
   );
 }

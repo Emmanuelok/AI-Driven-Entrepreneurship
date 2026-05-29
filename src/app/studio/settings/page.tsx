@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useStore } from "@/store";
 import { useAiUsage } from "@/store/ai-usage";
 import { Card, Button, Input, Badge } from "@/components/ui";
-import { User, Bell, Shield, Download, Trash2, KeyRound, Zap, Globe, AlertTriangle } from "lucide-react";
+import { User, Bell, Shield, Download, Trash2, KeyRound, Zap, Globe, AlertTriangle, Wallet } from "lucide-react";
 import { PushToggle } from "@/components/push-toggle";
 import { ByoKeyPanel } from "@/components/byo-key-panel";
+import { SellerStatusPanel } from "@/components/seller-status-panel";
 
 // Every persisted store name → human label, for export + nuke.
 const STORE_KEYS: Record<string, string> = {
@@ -144,6 +145,11 @@ export default function SettingsPage() {
           <p className="text-xs text-muted mb-2">Without a personal key above, AI runs on the platform-wide <code className="text-emerald">ANTHROPIC_API_KEY</code> set in deploy env. Demo mode kicks in when neither is configured.</p>
           <div className="bg-surface-2 rounded-xl p-3 font-mono text-[10px]">ANTHROPIC_API_KEY=sk-ant-…</div>
         </div>
+      </Card>
+
+      <Card className="p-6 mb-6">
+        <h2 className="font-medium flex items-center gap-2 mb-4"><Wallet className="size-4 text-amber" /> Payments</h2>
+        <SellerStatusPanel />
       </Card>
 
       <Card className="p-6 mb-6">
