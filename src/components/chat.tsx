@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Send, Sparkles, Globe2, Mic, Brain } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { useStore } from "@/store";
+import { buildSiteContextSnapshot } from "@/lib/site-brain-snapshot";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -62,7 +63,12 @@ export function ChatPanel({
       const res = await fetch(endpoint, {
         method: "POST",
         headers,
-        body: JSON.stringify({ messages: next, context: { language }, authToken }),
+        body: JSON.stringify({
+          messages: next,
+          context: { language },
+          authToken,
+          siteContext: buildSiteContextSnapshot(endpoint.includes("/coach/") ? "coach" : "sage"),
+        }),
       });
       const detected = res.headers.get("x-mode") ?? res.headers.get("x-sage-mode");
       if (detected === "live" || detected === "demo") setMode(detected);

@@ -3,6 +3,7 @@ import { aiUsageHeaders } from "@/lib/ai-headers";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
 import { enforceQuotaForPlatform } from "@/lib/quota";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,12 +90,14 @@ Rules:
 export async function POST(req: Request) {
   const rl = rateLimit({ scope: "distill", ipKey: clientIp(req), maxCalls: 8 });
   if (!rl.ok) return rateLimited(rl);
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
   const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
   if (quotaBlocked) return quotaBlocked;
   if (!apiKey) return Response.json(fallback(body));
 
+  const brain = siteSystemBlock(readSiteContext(raw));
   const SYSTEM = body.destination === "ai" ? AI_SYSTEM : VENTURE_SYSTEM;
 
   const ctx = `Board title: ${body.boardTitle}
@@ -109,7 +112,7 @@ ${body.notes.length > 0 ? body.notes.map((n, i) => `  ${i + 1}. ${n}`).join("\n"
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2200,
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: ctx + `\n\nDistill into ${body.destination === "ai" ? "an AI-product spec" : "a venture spec"}.` }],
     });
     const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();

@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { COACHES, getCoach } from "@/lib/coaches";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,9 @@ type Msg = { role: "user" | "assistant"; content: string };
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const coach = getCoach(id);
-  const { messages, context } = (await req.json()) as { messages: Msg[]; context?: Record<string, unknown> };
+  const raw = await req.json();
+  const { messages, context } = raw as { messages: Msg[]; context?: Record<string, unknown> };
+  const brain = siteSystemBlock(readSiteContext(raw));
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return Response.json({ error: "messages required" }, { status: 400 });
@@ -35,7 +38,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     system: [
       {
         type: "text",
-        text: coach.systemPrompt + contextLine,
+        text: brain + coach.systemPrompt + contextLine,
         cache_control: { type: "ephemeral" },
       },
     ],

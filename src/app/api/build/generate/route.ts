@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,8 +40,10 @@ If the user asks a question (instead of a build request), reply normally with a 
 Do not include <link rel="stylesheet"> from external sources. Do not include <script src="..."> from CDNs unless the user explicitly requests it. Web Speech API, Web Serial, Canvas, fetch to same-origin are all fine.`;
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
+  const brain = siteSystemBlock(readSiteContext(raw));
 
   if (!apiKey) {
     return new Response(makeFallback(body), { headers: { "Content-Type": "text/plain; charset=utf-8", "x-mode": "demo" } });
@@ -77,7 +80,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const sysParts: string[] = [SYSTEM];
+  const sysParts: string[] = [brain, SYSTEM];
   if (body.userName || body.field) sysParts.push(`\n\nThe student is ${body.userName ?? "a learner"}${body.field ? ` studying ${body.field}` : ""}.`);
   if (body.genomeVoice) sysParts.push(`\n\nVoice instruction for this student: ${body.genomeVoice}`);
   if (body.templateName) sysParts.push(`\n\nThis project is built from the "${body.templateName}" template.`);

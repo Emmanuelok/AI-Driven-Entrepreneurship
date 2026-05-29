@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { embed } from "@/lib/embeddings";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
@@ -37,11 +38,13 @@ export async function POST(req: Request) {
   const rl = rateLimit({ scope: "tutor", ipKey: clientIp(req), maxCalls: 40 });
   if (!rl.ok) return rateLimited(rl);
 
-  const { messages, context, authToken } = (await req.json()) as {
+  const raw = await req.json();
+  const { messages, context, authToken } = raw as {
     messages: Msg[];
     context?: { lessonId?: string; problemId?: string; ventureId?: string; language?: string };
     authToken?: string;
   };
+  const brain = siteSystemBlock(readSiteContext(raw));
 
   if (!Array.isArray(messages) || messages.length === 0) {
     return Response.json({ error: "messages required" }, { status: 400 });
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
     system: [
       {
         type: "text",
-        text: SYSTEM + contextLine + ragLine,
+        text: brain + SYSTEM + contextLine + ragLine,
         cache_control: { type: "ephemeral" },
       },
     ],

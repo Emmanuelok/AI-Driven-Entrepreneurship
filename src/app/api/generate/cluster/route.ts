@@ -1,19 +1,22 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
 type Body = { prompt: string; stickies: string[] };
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json({ summary: fallback(body) });
 
+  const brain = siteSystemBlock(readSiteContext(raw));
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1200,
-    system: [{ type: "text", text: "You synthesize brainstorm boards into clear thinking. Output prose with markdown.", cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: `${brain}You synthesize brainstorm boards into clear thinking. Output prose with markdown.`, cache_control: { type: "ephemeral" } }],
     messages: [
       {
         role: "user",

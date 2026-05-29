@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,18 +45,21 @@ Output STRICTLY valid JSON in this shape (no prose, no markdown fences):
 Each body should be 3-5 sentences, sharp, specific, no filler. Use African/local context where helpful.`;
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     return Response.json(generateFallbackDeck(body));
   }
 
+  const brain = siteSystemBlock(readSiteContext(raw));
+
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2500,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: PROMPT(body) }],
   });
 

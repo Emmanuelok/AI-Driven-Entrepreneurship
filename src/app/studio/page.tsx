@@ -17,6 +17,7 @@ import { useMe } from "@/store/me";
 import { Card, Badge, Stat, Button } from "@/components/ui";
 import { CohortAssignmentsWidget } from "@/components/cohort-assignments-widget";
 import { getRecommendations } from "@/lib/recommendations";
+import { buildSiteContextSnapshot } from "@/lib/site-brain-snapshot";
 
 // Pool of quick-access tiles. Re-ranked per user by usage frequency.
 const ALL_TILES: { href: string; icon: typeof Brain; label: string; c: string }[] = [
@@ -90,6 +91,7 @@ export default function Dashboard() {
           activeGoals: activeGoals.map((g) => g.text),
           recentActivity: recentActivity(6).map((a) => a.title),
           memoryFacts: memories.slice(0, 5).map((m) => m.fact),
+          siteContext: buildSiteContextSnapshot("daily-brief"),
         }),
       });
       const data = await res.json();

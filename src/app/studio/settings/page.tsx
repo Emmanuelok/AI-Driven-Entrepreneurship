@@ -12,6 +12,7 @@ import { SellerStatusPanel } from "@/components/seller-status-panel";
 import { SellerPayouts } from "@/components/seller-payouts";
 import { RefundInbox } from "@/components/refund-inbox";
 import { DiscountCodesManager } from "@/components/discount-codes-manager";
+import { SiteBrainPreview } from "@/components/site-brain-preview";
 
 // Every persisted store name → human label, for export + nuke.
 const STORE_KEYS: Record<string, string> = {
@@ -150,6 +151,7 @@ export default function SettingsPage() {
           <div className="bg-surface-2 rounded-xl p-3 font-mono text-[10px]">ANTHROPIC_API_KEY=sk-ant-…</div>
         </div>
         <McpTokensPanel />
+        <SiteBrainPreview />
       </Card>
 
       <Card className="p-6 mb-6">

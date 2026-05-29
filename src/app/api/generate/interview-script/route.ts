@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
@@ -7,18 +8,21 @@ type Body = { problem: string; persona: string; ventureName?: string };
 const SYSTEM = `You generate Bob Moesta-style customer-discovery interview scripts. The questions never lead, never pitch, never accept hypotheticals — they extract specific past behavior. Pure JSON output.`;
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
     return Response.json(fallback(body));
   }
 
+  const brain = siteSystemBlock(readSiteContext(raw));
+
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1500,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [
       {
         role: "user",

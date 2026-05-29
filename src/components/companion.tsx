@@ -9,6 +9,7 @@ import { Markdown } from "@/components/markdown";
 import { useVoice } from "@/hooks/use-voice";
 import { getRecommendations } from "@/lib/recommendations";
 import { genomeVoiceInstruction, genomeSummary } from "@/lib/genome";
+import { buildSiteContextSnapshot } from "@/lib/site-brain-snapshot";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -93,7 +94,7 @@ export function Companion() {
       const res = await fetch("/api/coach/sage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, context: ctxPayload }),
+        body: JSON.stringify({ messages: next, context: ctxPayload, siteContext: buildSiteContextSnapshot("companion") }),
       });
       const reader = res.body?.getReader();
       const dec = new TextDecoder();

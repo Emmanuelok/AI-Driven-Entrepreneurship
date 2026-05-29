@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
@@ -139,7 +140,8 @@ No buzzwords. Local context.`,
 };
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const promptPair = PROMPTS[body.kind];
   if (!promptPair) return Response.json({ error: "unknown kind" }, { status: 400 });
@@ -150,12 +152,13 @@ export async function POST(req: Request) {
     });
   }
 
+  const brain = siteSystemBlock(readSiteContext(raw));
   const { system, user } = promptPair(body);
   const client = new Anthropic({ apiKey });
   const stream = await client.messages.stream({
     model: "claude-sonnet-4-6",
     max_tokens: 2000,
-    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: brain + system, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: user }],
   });
 

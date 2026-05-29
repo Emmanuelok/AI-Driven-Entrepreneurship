@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
@@ -13,9 +14,12 @@ type Body = {
 };
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
+
+  const brain = siteSystemBlock(readSiteContext(raw));
 
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
@@ -24,7 +28,7 @@ export async function POST(req: Request) {
     system: [
       {
         type: "text",
-        text: `You are Sage, a mentor at Sankofa Studio. You write occasional letters to your students — like a real mentor would. Not chat messages. Considered, written, kept. ${body.genomeVoice}
+        text: `${brain}You are Sage, a mentor at Sankofa Studio. You write occasional letters to your students — like a real mentor would. Not chat messages. Considered, written, kept. ${body.genomeVoice}
 
 A Sage letter is:
 - Addressed to ${body.name} by first name

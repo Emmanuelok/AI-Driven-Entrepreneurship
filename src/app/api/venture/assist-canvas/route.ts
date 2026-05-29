@@ -4,6 +4,7 @@ import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { moderateOrBlock } from "@/lib/moderation";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
 import { enforceQuotaForPlatform } from "@/lib/quota";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
@@ -44,7 +45,9 @@ export async function POST(req: Request) {
   // Generous cap — students legitimately ask for 9 blocks back-to-back.
   const rl = rateLimit({ scope: "assist-canvas", ipKey: clientIp(req), maxCalls: 25 });
   if (!rl.ok) return rateLimited(rl);
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
+  const brain = siteSystemBlock(readSiteContext(raw));
   // Pattern-only moderation: canvas content is dense business text where
   // a Haiku judge call would add 600ms × 9 blocks of latency for marginal gain.
   const candidate = `${body.ventureName} ${body.tagline} ${Object.values(body.currentCanvas).join(" ")}`;
@@ -71,7 +74,7 @@ export async function POST(req: Request) {
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 700,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: `${ctx}\n\nDraft this block: ${body.block}\nGuidance: ${blockHint}` }],
   });
   const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();

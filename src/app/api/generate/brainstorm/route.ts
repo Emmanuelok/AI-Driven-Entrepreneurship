@@ -1,19 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
 type Body = { prompt: string; existing: string[] };
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
+
+  const brain = siteSystemBlock(readSiteContext(raw));
 
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1500,
-    system: [{ type: "text", text: "You generate brainstorm stickies. Output strict JSON. African / developing-world context.", cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: `${brain}You generate brainstorm stickies. Output strict JSON. African / developing-world context. When the user has an active venture / problem in the context above, slant stickies toward THEIR domain — don't default to maize-and-tomatoes if they're working on health, education, or fintech.`, cache_control: { type: "ephemeral" } }],
     messages: [
       {
         role: "user",

@@ -14,6 +14,7 @@ import { nanoid } from "nanoid";
 import { BuildConsole, ConsoleEntry, SnippetLibrary, ShareDialog, ImageToBuildDialog, injectConsoleBridge } from "@/components/build-tools";
 import { EvalHarness } from "@/components/eval-harness";
 import { McpPanel } from "@/components/mcp-panel";
+import { ConnectionsPanel } from "@/components/connections-panel";
 import { BuildCollaborateDialog } from "@/components/build-collaborate-dialog";
 import { CoPresence } from "@/components/co-presence";
 import { useCloudBuild } from "@/lib/cloud-build";
@@ -29,10 +30,10 @@ import {
   ArrowLeft, Send, Sparkles, Play, RefreshCcw, Download, Copy, Check,
   Maximize2, Minimize2, History, GitBranch, Rocket, Code as CodeIcon,
   MessageSquare, ExternalLink, Brain, Eye, Smartphone, Monitor, Tablet,
-  Wrench, Share2, ImageIcon, Terminal, Wand2, FlaskConical, UsersRound, Server,
+  Wrench, Share2, ImageIcon, Terminal, Wand2, FlaskConical, UsersRound, Server, Link2,
 } from "lucide-react";
 
-type Tab = "chat" | "code" | "history" | "console" | "eval" | "mcp";
+type Tab = "chat" | "code" | "history" | "console" | "eval" | "mcp" | "links";
 type Device = "phone" | "tablet" | "desktop";
 
 export default function BuildStudioPage({ params }: { params: Promise<{ id: string }> }) {
@@ -257,7 +258,7 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
         {/* LEFT: tabs (chat / code / history) */}
         <div className={`flex flex-col border-r border-border min-h-0 ${fullscreenPreview ? "hidden" : ""}`}>
           <div className="border-b border-border px-3 py-2 flex items-center gap-1 overflow-x-auto">
-            {(["chat", "code", "console", "eval", "mcp", "history"] as Tab[]).map((t) => {
+            {(["chat", "code", "console", "eval", "mcp", "links", "history"] as Tab[]).map((t) => {
               const errorCount = t === "console" ? consoleEntries.filter((e) => e.level === "error").length : 0;
               return (
                 <button
@@ -270,6 +271,7 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
                   {t === "console" && <Terminal className="size-3.5" />}
                   {t === "eval" && <FlaskConical className="size-3.5" />}
                   {t === "mcp" && <Server className="size-3.5" />}
+                  {t === "links" && <Link2 className="size-3.5" />}
                   {t === "history" && <History className="size-3.5" />}
                   {t === "chat" ? "Build with Sage" : t === "code" ? "Code" : t === "console" ? (
                     <>Console {errorCount > 0 && <span className="bg-rust text-white text-[10px] px-1.5 rounded-full">{errorCount}</span>}</>
@@ -277,6 +279,8 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
                     <>Eval{project.eval?.tests?.length ? ` (${project.eval.tests.length})` : ""}</>
                   ) : t === "mcp" ? (
                     "MCP"
+                  ) : t === "links" ? (
+                    "Links"
                   ) : `Versions (${project.versions.length})`}
                 </button>
               );
@@ -369,6 +373,12 @@ export default function BuildStudioPage({ params }: { params: Promise<{ id: stri
           {tab === "eval" && <EvalHarness projectId={project.id} />}
 
           {tab === "mcp" && <McpPanel buildId={project.id} isCloud={cloudBuild.isCloud} isOwner={cloudBuild.myRole === "owner"} />}
+
+          {tab === "links" && (
+            <div className="p-4">
+              <ConnectionsPanel kind="build" id={project.id} title={project.name} />
+            </div>
+          )}
 
           {/* History tab */}
           {tab === "history" && (

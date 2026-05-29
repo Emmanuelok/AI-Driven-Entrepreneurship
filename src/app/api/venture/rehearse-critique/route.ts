@@ -4,6 +4,7 @@ import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
 import { enforceQuotaForPlatform } from "@/lib/quota";
 import { moderateOrBlock } from "@/lib/moderation";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +52,9 @@ export async function POST(req: Request) {
   const rl = rateLimit({ scope: "rehearse-critique", ipKey: clientIp(req), maxCalls: 4 });
   if (!rl.ok) return rateLimited(rl);
 
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
+  const brain = siteSystemBlock(readSiteContext(raw));
   const blocked = await moderateOrBlock(body.transcript, { skipLLM: true });
   if (blocked) return blocked;
   const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
@@ -79,7 +82,7 @@ ${body.transcript}`;
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2200,
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: ctx + "\n\nCritique this rehearsal." }],
     });
     const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();

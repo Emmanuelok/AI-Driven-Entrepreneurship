@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
@@ -7,15 +8,18 @@ type Body = { problem: string; market: string };
 const SYSTEM = `You produce structured market-research briefings for African and developing-world startups. Always cite the type of source (e.g. World Bank, AGRA, GSMA) even if exact numbers are estimates. Output JSON.`;
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
+
+  const brain = siteSystemBlock(readSiteContext(raw));
 
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2000,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [
       {
         role: "user",

@@ -3,6 +3,7 @@ import { aiUsageHeaders } from "@/lib/ai-headers";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
 import { enforceQuotaForPlatform } from "@/lib/quota";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,8 @@ export async function POST(req: Request) {
   const rl = rateLimit({ scope: "synthesize", ipKey: clientIp(req), maxCalls: 8 });
   if (!rl.ok) return rateLimited(rl);
 
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
   const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
   if (quotaBlocked) return quotaBlocked;
@@ -47,12 +49,13 @@ export async function POST(req: Request) {
   if (body.interviews.length < 3) {
     return Response.json({ error: "need_more_interviews", message: "Log at least 3 interviews before synthesizing." }, { status: 400 });
   }
+  const brain = siteSystemBlock(readSiteContext(raw));
   const client = new Anthropic({ apiKey });
   const payload = body.interviews.map((iv, i) => `[#${i + 1}] ${iv.name} · ${iv.role} · verdict=${iv.verdict}${iv.willingnessToPay ? ` · WTP=$${iv.willingnessToPay}` : ""}\n${iv.notes}`).join("\n\n");
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2500,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: `Venture: ${body.ventureName} — ${body.tagline}\n\nInterview log (${body.interviews.length}):\n\n${payload}\n\nSynthesize.` }],
   });
   const text = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();

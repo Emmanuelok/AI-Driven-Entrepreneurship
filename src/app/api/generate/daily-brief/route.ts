@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { nanoid } from "nanoid";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
@@ -16,15 +17,18 @@ type Body = {
 };
 
 export async function POST(req: Request) {
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
+
+  const brain = siteSystemBlock(readSiteContext(raw));
 
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 800,
-    system: [{ type: "text", text: "You generate the most useful 30-second daily briefing a founder-in-training could read. Honest, specific, warm. Tied to what you know about them. JSON only.", cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: `${brain}You generate the most useful 30-second daily briefing a founder-in-training could read. Honest, specific, warm. Tied to what you know about them. JSON only.`, cache_control: { type: "ephemeral" } }],
     messages: [
       {
         role: "user",
