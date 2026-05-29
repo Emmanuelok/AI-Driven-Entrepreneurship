@@ -89,6 +89,16 @@ export async function POST(req: Request) {
       } else {
         return new Response(JSON.stringify({ ok: true, ignored: "missing_metadata" }), { status: 200 });
       }
+
+      // Discount code redeemed → bump its counter so max_redemptions
+      // enforcement stays accurate. Best-effort; not load-bearing.
+      const discountId = session.metadata?.sankofa_discount_id;
+      if (discountId) {
+        const { data: dc } = await sb.from("discount_codes").select("redemptions").eq("id", discountId).maybeSingle();
+        if (dc) {
+          await sb.from("discount_codes").update({ redemptions: (dc.redemptions ?? 0) + 1 }).eq("id", discountId);
+        }
+      }
     } else if (event.type === "charge.refunded") {
       // Keep refund_requests accurate if a seller (or operator) refunds
       // a charge directly from the Stripe dashboard rather than through

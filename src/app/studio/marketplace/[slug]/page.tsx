@@ -11,6 +11,7 @@ import { injectConsoleBridge } from "@/components/build-tools";
 import { Claps, Comments } from "@/components/social";
 import { BuildPricingDialog, BuildPriceBadge } from "@/components/build-pricing-dialog";
 import { RefundRequestButton } from "@/components/refund-request-button";
+import { DiscountCodeInput } from "@/components/discount-code-input";
 
 type Pricing = { price_cents: number; currency: string; application_fee_pct: number } | null;
 type Purchase = { paid_at?: string; amount_cents?: number; currency?: string; isOwner?: boolean } | null;
@@ -40,6 +41,7 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
   const [device, setDevice] = useState<Device>("desktop");
   const [pricing, setPricing] = useState<Pricing>(null);
   const [purchase, setPurchase] = useState<Purchase>(null);
+  const [discountCode, setDiscountCode] = useState<string | null>(null);
   const [pricingOpen, setPricingOpen] = useState(false);
 
   useEffect(() => {
@@ -119,7 +121,7 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
       const res = await fetch(`/api/v2/marketplace/build/${slug}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: "{}",
+        body: JSON.stringify(discountCode ? { discountCode } : {}),
       });
       const data = await res.json();
       if (data.alreadyPaid) { setPurchase({ paid_at: new Date().toISOString() } as Purchase); return; }
@@ -176,9 +178,12 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
           )}
           <Claps kind="build" slug={slug} />
           {pricing && pricing.price_cents > 0 && !purchase?.isOwner && !purchase?.paid_at ? (
-            <Button onClick={startCheckout} size="lg">
-              <Lock className="size-4" /> Buy for {(pricing.price_cents / 100).toFixed(2)} {pricing.currency.toUpperCase()}
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+              <Button onClick={startCheckout} size="lg">
+                <Lock className="size-4" /> Buy for {(pricing.price_cents / 100).toFixed(2)} {pricing.currency.toUpperCase()}
+              </Button>
+              <DiscountCodeInput kind="build" refId={slug} onApplied={setDiscountCode} />
+            </div>
           ) : (
             <Button onClick={fork} disabled={forking} size="lg">
               <GitFork className="size-4" /> {forking ? "Forking…" : "Fork to my studio"}

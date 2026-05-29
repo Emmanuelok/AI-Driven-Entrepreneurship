@@ -40,12 +40,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
   const { data: seller } = await sb.from("sellers").select("stripe_account_id, charges_enabled").eq("user_id", pricing.seller_id).maybeSingle();
   if (!seller || !seller.charges_enabled) return Response.json({ ok: false, error: "seller_not_ready" }, { status: 412 });
 
+  // Optional discount code applied server-side so the buyer can't
+  // fudge the percentage from devtools.
+  let body: { discountCode?: string } = {};
+  try { body = await req.json(); } catch { /* empty is fine */ }
+  const code = (body.discountCode ?? "").trim().toUpperCase();
+  let finalCents = pricing.price_cents;
+  let productName = `${build.title} — Sankofa build`;
+  let appliedDiscountId: string | null = null;
+  if (code) {
+    const { data: discount } = await sb.from("discount_codes")
+      .select("id, code, kind, value, applies_to_kind, applies_to_ref, max_redemptions, redemptions, expires_at")
+      .eq("seller_id", pricing.seller_id)
+      .ilike("code", code)
+      .maybeSingle();
+    const { applyDiscount } = await import("@/lib/discount");
+    const result = applyDiscount(pricing.price_cents, discount as Parameters<typeof applyDiscount>[1], { kind: "build", refId: slug, sellerId: pricing.seller_id });
+    if (result.ok) {
+      finalCents = result.discountedCents;
+      productName = `${build.title} — ${result.label}`;
+      appliedDiscountId = (discount as { id: string } | null)?.id ?? null;
+    }
+  }
+
   const s = stripe();
   if (!s) return Response.json({ ok: false, error: "stripe_not_configured" }, { status: 503 });
 
   const origin = new URL(req.url).origin;
   const feePct = Number(pricing.application_fee_pct ?? applicationFeePct());
-  const applicationFeeAmount = Math.floor((pricing.price_cents * feePct) / 100);
+  const applicationFeeAmount = Math.floor((finalCents * feePct) / 100);
 
   const session = await s.checkout.sessions.create({
     mode: "payment",
@@ -53,17 +76,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ slug: string }
     line_items: [{
       price_data: {
         currency: pricing.currency,
-        product_data: { name: `${build.title} — Sankofa build` },
-        unit_amount: pricing.price_cents,
+        product_data: { name: productName },
+        unit_amount: finalCents,
       },
       quantity: 1,
     }],
     payment_intent_data: {
       application_fee_amount: applicationFeeAmount,
       transfer_data: { destination: seller.stripe_account_id },
-      metadata: { sankofa_build_slug: slug, sankofa_buyer_id: buyerId },
+      metadata: { sankofa_build_slug: slug, sankofa_buyer_id: buyerId, ...(appliedDiscountId ? { sankofa_discount_id: appliedDiscountId } : {}) },
     },
-    metadata: { sankofa_build_slug: slug, sankofa_buyer_id: buyerId },
+    metadata: { sankofa_build_slug: slug, sankofa_buyer_id: buyerId, ...(appliedDiscountId ? { sankofa_discount_id: appliedDiscountId } : {}) },
     success_url: `${origin}/studio/marketplace/${slug}?paid=1`,
     cancel_url: `${origin}/studio/marketplace/${slug}?paid=0`,
   });

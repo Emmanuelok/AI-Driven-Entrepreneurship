@@ -41,12 +41,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { data: cohort } = await sb.from("cohorts").select("name").eq("id", id).maybeSingle();
   if (!cohort) return Response.json({ ok: false, error: "cohort_not_found" }, { status: 404 });
 
+  // Optional discount code from the client. Re-validate server-side and
+  // apply to the line-item price + application fee.
+  let body: { discountCode?: string } = {};
+  try { body = await req.json(); } catch { /* empty body is fine */ }
+  const code = (body.discountCode ?? "").trim().toUpperCase();
+  let finalCents = pricing.price_cents;
+  let productName = `${cohort.name} — Sankofa cohort enrollment`;
+  let appliedDiscountId: string | null = null;
+  if (code) {
+    const { data: discount } = await sb.from("discount_codes")
+      .select("id, code, kind, value, applies_to_kind, applies_to_ref, max_redemptions, redemptions, expires_at")
+      .eq("seller_id", pricing.seller_id)
+      .ilike("code", code)
+      .maybeSingle();
+    const { applyDiscount } = await import("@/lib/discount");
+    const result = applyDiscount(pricing.price_cents, discount as Parameters<typeof applyDiscount>[1], { kind: "cohort", refId: id, sellerId: pricing.seller_id });
+    if (result.ok) {
+      finalCents = result.discountedCents;
+      productName = `${cohort.name} — ${result.label}`;
+      appliedDiscountId = (discount as { id: string } | null)?.id ?? null;
+    }
+  }
+
   const s = stripe();
   if (!s) return Response.json({ ok: false, error: "stripe_not_configured" }, { status: 503 });
 
   const origin = new URL(req.url).origin;
   const feePct = Number(pricing.application_fee_pct ?? applicationFeePct());
-  const applicationFeeAmount = Math.floor((pricing.price_cents * feePct) / 100);
+  const applicationFeeAmount = Math.floor((finalCents * feePct) / 100);
 
   const session = await s.checkout.sessions.create({
     mode: "payment",
@@ -54,17 +77,17 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     line_items: [{
       price_data: {
         currency: pricing.currency,
-        product_data: { name: `${cohort.name} — Sankofa cohort enrollment` },
-        unit_amount: pricing.price_cents,
+        product_data: { name: productName },
+        unit_amount: finalCents,
       },
       quantity: 1,
     }],
     payment_intent_data: {
       application_fee_amount: applicationFeeAmount,
       transfer_data: { destination: seller.stripe_account_id },
-      metadata: { sankofa_cohort_id: id, sankofa_student_id: studentId },
+      metadata: { sankofa_cohort_id: id, sankofa_student_id: studentId, ...(appliedDiscountId ? { sankofa_discount_id: appliedDiscountId } : {}) },
     },
-    metadata: { sankofa_cohort_id: id, sankofa_student_id: studentId },
+    metadata: { sankofa_cohort_id: id, sankofa_student_id: studentId, ...(appliedDiscountId ? { sankofa_discount_id: appliedDiscountId } : {}) },
     success_url: `${origin}/studio/cohorts/${id}?paid=1`,
     cancel_url: `${origin}/studio/cohorts/${id}?paid=0`,
   });

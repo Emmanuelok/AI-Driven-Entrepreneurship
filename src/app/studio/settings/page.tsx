@@ -10,6 +10,7 @@ import { ByoKeyPanel } from "@/components/byo-key-panel";
 import { SellerStatusPanel } from "@/components/seller-status-panel";
 import { SellerPayouts } from "@/components/seller-payouts";
 import { RefundInbox } from "@/components/refund-inbox";
+import { DiscountCodesManager } from "@/components/discount-codes-manager";
 
 // Every persisted store name → human label, for export + nuke.
 const STORE_KEYS: Record<string, string> = {
@@ -154,6 +155,7 @@ export default function SettingsPage() {
         <SellerStatusPanel />
         <SellerPayouts />
         <RefundInbox />
+        <DiscountCodesManager />
       </Card>
 
       <Card className="p-6 mb-6">

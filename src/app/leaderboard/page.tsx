@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Hand, Eye, GitFork, Hammer, Rocket, Trophy, ArrowLeft } from "lucide-react";
+import { Hand, Eye, GitFork, Hammer, Rocket, Trophy, ArrowLeft, ArrowRight } from "lucide-react";
 
 type Row = {
   kind: "build" | "venture";
@@ -70,6 +70,16 @@ export default function LeaderboardPage() {
         <div className="grid lg:grid-cols-2 gap-8">
           <Section title="Top builds" tone="emerald" icon={Hammer} rows={builds} loading={loading} hrefBase="/studio/marketplace" />
           <Section title="Top ventures" tone="amber" icon={Rocket} rows={ventures} loading={loading} hrefBase="/v" />
+        </div>
+
+        <div className="mt-10 rounded-2xl border border-[#2a3a35] bg-[#141d1a] p-5 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="text-xs uppercase tracking-[0.22em] text-[#f4a949] mb-1">Top sellers →</div>
+            <p className="text-sm text-[#cfe0d8]">Who&apos;s making money on Sankofa — combined revenue from paid cohorts and paid builds.</p>
+          </div>
+          <Link href="/leaderboard/sellers" className="text-sm text-[#2cc295] hover:text-[#f4a949] inline-flex items-center gap-1">
+            See the leaderboard <ArrowRight className="size-4" />
+          </Link>
         </div>
 
         <p className="mt-12 text-[10px] text-[#6b8079] text-center">

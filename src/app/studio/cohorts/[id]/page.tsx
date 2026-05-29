@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { useCohortProgress, type ProgressStatus, type ProgressRow } from "@/lib/cohort-progress";
 import { Circle, CheckCircle2, MinusCircle, Loader2, DollarSign, Lock } from "lucide-react";
 import { RefundRequestButton } from "@/components/refund-request-button";
+import { DiscountCodeInput } from "@/components/discount-code-input";
 import { CohortPricingDialog, CohortPriceBadge } from "@/components/cohort-pricing-dialog";
 
 type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
@@ -42,6 +43,7 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
   const [pricing, setPricing] = useState<Pricing>(null);
   const [enrollment, setEnrollment] = useState<Enrollment>(null);
   const [enrolling, setEnrolling] = useState(false);
+  const [discountCode, setDiscountCode] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const sb = supabaseBrowser();
@@ -120,7 +122,7 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
       const res = await fetch(`/api/v2/cohorts/${id}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: "{}",
+        body: JSON.stringify(discountCode ? { discountCode } : {}),
       });
       const data = await res.json();
       if (data.alreadyPaid) { refresh(); return; }
@@ -195,11 +197,14 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
         <Card className="p-5 mb-6 border border-amber/30 bg-amber/5">
           <div className="flex items-start gap-3">
             <Lock className="size-5 text-amber shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <div className="font-medium">This cohort requires enrollment.</div>
-              <p className="text-sm text-muted mt-1 leading-relaxed">
-                Pay <strong className="text-foreground">{(pricing.price_cents / 100).toFixed(2)} {pricing.currency.toUpperCase()}</strong> to access all assignments + roster + progress tracking. Stripe collects securely; refunds handled by the instructor.
-              </p>
+            <div className="flex-1 space-y-3">
+              <div>
+                <div className="font-medium">This cohort requires enrollment.</div>
+                <p className="text-sm text-muted mt-1 leading-relaxed">
+                  Pay <strong className="text-foreground">{(pricing.price_cents / 100).toFixed(2)} {pricing.currency.toUpperCase()}</strong> to access all assignments + roster + progress tracking. Stripe collects securely; refunds handled by the instructor.
+                </p>
+              </div>
+              <DiscountCodeInput kind="cohort" refId={id} onApplied={setDiscountCode} />
             </div>
             <Button onClick={startCheckout} disabled={enrolling}>
               {enrolling ? "Opening Stripe…" : `Pay ${(pricing.price_cents / 100).toFixed(2)} ${pricing.currency.toUpperCase()}`}
