@@ -1,5 +1,6 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { sendPush, isPushConfigured } from "@/lib/push";
+import { isPushConfigured } from "@/lib/push";
+import { pushToUser } from "@/lib/push-to-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,22 +44,9 @@ export async function POST(req: Request) {
     targetUserId = u.user.id;
   }
 
-  const { data: subs, error } = await sb.from("push_subscriptions").select("endpoint, p256dh, auth").eq("user_id", targetUserId);
-  if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  if (!subs || subs.length === 0) return Response.json({ ok: true, sent: 0, message: "no subscriptions" });
-
-  const expired: string[] = [];
-  let sent = 0;
-  for (const s of subs) {
-    const r = await sendPush(
-      { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-      { title: body.title, body: body.body, url: body.url, tag: body.tag },
-    );
-    if (r.ok) sent++;
-    else if (r.error?.startsWith("410")) expired.push(s.endpoint);
-  }
-  if (expired.length > 0) {
-    await sb.from("push_subscriptions").delete().in("endpoint", expired);
-  }
-  return Response.json({ ok: true, sent, pruned: expired.length });
+  if (!targetUserId) return Response.json({ ok: false, error: "missing_target" }, { status: 400 });
+  const r = await pushToUser(targetUserId, {
+    title: body.title, body: body.body, url: body.url, tag: body.tag,
+  });
+  return Response.json(r);
 }

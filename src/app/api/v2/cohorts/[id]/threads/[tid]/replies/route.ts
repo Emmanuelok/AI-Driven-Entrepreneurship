@@ -1,5 +1,6 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authCohort } from "@/lib/cohort-auth";
+import { pushToUser } from "@/lib/push-to-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,8 +27,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ti
   const sb = supabaseAdmin();
   if (!sb) return Response.json({ ok: false, error: "admin_unavailable" }, { status: 500 });
 
-  // Validate the thread belongs to the cohort.
-  const { data: thread } = await sb.from("cohort_threads").select("id").eq("id", tid).eq("cohort_id", id).maybeSingle();
+  // Validate the thread belongs to the cohort. Also pick up author_id +
+  // title for the notification fan-out below.
+  const { data: thread } = await sb.from("cohort_threads").select("id, author_id, title").eq("id", tid).eq("cohort_id", id).maybeSingle();
   if (!thread) return Response.json({ ok: false, error: "thread_not_in_cohort" }, { status: 400 });
 
   const { data, error } = await sb.from("cohort_thread_replies").insert({
@@ -38,6 +40,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ti
   }).select("id").maybeSingle();
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Notify the thread author (unless they replied to themselves).
+  // Fire-and-forget — never block the reply response on push.
+  if (thread.author_id !== me.userId) {
+    const cohortName = await sb.from("cohorts").select("name").eq("id", id).maybeSingle()
+      .then((r) => (r.data?.name as string) ?? "your cohort");
+    void pushToUser(thread.author_id, {
+      title: `New reply in ${cohortName}`,
+      body: `"${thread.title.slice(0, 80)}" got a new reply.`,
+      url: `/studio/cohorts/${id}`,
+      tag: `cohort-thread:${tid}`,
+    }).catch(() => { /* best-effort */ });
+  }
+
   return Response.json({ ok: true, id: data?.id });
 }
 
