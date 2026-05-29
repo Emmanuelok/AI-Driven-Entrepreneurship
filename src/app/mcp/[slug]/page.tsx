@@ -6,6 +6,7 @@ import { Server, ArrowLeft, ExternalLink, Wrench, ShieldCheck, BookOpen } from "
 import { McpInstallSnippets } from "@/components/mcp-install-snippets";
 import { McpPlayground } from "@/components/mcp-playground";
 import { ConnectionsPanel } from "@/components/connections-panel";
+import { ConnectionsBanner } from "@/components/connections-banner";
 
 // Public MCP server detail page. SSR + no-auth so it's shareable +
 // SEO-able. Pulls the manifest from /api/mcp/[slug] and renders the
@@ -76,6 +77,8 @@ export default async function McpDetailPage({ params }: { params: Promise<{ slug
             <span className="text-[#6b8079]">v{m.server.version}</span>
           </div>
         </header>
+
+        <ConnectionsBanner kind="mcp" id={slug} title={m.server.name} />
 
         <section className="mb-10">
           <h2 className="text-xs uppercase tracking-widest text-[#2cc295] mb-3">Tools</h2>

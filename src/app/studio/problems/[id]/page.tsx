@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PROBLEMS, getProblem } from "@/lib/problems";
 import { ArrowLeft, MapPin, Users, AlertTriangle, Sparkles, Rocket, Brain, BookOpen, Building2 } from "lucide-react";
 import { ConnectionsPanel } from "@/components/connections-panel";
+import { ConnectionsBanner } from "@/components/connections-banner";
 
 export function generateStaticParams() {
   return PROBLEMS.map((p) => ({ id: p.id }));
@@ -18,6 +19,8 @@ export default async function ProblemPage({ params }: { params: Promise<{ id: st
       <Link href="/studio/problems" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-foreground transition mb-6">
         <ArrowLeft className="size-3.5" /> Back to Problem Hub
       </Link>
+
+      <ConnectionsBanner kind="problem" id={id} title={p.title} />
 
       <div className="flex items-center gap-2 flex-wrap mb-4">
         <span className="text-[10px] uppercase tracking-widest text-emerald border border-emerald/40 bg-emerald/5 px-2 py-0.5 rounded-full">

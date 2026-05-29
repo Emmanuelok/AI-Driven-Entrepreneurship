@@ -2,6 +2,8 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { moderateOrBlock } from "@/lib/moderation";
 import { createNotification, ownerOf } from "@/lib/notifications-server";
+import { resolveMentions } from "@/lib/mentions";
+import { pushToUser } from "@/lib/push-to-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,8 +73,8 @@ export async function POST(req: Request) {
 
   // Notify the artifact owner.
   const owner = await ownerOf(body.kind as "build" | "venture", body.slug);
+  const targetUrl = body.kind === "build" ? `/studio/marketplace/${body.slug}` : `/v/${body.slug}`;
   if (owner.userId) {
-    const url = body.kind === "build" ? `/studio/marketplace/${body.slug}` : `/v/${body.slug}`;
     void createNotification({
       userId: owner.userId,
       kind: "comment",
@@ -82,9 +84,53 @@ export async function POST(req: Request) {
       targetSlug: body.slug,
       title: `${authorName} commented on your ${body.kind}`,
       body: text.slice(0, 240),
-      url,
+      url: targetUrl,
     });
   }
+
+  // @mention fan-out scoped to prior commenters on the SAME artifact
+  // (plus the artifact owner). This is the only safe surface — we
+  // never resolve mentions against random Sankofa users, only people
+  // already publicly talking on this thread.
+  void (async () => {
+    try {
+      const { data: prior } = await sb.from("comments")
+        .select("user_id, author_name")
+        .eq("kind", body.kind!).eq("slug", body.slug!)
+        .eq("hidden", false)
+        .neq("user_id", u.user.id);
+      const participants = new Map<string, { user_id: string; display_name: string | null; email: string | null }>();
+      for (const p of prior ?? []) {
+        if (!participants.has(p.user_id)) {
+          participants.set(p.user_id, { user_id: p.user_id, display_name: p.author_name, email: null });
+        }
+      }
+      // The artifact owner is implicitly mentionable — even if they
+      // haven't commented yet. We don't know their display name from
+      // ownerOf(), so the mention has to use their email localpart
+      // (looked up below) to match.
+      if (owner.userId && !participants.has(owner.userId)) {
+        try {
+          const { data: u2 } = await sb.auth.admin.getUserById(owner.userId);
+          const meta = (u2?.user?.user_metadata ?? {}) as { name?: string; full_name?: string };
+          const display = meta.name || meta.full_name || null;
+          participants.set(owner.userId, { user_id: owner.userId, display_name: display, email: u2?.user?.email ?? null });
+        } catch { /* skip */ }
+      }
+      const { userIds } = resolveMentions(text, Array.from(participants.values()));
+      const notified = new Set<string>([u.user.id, owner.userId ?? ""]);
+      for (const uid of userIds) {
+        if (notified.has(uid)) continue;
+        await pushToUser(uid, {
+          title: `${authorName} mentioned you`,
+          body: text.slice(0, 140),
+          url: targetUrl,
+          tag: `comment-mention:${body.slug}`,
+        });
+        notified.add(uid);
+      }
+    } catch { /* best-effort */ }
+  })();
 
   return Response.json({ ok: true, comment: data });
 }

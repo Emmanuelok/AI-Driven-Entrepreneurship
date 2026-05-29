@@ -8,7 +8,22 @@ import {
   Megaphone, HelpCircle, StickyNote,
 } from "lucide-react";
 import { Markdown } from "@/components/markdown";
+import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components/mention-autocomplete";
 import { formatDistanceToNow } from "date-fns";
+
+// Reusable: turn the cohort roster into mention candidates. Uses the
+// same slug rules as src/lib/mentions.ts so what the user picks
+// matches what the resolver hits.
+function buildCandidates(members: { user_id: string; display_name: string | null; email: string | null }[]): MentionCandidate[] {
+  return members.flatMap((m) => {
+    const display = m.display_name || (m.email ? m.email.split("@")[0] : "Member");
+    const token = m.display_name
+      ? m.display_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+      : (m.email ? m.email.split("@")[0].toLowerCase() : m.user_id.slice(0, 8));
+    if (!token) return [];
+    return [{ id: m.user_id, display, token }];
+  });
+}
 
 // Highlight @mentions as emerald chips before passing to the markdown
 // renderer. We do this with a pre-pass replace so links and code
@@ -135,6 +150,7 @@ export function CohortDiscussions({
           assignmentId={assignmentId ?? null}
           assignmentTitle={assignmentTitle}
           canAnnounce={myRole === "instructor" || myRole === "owner"}
+          candidates={buildCandidates(members)}
           onClose={() => setComposing(false)}
           onDone={(newId) => { setComposing(false); refresh(); if (newId) setOpenId(newId); }}
         />
@@ -146,6 +162,7 @@ export function CohortDiscussions({
           threadId={openId}
           myRole={myRole}
           memberMap={memberMap}
+          candidates={buildCandidates(members)}
           onClose={() => setOpenId(null)}
           onChanged={refresh}
         />
@@ -183,10 +200,11 @@ function ThreadCard({ thread, authorName, onOpen }: { thread: Thread; authorName
 
 // ─── New thread dialog ──────────────────────────────────────────────────
 function NewThreadDialog({
-  cohortId, assignmentId, assignmentTitle, canAnnounce, onClose, onDone,
+  cohortId, assignmentId, assignmentTitle, canAnnounce, candidates, onClose, onDone,
 }: {
   cohortId: string; assignmentId: string | null; assignmentTitle?: string;
   canAnnounce: boolean;
+  candidates: MentionCandidate[];
   onClose: () => void; onDone: (newId: string | null) => void;
 }) {
   const [kind, setKind] = useState<ThreadKind>("question");
@@ -240,7 +258,7 @@ function NewThreadDialog({
             })}
           </div>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="One-line title" autoFocus />
-          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder="What do you want to ask, share, or announce? Use @name to tag a cohort member." />
+          <MentionAutocompleteTextarea value={body} onChange={setBody} candidates={candidates} rows={6} placeholder="What do you want to ask, share, or announce? Use @name to tag a cohort member." />
           <p className="text-[10px] text-muted">Tip: <code className="text-emerald">@firstname</code> notifies that cohort member.</p>
           {error && <div className="text-xs text-rust flex items-start gap-1.5"><AlertCircle className="size-3.5 shrink-0 mt-0.5" />{error}</div>}
           <div className="flex justify-end gap-2 pt-1">
@@ -255,11 +273,12 @@ function NewThreadDialog({
 
 // ─── Thread detail dialog ───────────────────────────────────────────────
 function ThreadDetailDialog({
-  cohortId, threadId, myRole, memberMap, onClose, onChanged,
+  cohortId, threadId, myRole, memberMap, candidates, onClose, onChanged,
 }: {
   cohortId: string; threadId: string;
   myRole: "owner" | "instructor" | "student" | null;
   memberMap: Map<string, string>;
+  candidates: MentionCandidate[];
   onClose: () => void; onChanged: () => void;
 }) {
   const [thread, setThread] = useState<Thread | null>(null);
@@ -406,12 +425,13 @@ function ThreadDetailDialog({
             </div>
 
             <div className="p-3 border-t border-border flex items-end gap-2">
-              <Textarea
+              <MentionAutocompleteTextarea
                 value={reply}
-                onChange={(e) => setReply(e.target.value)}
+                onChange={setReply}
+                candidates={candidates}
                 rows={2}
                 placeholder="Reply… (Cmd+Enter to send · @name to notify)"
-                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply(); } }}
+                onKeyDownExtra={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply(); } }}
               />
               <Button onClick={sendReply} disabled={busy || !reply.trim()}><Send className="size-3.5" /></Button>
             </div>
