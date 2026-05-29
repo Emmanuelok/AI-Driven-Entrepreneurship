@@ -143,11 +143,110 @@ export default function AdminPage() {
           </div>
         </section>
 
+        <TelemetrySection />
+
         <p className="text-[10px] text-[#6b8079] pt-4">
           Admin access via SANKOFA_ADMIN_EMAILS env list or rows in public.admins. RLS still applies — service-role bypass only happens inside trusted /api/admin routes.
         </p>
       </div>
     </div>
+  );
+}
+
+// UX-event rollup — companion starter source split + per-kind sparklines.
+// Lives next to the rest of the admin sections; admin-gated server-side.
+type Telemetry = {
+  ok: boolean;
+  totals: { events: number; kinds: number };
+  kinds: { kind: string; total: number }[];
+  starterCounts: { graph: number; page: number; other: number };
+  dailySeries: Record<string, { day: string; n: number }[]>;
+};
+
+function TelemetrySection() {
+  const [data, setData] = useState<Telemetry | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { supabaseBrowser } = await import("@/lib/supabase");
+        const sb = supabaseBrowser();
+        if (!sb) return;
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session) return;
+        const res = await fetch("/api/admin/telemetry", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (res.status === 403) { setErr("Not admin."); return; }
+        const j = await res.json();
+        if (j.ok) setData(j);
+        else setErr(j.error ?? "Couldn't load telemetry.");
+      } catch (e) { setErr((e as Error).message); }
+    })();
+  }, []);
+
+  if (err) return null; // silently skip; main admin page handles broader auth errors
+  if (!data) return (
+    <section className="rounded-2xl border border-[#2a3a35] bg-[#141d1a] p-6">
+      <h2 className="font-medium mb-2">UX events</h2>
+      <div className="text-xs text-[#8aa39a] italic">Loading…</div>
+    </section>
+  );
+
+  const totalStarters = data.starterCounts.graph + data.starterCounts.page + data.starterCounts.other;
+  const graphPct = totalStarters > 0 ? Math.round((data.starterCounts.graph / totalStarters) * 100) : 0;
+  const pagePct = totalStarters > 0 ? Math.round((data.starterCounts.page / totalStarters) * 100) : 0;
+
+  return (
+    <section className="rounded-2xl border border-[#2a3a35] bg-[#141d1a] p-6">
+      <h2 className="font-medium mb-4">UX events — last 30 days</h2>
+      <div className="grid sm:grid-cols-3 gap-3 mb-5">
+        <Counter label="Total events" value={data.totals.events.toLocaleString()} />
+        <Counter label="Distinct kinds" value={String(data.totals.kinds)} tone="indigo" />
+        <Counter label="Starter clicks" value={String(totalStarters)} tone="amber" />
+      </div>
+
+      {totalStarters > 0 && (
+        <div className="rounded-xl border border-[#2a3a35] bg-[#0a0f0d] p-4 mb-5">
+          <div className="text-[10px] uppercase tracking-widest text-[#8aa39a] mb-2">Companion starter source split</div>
+          <div className="flex h-2 rounded-full overflow-hidden bg-[#1f2c28]">
+            {data.starterCounts.graph > 0 && (
+              <div style={{ width: `${graphPct}%` }} className="bg-[#2cc295]" title={`graph: ${data.starterCounts.graph}`} />
+            )}
+            {data.starterCounts.page > 0 && (
+              <div style={{ width: `${pagePct}%` }} className="bg-[#6c8cff]" title={`page: ${data.starterCounts.page}`} />
+            )}
+          </div>
+          <div className="flex justify-between mt-2 text-[10px]">
+            <span className="text-[#2cc295]">graph · {data.starterCounts.graph} ({graphPct}%)</span>
+            <span className="text-[#6c8cff]">page · {data.starterCounts.page} ({pagePct}%)</span>
+            {data.starterCounts.other > 0 && <span className="text-[#8aa39a]">other · {data.starterCounts.other}</span>}
+          </div>
+          <p className="mt-3 text-[10px] text-[#6b8079] leading-relaxed">
+            Tune the insightStarter threshold (currently degree ≥ 2) if the graph share is too low — that means the bar is too high and most users don&apos;t qualify for a personalized nudge.
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {data.kinds.map((k) => (
+          <div key={k.kind} className="flex items-center gap-3 px-3 py-2 rounded-xl border border-[#2a3a35] bg-[#0a0f0d]">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-mono truncate">{k.kind}</div>
+              <div className="text-[10px] text-[#8aa39a]">{k.total.toLocaleString()} event{k.total === 1 ? "" : "s"}</div>
+            </div>
+            <div className="w-48 sm:w-64 shrink-0">
+              <SparkBars
+                data={(data.dailySeries[k.kind] ?? []).map((d) => ({ day: d.day, v: d.n }))}
+                format={(n) => String(n)}
+              />
+            </div>
+          </div>
+        ))}
+        {data.kinds.length === 0 && (
+          <p className="text-xs text-[#8aa39a] italic">No events logged yet.</p>
+        )}
+      </div>
+    </section>
   );
 }
 

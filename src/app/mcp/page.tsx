@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Server, ArrowLeft, ExternalLink, Wrench, ShieldCheck, Hash } from "lucide-react";
@@ -21,7 +21,18 @@ type Entry = {
 // snippets), which falls back to the public manifest API for actual
 // runtime info.
 
+// useSearchParams forces this page out of static prerender; Next 16
+// requires it sit inside a Suspense boundary. The wrapping default
+// export gives us that; the inner component does the actual work.
 export default function McpCatalogPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0a0f0d] text-[#e7efe9]" />}>
+      <McpCatalogPageInner />
+    </Suspense>
+  );
+}
+
+function McpCatalogPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialQ = searchParams.get("q") ?? "";
