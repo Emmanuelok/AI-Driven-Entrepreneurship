@@ -2,7 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
-import { useBuild } from "@/store/build";
+import { useBuild, type BuildChatMessage } from "@/store/build";
+
+// Replace chat array in the local zustand store. Goes through setState
+// directly because there's no action that wholesale-replaces chat —
+// we don't want to expose one (only sync flows should overwrite chat).
+function applyRemoteChat(projectId: string, chat: BuildChatMessage[]) {
+  useBuild.setState((s) => ({
+    projects: s.projects.map((p) => p.id === projectId ? { ...p, chat, updatedAt: Date.now() } : p),
+  }));
+}
 
 // Cloud-build collaboration layer. Mirrors lib/cloud-venture.ts: opts a
 // local build into a cloud row, subscribes to a Realtime channel, syncs
@@ -103,13 +112,17 @@ export function useCloudBuild(id: string) {
       const vData = await vRes.json();
       const cData = await cRes.json();
 
-      // Apply remote state to local store — at minimum the code field,
-      // which is what drives the preview. Whole-project sync uses the
-      // store's hydrate path (not migrated here yet — chat + versions
-      // stay local until the next session).
+      // Apply remote state to local store. Code drives the live
+      // preview; chat is the shared conversation with Sage (append-only
+      // by convention — but the whole array is overwritten on sync so
+      // simultaneous senders converge by LWW). Version log stays local
+      // per device — it's personal undo history, not collaborative.
       if (vData.ok && vData.build?.data?.code) {
         suppressNextPush.current = true;
         updateCode(id, vData.build.data.code as string, "Pulled from cloud", "human");
+      }
+      if (vData.ok && Array.isArray(vData.build?.data?.chat)) {
+        applyRemoteChat(id, vData.build.data.chat);
       }
 
       setState({
@@ -145,10 +158,13 @@ export function useCloudBuild(id: string) {
         const channel = sb.channel(`build:${id}`, { config: { presence: { key: session.user.id } } });
         channel
           .on("postgres_changes", { event: "UPDATE", schema: "public", table: "cloud_builds", filter: `id=eq.${id}` }, (payload) => {
-            const next = payload.new as { data: { code?: string }; updated_at: string };
+            const next = payload.new as { data: { code?: string; chat?: BuildChatMessage[] }; updated_at: string };
             if (next.data?.code !== undefined) {
               suppressNextPush.current = true;
               updateCode(id, next.data.code, "Remote update", "human");
+            }
+            if (Array.isArray(next.data?.chat)) {
+              applyRemoteChat(id, next.data.chat);
             }
             setState((s) => ({ ...s, serverUpdatedAt: next.updated_at }));
           })
@@ -200,7 +216,9 @@ export function useCloudBuild(id: string) {
       return;
     }
 
-    const snapshot = project.code;          // only sync code for now
+    // Snapshot the collaborative surface: code + chat. Versions stay
+    // local; they're personal undo history, not pair-program state.
+    const snapshot = JSON.stringify({ code: project.code, chatLen: project.chat.length, lastChatId: project.chat[project.chat.length - 1]?.id ?? null });
     const w = wirings.get(id);
     if (!w) return;
     if (w.lastLocalSnapshot === snapshot) return;
@@ -216,7 +234,7 @@ export function useCloudBuild(id: string) {
         const res = await fetch(`/api/v2/builds/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ data: { code: project.code }, name: project.name }),
+          body: JSON.stringify({ data: { code: project.code, chat: project.chat }, name: project.name }),
         });
         const data = await res.json();
         if (data.ok && data.updatedAt) setState((s) => ({ ...s, serverUpdatedAt: data.updatedAt }));
@@ -224,7 +242,7 @@ export function useCloudBuild(id: string) {
         // Tolerated — next change retries.
       }
     }, PUSH_DEBOUNCE_MS);
-  }, [id, project?.code, project?.name, state.isCloud, state.myRole]);
+  }, [id, project?.code, project?.name, project?.chat.length, state.isCloud, state.myRole]);
 
   const upgrade = useCallback(async () => {
     if (!project) return { ok: false, error: "no_local_build" };
@@ -236,7 +254,7 @@ export function useCloudBuild(id: string) {
       const res = await fetch("/api/v2/builds", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ id: project.id, name: project.name, data: { code: project.code, templateId: project.templateId } }),
+        body: JSON.stringify({ id: project.id, name: project.name, data: { code: project.code, chat: project.chat, templateId: project.templateId } }),
       });
       const data = await res.json();
       if (!data.ok) return { ok: false, error: data.error || "Couldn't promote build" };

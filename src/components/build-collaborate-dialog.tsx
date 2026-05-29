@@ -7,7 +7,7 @@ import { UserPlus, Crown, Eye, Pencil, X, AlertCircle, Cloud, Mail, Check } from
 
 // Build Studio collaboration dialog. Mirrors the venture version.
 // Note: only the `code` field is synced today — chat history + version
-// log stay local per device. That's intentional: chat is per-pair-
+// log stays local per device — versions are personal undo history,
 // programmer noise, version log is the LOCAL history a single dev
 // cares about.
 
@@ -50,7 +50,7 @@ export function BuildCollaborateDialog({ buildId, open, onClose }: { buildId: st
             <div className="text-sm">
               <div className="font-medium mb-1">This build lives only on your device.</div>
               <p className="text-muted leading-relaxed">
-                Promote it to the cloud to pair-program in real-time. Edits in the code editor sync to every collaborator within ~1s. Chat history + version log stay per-device.
+                Promote it to the cloud to pair-program in real-time. Code edits + the Sage conversation sync to every collaborator within ~1s. Version log stays local per device.
               </p>
             </div>
           </div>
@@ -147,7 +147,7 @@ export function BuildCollaborateDialog({ buildId, open, onClose }: { buildId: st
           )}
 
           <div className="text-[10px] text-muted leading-relaxed border-t border-border pt-3">
-            Code edits sync in real-time (~1s debounce). Chat history + version log stay local per device. Editors can edit code; viewers see read-only.
+            Code edits + the Sage conversation sync in real-time (~1s debounce). Version log stays local per device. Editors can edit; viewers see read-only.
           </div>
         </div>
       )}

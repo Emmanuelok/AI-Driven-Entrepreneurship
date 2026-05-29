@@ -14,6 +14,7 @@ import { PROBLEMS } from "@/lib/problems";
 import { format } from "date-fns";
 import { useCohortProgress, type ProgressStatus, type ProgressRow } from "@/lib/cohort-progress";
 import { Circle, CheckCircle2, MinusCircle, Loader2, DollarSign, Lock } from "lucide-react";
+import { RefundRequestButton } from "@/components/refund-request-button";
 import { CohortPricingDialog, CohortPriceBadge } from "@/components/cohort-pricing-dialog";
 
 type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
@@ -210,9 +211,12 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
       {/* Enrollment confirmed banner */}
       {!isInstructor && enrollment && (
         <Card className="p-3 mb-6 border border-emerald/30 bg-emerald/5">
-          <div className="text-xs text-emerald flex items-center gap-2">
-            <Check className="size-3.5" />
-            Enrolled · paid {(enrollment.amount_cents / 100).toFixed(2)} {enrollment.currency.toUpperCase()} on {new Date(enrollment.paid_at).toLocaleDateString()}
+          <div className="text-xs flex items-center gap-2 justify-between">
+            <span className="text-emerald flex items-center gap-2">
+              <Check className="size-3.5" />
+              Enrolled · paid {(enrollment.amount_cents / 100).toFixed(2)} {enrollment.currency.toUpperCase()} on {new Date(enrollment.paid_at).toLocaleDateString()}
+            </span>
+            <RefundRequestButton kind="cohort" refId={id} />
           </div>
         </Card>
       )}

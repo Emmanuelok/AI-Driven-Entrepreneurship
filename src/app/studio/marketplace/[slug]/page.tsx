@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 import { injectConsoleBridge } from "@/components/build-tools";
 import { Claps, Comments } from "@/components/social";
 import { BuildPricingDialog, BuildPriceBadge } from "@/components/build-pricing-dialog";
+import { RefundRequestButton } from "@/components/refund-request-button";
 
 type Pricing = { price_cents: number; currency: string; application_fee_pct: number } | null;
 type Purchase = { paid_at?: string; amount_cents?: number; currency?: string; isOwner?: boolean } | null;
@@ -188,9 +189,12 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
 
       {purchase?.paid_at && (
         <Card className="p-3 mt-4 mb-2 border border-emerald/30 bg-emerald/5">
-          <div className="text-xs text-emerald flex items-center gap-2">
-            <Check className="size-3.5" />
-            Purchased · {purchase.amount_cents ? `${(purchase.amount_cents / 100).toFixed(2)} ${(purchase.currency ?? "usd").toUpperCase()}` : "lifetime access"}
+          <div className="text-xs flex items-center gap-2 justify-between">
+            <span className="text-emerald flex items-center gap-2">
+              <Check className="size-3.5" />
+              Purchased · {purchase.amount_cents ? `${(purchase.amount_cents / 100).toFixed(2)} ${(purchase.currency ?? "usd").toUpperCase()}` : "lifetime access"}
+            </span>
+            <RefundRequestButton kind="build" refId={slug} />
           </div>
         </Card>
       )}

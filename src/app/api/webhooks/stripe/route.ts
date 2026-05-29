@@ -89,6 +89,22 @@ export async function POST(req: Request) {
       } else {
         return new Response(JSON.stringify({ ok: true, ignored: "missing_metadata" }), { status: 200 });
       }
+    } else if (event.type === "charge.refunded") {
+      // Keep refund_requests accurate if a seller (or operator) refunds
+      // a charge directly from the Stripe dashboard rather than through
+      // our refund-decide endpoint.
+      const charge = event.data.object as Stripe.Charge;
+      const piId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+      if (piId) {
+        const refundId = charge.refunds?.data?.[0]?.id ?? null;
+        await sb.from("refund_requests").update({
+          status: "approved",
+          stripe_refund_id: refundId,
+        }).eq("stripe_payment_intent_id", piId).eq("status", "pending");
+        // Also remove access on the underlying purchase if it's still there.
+        await sb.from("cohort_enrollments").delete().eq("stripe_payment_intent_id", piId);
+        await sb.from("build_purchases").delete().eq("stripe_payment_intent_id", piId);
+      }
     }
   } catch (e) {
     // Always 200 on processing errors — Stripe retries forever
