@@ -67,7 +67,7 @@ export function hrefForEntity(kind: ConnectionKind, id: string): string | null {
   switch (kind) {
     case "venture": return `/studio/venture/${encodeURIComponent(id)}`;
     case "build": return `/studio/build/${encodeURIComponent(id)}`;
-    case "sketch": return `/studio/notebook?board=${encodeURIComponent(id)}`;
+    case "sketch": return `/studio/brainstorm/${encodeURIComponent(id)}`;
     case "letter": return `/studio/letters?id=${encodeURIComponent(id)}`;
     case "cohort": return `/studio/cohorts/${encodeURIComponent(id)}`;
     case "problem": return `/studio/problems/${encodeURIComponent(id)}`;

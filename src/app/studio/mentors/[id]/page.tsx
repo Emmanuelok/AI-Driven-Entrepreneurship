@@ -7,6 +7,7 @@ import { getMentor } from "@/lib/mentors";
 import { useStore } from "@/store";
 import { Card, Button, Badge, Input, Textarea, Dialog } from "@/components/ui";
 import { Star, MapPin, Clock, ArrowLeft, Calendar, MessageSquare, Sparkles, CheckCircle2 } from "lucide-react";
+import { ConnectionsPanel } from "@/components/connections-panel";
 
 export default function MentorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -85,6 +86,10 @@ export default function MentorPage({ params }: { params: Promise<{ id: string }>
           <Button onClick={() => setBooking(true)} size="lg"><Calendar className="size-4" /> Book session</Button>
           <Button variant="secondary"><MessageSquare className="size-4" /> Message</Button>
         </Card>
+      </div>
+
+      <div className="mt-8">
+        <ConnectionsPanel kind="mentor" id={id} title={mentor.name} />
       </div>
 
       <Dialog open={booking} onClose={() => { setBooking(false); setConfirmed(false); }} title={confirmed ? "Booked!" : `Book ${mentor.name.split(" ")[0]}`}>

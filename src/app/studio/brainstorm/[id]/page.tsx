@@ -16,7 +16,8 @@ const SketchCanvas = dynamic(() => import("@/components/sketch-canvas").then((m)
   loading: () => <div className="absolute inset-0 flex items-center justify-center text-xs text-muted">Loading canvas…</div>,
 });
 import { Dialog, Button, Badge } from "@/components/ui";
-import { ArrowLeft, Rocket, Hammer, Sparkles, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, Rocket, Hammer, Sparkles, ArrowRight, Check, Link2 } from "lucide-react";
+import { ConnectionsPanel } from "@/components/connections-panel";
 
 type AiSpec = { templateId: string; projectName: string; description: string; openingPrompt: string };
 type VentureSpec = {
@@ -34,6 +35,7 @@ export default function BrainstormCanvasPage({ params }: { params: Promise<{ id:
   const { createVenture, updateVenture, user } = useStore();
 
   const [shipOpen, setShipOpen] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
   const [destination, setDestination] = useState<"ai" | "venture" | null>(null);
   const [distilling, setDistilling] = useState(false);
   const [aiSpec, setAiSpec] = useState<AiSpec | null>(null);
@@ -135,12 +137,24 @@ export default function BrainstormCanvasPage({ params }: { params: Promise<{ id:
           <p className="text-xs text-muted truncate">{board.prompt}</p>
         </div>
         <button
+          onClick={() => setLinksOpen((v) => !v)}
+          className="shrink-0 text-xs text-muted hover:text-emerald inline-flex items-center gap-1.5 transition"
+          title="Connect this canvas to other artifacts"
+        >
+          <Link2 className="size-3.5" /> Links
+        </button>
+        <button
           onClick={() => setShipOpen(true)}
           className="shrink-0 bg-emerald text-black font-medium px-4 py-2 rounded-full text-sm hover:bg-amber transition flex items-center gap-1.5"
         >
           <Rocket className="size-3.5" /> Ship this idea
         </button>
       </header>
+      {linksOpen && (
+        <div className="border-b border-border bg-surface-2/30 px-5 sm:px-8 py-3">
+          <ConnectionsPanel kind="sketch" id={id} title={board.title} compact />
+        </div>
+      )}
       <div className="flex-1 relative overflow-hidden">
         <SketchCanvas boardId={id} />
       </div>

@@ -67,6 +67,10 @@ export type SiteContextSnapshot = {
   dueFlashcards?: number;
   // Things they've already shipped (helps the AI compliment specifically)
   shippedArtifacts?: { kind: string; title: string }[];
+  // Relationships the user has drawn across the platform — sketch →
+  // venture, build → problem, etc. Trimmed to the 20 most recent so
+  // the prompt doesn't bloat past a few hundred tokens.
+  connections?: { fromKind: string; fromId: string; toKind: string; toId: string; label: string | null }[];
   // What route this is — lets the brain bias toward relevant sections
   // (e.g. the brain trims `recentBuilds` for venture-tab calls).
   callerScope?: string;
@@ -154,6 +158,17 @@ export function formatSiteContext(snap: SiteContextSnapshot | null | undefined):
   }
   if (snap.shippedArtifacts?.length) {
     lines.push(`[SHIPPED]\n${snap.shippedArtifacts.slice(0, 4).map((a) => `- ${a.kind}: ${a.title}`).join("\n")}`);
+  }
+  if (snap.connections?.length) {
+    // Render as a compact graph: "sketch:abc seeded from → venture:xyz"
+    // — the AI doesn't need a full relational schema, just the shape
+    // of relationships so it can say "your Maize Co. venture grew out
+    // of last week's sketch".
+    const rendered = snap.connections.slice(0, 20).map((c) => {
+      const verb = c.label ? ` ${c.label} →` : " →";
+      return `- ${c.fromKind}:${c.fromId.slice(0, 12)}${verb} ${c.toKind}:${c.toId.slice(0, 12)}`;
+    }).join("\n");
+    lines.push(`[CONNECTIONS]\n${rendered}`);
   }
 
   if (lines.length === 0) return "";

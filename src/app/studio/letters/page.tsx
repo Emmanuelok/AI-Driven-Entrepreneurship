@@ -10,6 +10,8 @@ import { Card, Badge, Button, EmptyState } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
 import { Mail, ArrowLeft, Archive, Sparkles, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { ConnectionsPanel } from "@/components/connections-panel";
+import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 
 export default function LettersPage() {
   const { letters, markLetterRead, archiveLetter, writeLetter } = useLetters();
@@ -35,6 +37,7 @@ export default function LettersPage() {
           triggerContext: `${streak}-day streak, ${xp.toLocaleString()} XP, ${ventures.length} venture(s).`,
           memorySummary: recall().slice(0, 6).map((m) => `- ${m.fact}`).join("\n"),
           recentActivity: recentActivity(10).map((a) => a.title).join(" / "),
+          siteContext: await buildSiteContextSnapshotAsync("letter"),
         }),
       });
       const data = await res.json() as { title: string; body: string };
@@ -117,6 +120,9 @@ export default function LettersPage() {
                     {selected.cta.label} →
                   </Link>
                 )}
+                <div className="mt-8 pt-6 border-t border-border">
+                  <ConnectionsPanel kind="letter" id={selected.id} title={selected.title} compact />
+                </div>
               </div>
             </Card>
           )}

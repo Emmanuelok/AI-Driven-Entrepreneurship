@@ -3,6 +3,7 @@ import { aiUsageHeaders } from "@/lib/ai-headers";
 import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
 import { enforceQuotaForPlatform } from "@/lib/quota";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +30,9 @@ Output STRICT JSON only. No markdown fences. Shape:
 export async function POST(req: Request) {
   const rl = rateLimit({ scope: "eval-suggest", ipKey: clientIp(req), maxCalls: 6 });
   if (!rl.ok) return rateLimited(rl);
-  const body = (await req.json()) as Body;
+  const raw = await req.json();
+  const body = raw as Body;
+  const brain = siteSystemBlock(readSiteContext(raw));
   const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
   const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
   if (quotaBlocked) return quotaBlocked;
@@ -46,7 +49,7 @@ export async function POST(req: Request) {
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 1800,
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: brain + SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{
         role: "user",
         content: `AGENT NAME: ${body.projectName ?? "(unnamed)"}\n\nDESCRIPTION: ${body.description ?? "(none)"}\n\nSYSTEM PROMPT:\n${body.systemPrompt}\n\nDesign the test suite.`,

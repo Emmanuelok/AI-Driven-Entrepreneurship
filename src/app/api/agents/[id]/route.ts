@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgent } from "@/lib/agents";
+import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const agent = getAgent(id);
   if (!agent) return Response.json({ error: "agent not found" }, { status: 404 });
 
-  const inputs = (await req.json()) as Record<string, string>;
+  const raw = await req.json();
+  const inputs = raw as Record<string, string>;
+  const brain = siteSystemBlock(readSiteContext(raw));
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   const userPrompt = `Inputs:\n${Object.entries(inputs).map(([k, v]) => `- ${k}: ${v}`).join("\n")}\n\nProduce your output now.`;
@@ -24,7 +27,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const stream = await client.messages.stream({
     model: "claude-sonnet-4-6",
     max_tokens: 2000,
-    system: [{ type: "text", text: agent.systemPrompt, cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: brain + agent.systemPrompt, cache_control: { type: "ephemeral" } }],
     messages: [{ role: "user", content: userPrompt }],
   });
 

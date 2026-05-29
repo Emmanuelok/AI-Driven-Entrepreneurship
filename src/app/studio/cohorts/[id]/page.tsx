@@ -18,6 +18,7 @@ import { RefundRequestButton } from "@/components/refund-request-button";
 import { DiscountCodeInput } from "@/components/discount-code-input";
 import { CohortPricingDialog, CohortPriceBadge } from "@/components/cohort-pricing-dialog";
 import { CohortAnalytics } from "@/components/cohort-analytics";
+import { ConnectionsPanel } from "@/components/connections-panel";
 
 type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
 type Member = { user_id: string; role: "owner" | "instructor" | "student"; email: string | null; display_name: string | null; joined_at: string };
@@ -397,6 +398,10 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
               </Card>
             </>
           )}
+
+          <div className="mt-6">
+            <ConnectionsPanel kind="cohort" id={id} title={cohort.name} />
+          </div>
         </aside>
       </div>
 

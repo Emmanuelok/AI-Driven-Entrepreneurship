@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Send, Sparkles, Globe2, Mic, Brain } from "lucide-react";
 import { Markdown } from "@/components/markdown";
 import { useStore } from "@/store";
-import { buildSiteContextSnapshot } from "@/lib/site-brain-snapshot";
+import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -67,7 +67,7 @@ export function ChatPanel({
           messages: next,
           context: { language },
           authToken,
-          siteContext: buildSiteContextSnapshot(endpoint.includes("/coach/") ? "coach" : "sage"),
+          siteContext: await buildSiteContextSnapshotAsync(endpoint.includes("/coach/") ? "coach" : "sage"),
         }),
       });
       const detected = res.headers.get("x-mode") ?? res.headers.get("x-sage-mode");

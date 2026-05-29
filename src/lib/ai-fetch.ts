@@ -1,7 +1,7 @@
 "use client";
 
 import { useAiUsage } from "@/store/ai-usage";
-import { buildSiteContextSnapshot } from "@/lib/site-brain-snapshot";
+import { buildSiteContextSnapshot, buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 
 // Client-side fetch wrapper for AI routes. Records usage to the client
 // store from response headers the server sends back. The server is the
@@ -33,7 +33,9 @@ export async function aiFetchWithBrain(
   body: Record<string, unknown>,
   init?: Omit<RequestInit, "body" | "method"> & { method?: "POST" | "PATCH" | "PUT" },
 ): Promise<Response> {
-  const snapshot = body.siteContext ?? buildSiteContextSnapshot(scope);
+  // Async snapshot pulls connections too. Falls back to sync snapshot
+  // if the caller passed siteContext explicitly.
+  const snapshot = body.siteContext ?? await buildSiteContextSnapshotAsync(scope);
   const next = { ...body, siteContext: snapshot };
   return aiFetch(scope, url, {
     method: init?.method ?? "POST",
@@ -42,3 +44,7 @@ export async function aiFetchWithBrain(
     body: JSON.stringify(next),
   });
 }
+
+// Re-export so callers building snapshots directly don't have to
+// import from two different lib modules.
+export { buildSiteContextSnapshot } from "@/lib/site-brain-snapshot";

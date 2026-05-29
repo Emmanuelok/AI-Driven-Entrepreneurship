@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PROBLEMS, getProblem } from "@/lib/problems";
 import { ArrowLeft, MapPin, Users, AlertTriangle, Sparkles, Rocket, Brain, BookOpen, Building2 } from "lucide-react";
+import { ConnectionsPanel } from "@/components/connections-panel";
 
 export function generateStaticParams() {
   return PROBLEMS.map((p) => ({ id: p.id }));
@@ -116,6 +117,10 @@ export default async function ProblemPage({ params }: { params: Promise<{ id: st
             </Link>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <ConnectionsPanel kind="problem" id={id} title={p.title} />
       </div>
     </div>
   );

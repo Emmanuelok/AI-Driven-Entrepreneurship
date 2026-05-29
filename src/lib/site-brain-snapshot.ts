@@ -123,6 +123,28 @@ export function buildSiteContextSnapshot(scope?: string): SiteContextSnapshot {
   return snap;
 }
 
+// Async variant — same snapshot as the sync builder, plus the user's
+// connection graph fetched from /api/v2/connections (60s in-memory
+// cached). Use this from aiFetchWithBrain so AI calls see the
+// relationships the user has drawn between artifacts.
+export async function buildSiteContextSnapshotAsync(scope?: string): Promise<ReturnType<typeof buildSiteContextSnapshot>> {
+  const snap = buildSiteContextSnapshot(scope);
+  try {
+    const { fetchUserConnectionsCached } = await import("@/lib/connections-client");
+    const rows = await fetchUserConnectionsCached();
+    if (rows.length > 0) {
+      snap.connections = rows.slice(0, 20).map((r) => ({
+        fromKind: r.from_kind,
+        fromId: r.from_id,
+        toKind: r.to_kind,
+        toId: r.to_id,
+        label: r.label,
+      }));
+    }
+  } catch { /* connections are optional — never block the AI call */ }
+  return snap;
+}
+
 function safeGenomeVoice(g: Parameters<typeof genomeVoiceInstruction>[0]): string | undefined {
   try {
     return genomeVoiceInstruction(g);

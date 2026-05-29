@@ -12,6 +12,7 @@ import { Claps, Comments } from "@/components/social";
 import { BuildPricingDialog, BuildPriceBadge } from "@/components/build-pricing-dialog";
 import { RefundRequestButton } from "@/components/refund-request-button";
 import { DiscountCodeInput } from "@/components/discount-code-input";
+import { ConnectionsPanel } from "@/components/connections-panel";
 
 type Pricing = { price_cents: number; currency: string; application_fee_pct: number } | null;
 type Purchase = { paid_at?: string; amount_cents?: number; currency?: string; isOwner?: boolean } | null;
@@ -245,6 +246,8 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
       <Card className="p-5">
         <Comments kind="build" slug={slug} />
       </Card>
+
+      <ConnectionsPanel kind="marketplace" id={slug} title={build.title} />
 
       <Card className="p-5">
         <div className="text-xs text-muted">

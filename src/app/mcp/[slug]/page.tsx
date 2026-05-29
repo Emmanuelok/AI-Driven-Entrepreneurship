@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { Server, ArrowLeft, ExternalLink, Wrench, ShieldCheck, BookOpen } from "lucide-react";
 import { McpInstallSnippets } from "@/components/mcp-install-snippets";
 import { McpPlayground } from "@/components/mcp-playground";
+import { ConnectionsPanel } from "@/components/connections-panel";
 
 // Public MCP server detail page. SSR + no-auth so it's shareable +
 // SEO-able. Pulls the manifest from /api/mcp/[slug] and renders the
@@ -97,6 +98,10 @@ export default async function McpDetailPage({ params }: { params: Promise<{ slug
         <section className="mb-10">
           <h2 className="text-xs uppercase tracking-widest text-[#2cc295] mb-3">Playground</h2>
           <McpPlayground slug={slug} serverName={m.server.name} tools={tools} />
+        </section>
+
+        <section className="mb-10">
+          <ConnectionsPanel kind="mcp" id={slug} title={m.server.name} />
         </section>
 
         <section className="mb-10">
