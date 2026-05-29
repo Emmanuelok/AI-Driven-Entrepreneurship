@@ -7,7 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { Card, Button, Input, Textarea, Badge, Dialog } from "@/components/ui";
 import {
   GraduationCap, Building2, ArrowLeft, UserPlus, Trash2, Plus, Crown, Pencil, Eye, Mail, X,
-  Calendar, BookOpen, FlaskConical, Hammer, Rocket, Globe2, ClipboardList, Check, AlertCircle,
+  Calendar, BookOpen, FlaskConical, Hammer, Rocket, Globe2, ClipboardList, Check, AlertCircle, MessageSquare,
 } from "lucide-react";
 import { TRACKS } from "@/lib/curriculum";
 import { PROBLEMS } from "@/lib/problems";
@@ -19,6 +19,7 @@ import { DiscountCodeInput } from "@/components/discount-code-input";
 import { CohortPricingDialog, CohortPriceBadge } from "@/components/cohort-pricing-dialog";
 import { CohortAnalytics } from "@/components/cohort-analytics";
 import { ConnectionsPanel } from "@/components/connections-panel";
+import { CohortDiscussions } from "@/components/cohort-discussions";
 
 type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
 type Member = { user_id: string; role: "owner" | "instructor" | "student"; email: string | null; display_name: string | null; joined_at: string };
@@ -46,6 +47,7 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
   const [enrollment, setEnrollment] = useState<Enrollment>(null);
   const [enrolling, setEnrolling] = useState(false);
   const [discountCode, setDiscountCode] = useState<string | null>(null);
+  const [discussAssignmentId, setDiscussAssignmentId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const sb = supabaseBrowser();
@@ -281,6 +283,24 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
       {/* Analytics — instructor only, hides itself when no students/assignments */}
       {isInstructor && <CohortAnalytics cohortId={id} refreshKey={progress.rows.length} />}
 
+      {/* Discussion — visible to every member (paywall blocks above for unpaid students) */}
+      {(isInstructor || enrollment || !pricing || pricing.price_cents === 0) && (
+        <Card className="p-5 mb-6">
+          <CohortDiscussions
+            cohortId={id}
+            assignmentId={discussAssignmentId ?? undefined}
+            assignmentTitle={discussAssignmentId ? assignments.find((a) => a.id === discussAssignmentId)?.title : undefined}
+            myRole={myRole}
+            members={members}
+          />
+          {discussAssignmentId && (
+            <button onClick={() => setDiscussAssignmentId(null)} className="mt-3 text-[10px] uppercase tracking-widest text-muted hover:text-emerald transition">
+              ← Show all threads
+            </button>
+          )}
+        </Card>
+      )}
+
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         {/* Assignments column */}
         <div>
@@ -331,6 +351,12 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
                           {targetHref && (
                             <Link href={targetHref} className="text-xs text-emerald hover:text-amber">Open →</Link>
                           )}
+                          <button
+                            onClick={() => setDiscussAssignmentId(a.id === discussAssignmentId ? null : a.id)}
+                            className={`text-xs inline-flex items-center gap-1 transition ${discussAssignmentId === a.id ? "text-emerald" : "text-muted hover:text-emerald"}`}
+                          >
+                            <MessageSquare className="size-3" /> Discuss
+                          </button>
                           {!isInstructor && (
                             <StudentStatusControl
                               current={myRow?.status ?? "not_started"}

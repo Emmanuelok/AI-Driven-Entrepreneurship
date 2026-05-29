@@ -215,11 +215,18 @@ function Wedge({ onNext }: { onNext: () => void }) {
 
       {/* Mode picker + discipline banner */}
       <div className="mt-6 flex items-center justify-between flex-wrap gap-3">
-        {fieldLabel && mode === "atlas" && (
-          <div className="text-xs text-muted inline-flex items-center gap-1.5">
-            <GraduationCap className="size-3.5 text-emerald" />
-            Showing wedges picked for <span className="text-foreground font-medium">{fieldLabel}</span>
-          </div>
+        {mode === "atlas" && (
+          fieldLabel ? (
+            <div className="text-xs text-muted inline-flex items-center gap-1.5">
+              <GraduationCap className="size-3.5 text-emerald" />
+              Showing wedges picked for <span className="text-foreground font-medium">{fieldLabel}</span>
+            </div>
+          ) : (
+            <div className="text-xs text-amber inline-flex items-center gap-1.5">
+              <GraduationCap className="size-3.5" />
+              We couldn&apos;t match your field to a discipline — try <button onClick={() => setMode("generate")} className="underline hover:text-emerald">Generate for me</button> for something bespoke.
+            </div>
+          )
         )}
         <div className="flex gap-1 ml-auto">
           <ModeTab active={mode === "atlas"} onClick={() => { setMode("atlas"); setPickedId(""); }} icon={GraduationCap}>From the Atlas</ModeTab>

@@ -70,6 +70,7 @@ const NAV: NavItem[] = [
 
   { href: "/studio/portfolio", label: "Portfolio", icon: Folder, group: "You" },
   { href: "/studio/credentials", label: "Credentials", icon: Award, group: "You" },
+  { href: "/studio/connections", label: "Connections", icon: Network, group: "You" },
   { href: "/studio/analytics", label: "Analytics", icon: TrendingUp, group: "You" },
   { href: "/studio/settings", label: "Settings", icon: Settings, group: "You" },
 
