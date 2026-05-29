@@ -60,7 +60,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ti
           body: `"${thread.title.slice(0, 80)}" got a new reply.`,
           url: `/studio/cohorts/${id}`,
           tag: `cohort-thread:${tid}`,
-        });
+        }, { category: "reply" });
         notified.add(thread.author_id);
       }
 
@@ -76,7 +76,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ti
           body: `"${thread.title.slice(0, 80)}" — someone @-mentioned you.`,
           url: `/studio/cohorts/${id}`,
           tag: `cohort-thread:${tid}:mention`,
-        });
+        }, { category: "mention" });
         notified.add(uid);
       }
     } catch { /* best-effort */ }

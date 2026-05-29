@@ -126,7 +126,7 @@ export async function POST(req: Request) {
           body: text.slice(0, 140),
           url: targetUrl,
           tag: `comment-mention:${body.slug}`,
-        });
+        }, { category: "mention" });
         notified.add(uid);
       }
     } catch { /* best-effort */ }

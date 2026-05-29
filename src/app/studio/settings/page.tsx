@@ -13,6 +13,7 @@ import { SellerPayouts } from "@/components/seller-payouts";
 import { RefundInbox } from "@/components/refund-inbox";
 import { DiscountCodesManager } from "@/components/discount-codes-manager";
 import { SiteBrainPreview } from "@/components/site-brain-preview";
+import { NotificationPrefsPanel } from "@/components/notification-prefs-panel";
 
 // Every persisted store name → human label, for export + nuke.
 const STORE_KEYS: Record<string, string> = {
@@ -163,26 +164,11 @@ export default function SettingsPage() {
       </Card>
 
       <Card className="p-6 mb-6">
-        <h2 className="font-medium flex items-center gap-2 mb-5"><Bell className="size-4 text-emerald" /> Notifications</h2>
-        <div className="mb-5 pb-5 border-b border-border">
-          <PushToggle />
-        </div>
-        <div className="space-y-3 text-sm">
-          <div className="text-[10px] uppercase tracking-widest text-muted mb-2">In-product reminders</div>
-          {[
-            "Lesson reminders (daily)",
-            "Mentor session reminders (24h before)",
-            "Funding deadline alerts",
-            "Community replies",
-            "Cohort announcements",
-          ].map((label) => (
-            <label key={label} className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" defaultChecked className="accent-emerald" />
-              {label}
-            </label>
-          ))}
-        </div>
+        <h2 className="font-medium flex items-center gap-2 mb-5"><Bell className="size-4 text-emerald" /> Push permission</h2>
+        <PushToggle />
       </Card>
+
+      <NotificationPrefsPanel />
 
       <Card className="p-6 mb-6">
         <h2 className="font-medium flex items-center gap-2 mb-3"><Shield className="size-4 text-emerald" /> Privacy & data</h2>

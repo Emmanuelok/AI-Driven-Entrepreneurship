@@ -134,7 +134,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
             body: title.slice(0, 120),
             url: `/studio/cohorts/${id}`,
             tag: `cohort-announcement:${data?.id}`,
-          });
+          }, { category: "announcement" });
           notified.add(m.user_id);
         }
         return;
@@ -149,7 +149,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           body: `New thread: "${title.slice(0, 80)}"`,
           url: `/studio/cohorts/${id}`,
           tag: `cohort-thread:${data?.id}:mention`,
-        });
+        }, { category: "mention" });
         notified.add(uid);
       }
     } catch { /* best-effort */ }

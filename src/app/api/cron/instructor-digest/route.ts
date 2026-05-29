@@ -1,5 +1,6 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { sendEmail, emailShell } from "@/lib/email";
+import { shouldEmail } from "@/lib/notification-prefs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,8 +115,9 @@ export async function GET(req: Request) {
         cohortUrl: `https://sankofa.studio/studio/cohorts/${cohort.id}`,
       });
 
-      // One email per recipient.
+      // One email per recipient — but skip anyone who's opted out.
       for (const [userId, email] of recipients) {
+        if (!(await shouldEmail(userId, "email_instructor_digest"))) continue;
         const r = await sendEmail({
           to: email,
           subject: `${cohort.name} — weekly cohort digest`,
@@ -124,7 +126,6 @@ export async function GET(req: Request) {
         });
         if (r.ok) sent.push({ cohortId: cohort.id, email });
         else failed.push({ email, error: r.error || "unknown" });
-        void userId;
       }
     } catch (e) {
       failed.push({ email: cohort.id, error: (e as Error).message });

@@ -1,5 +1,6 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { sendEmail, emailShell } from "@/lib/email";
+import { shouldEmail } from "@/lib/notification-prefs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,6 +71,9 @@ export async function GET(req: Request) {
 
       // Skip silent weeks — nothing meaningful happened.
       if (interviews === 0 && shipped === 0 && aiCalls === 0) continue;
+
+      // Skip when the user has opted out.
+      if (!(await shouldEmail(row.user_id, "email_student_digest"))) continue;
 
       const body = emailShell({
         heading: `Your Sankofa week — ${shipped} shipped`,
