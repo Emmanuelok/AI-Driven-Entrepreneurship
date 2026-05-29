@@ -133,11 +133,28 @@ export async function buildSiteContextSnapshotAsync(scope?: string): Promise<Ret
     const { fetchUserConnectionsCached } = await import("@/lib/connections-client");
     const rows = await fetchUserConnectionsCached();
     if (rows.length > 0) {
+      // Build local title lookup tables so we can hydrate IDs into
+      // readable names ("Lentil Co." instead of nanoid suffix).
+      const s = useStore.getState();
+      const builds = useBuild.getState();
+      const sketch = useSketch.getState();
+      const letters = useLetters.getState();
+      const titleFor = (kind: string, id: string): string | undefined => {
+        switch (kind) {
+          case "venture": return s.ventures.find((v) => v.id === id)?.name;
+          case "build": return builds.projects.find((p) => p.id === id)?.name;
+          case "sketch": return sketch.boards.find((b) => b.id === id)?.title;
+          case "letter": return letters.letters.find((l) => l.id === id)?.title;
+          default: return undefined;
+        }
+      };
       snap.connections = rows.slice(0, 20).map((r) => ({
         fromKind: r.from_kind,
         fromId: r.from_id,
+        fromTitle: titleFor(r.from_kind, r.from_id),
         toKind: r.to_kind,
         toId: r.to_id,
+        toTitle: titleFor(r.to_kind, r.to_id),
         label: r.label,
       }));
     }

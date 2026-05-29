@@ -28,6 +28,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get("limit") ?? "50") || 50));
+  const q = (url.searchParams.get("q") || "").trim().toLowerCase();
 
   // Pull cloud builds, then filter to ones with mcp_config.enabled. We
   // can't easily filter JSONB in supabase-js, so we over-fetch and
@@ -40,7 +41,17 @@ export async function GET(req: Request) {
 
   const candidates = (rows ?? []).filter((r) => {
     const cfg = (r.data as { mcp_config?: unknown } | null)?.mcp_config;
-    return isMcpConfig(cfg) && cfg.enabled && Array.isArray(cfg.tools) && cfg.tools.length > 0;
+    if (!(isMcpConfig(cfg) && cfg.enabled && Array.isArray(cfg.tools) && cfg.tools.length > 0)) return false;
+    if (!q) return true;
+    // Server-side full-text-ish: hit name + description + tool names +
+    // tool descriptions. Cheap substring; replace with a tsvector if we
+    // ever cross a few thousand catalog rows.
+    const haystack = [
+      cfg.name ?? r.name,
+      cfg.description ?? "",
+      ...cfg.tools.map((t) => `${t.name} ${t.description}`),
+    ].join(" ").toLowerCase();
+    return haystack.includes(q);
   }).slice(0, limit);
 
   if (candidates.length === 0) return Response.json({ ok: true, results: [] });

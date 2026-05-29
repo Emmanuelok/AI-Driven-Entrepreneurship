@@ -69,8 +69,15 @@ export type SiteContextSnapshot = {
   shippedArtifacts?: { kind: string; title: string }[];
   // Relationships the user has drawn across the platform — sketch →
   // venture, build → problem, etc. Trimmed to the 20 most recent so
-  // the prompt doesn't bloat past a few hundred tokens.
-  connections?: { fromKind: string; fromId: string; toKind: string; toId: string; label: string | null }[];
+  // the prompt doesn't bloat past a few hundred tokens. fromTitle /
+  // toTitle are resolved client-side from local stores when possible
+  // so Sage sees "Lentil Co. ← seeded from ← Tomato cold-chain" instead
+  // of opaque IDs.
+  connections?: {
+    fromKind: string; fromId: string; fromTitle?: string;
+    toKind: string; toId: string; toTitle?: string;
+    label: string | null;
+  }[];
   // What route this is — lets the brain bias toward relevant sections
   // (e.g. the brain trims `recentBuilds` for venture-tab calls).
   callerScope?: string;
@@ -160,13 +167,15 @@ export function formatSiteContext(snap: SiteContextSnapshot | null | undefined):
     lines.push(`[SHIPPED]\n${snap.shippedArtifacts.slice(0, 4).map((a) => `- ${a.kind}: ${a.title}`).join("\n")}`);
   }
   if (snap.connections?.length) {
-    // Render as a compact graph: "sketch:abc seeded from → venture:xyz"
-    // — the AI doesn't need a full relational schema, just the shape
-    // of relationships so it can say "your Maize Co. venture grew out
-    // of last week's sketch".
+    // Render with titles when we have them, fallback to short IDs.
+    // The shape carries enough that Sage can write things like
+    // "your Lentil Co. venture grew out of the Tomato cold-chain sketch
+    // — that link suggests…".
     const rendered = snap.connections.slice(0, 20).map((c) => {
       const verb = c.label ? ` ${c.label} →` : " →";
-      return `- ${c.fromKind}:${c.fromId.slice(0, 12)}${verb} ${c.toKind}:${c.toId.slice(0, 12)}`;
+      const from = c.fromTitle ? `${c.fromKind} "${c.fromTitle}"` : `${c.fromKind}:${c.fromId.slice(0, 12)}`;
+      const to = c.toTitle ? `${c.toKind} "${c.toTitle}"` : `${c.toKind}:${c.toId.slice(0, 12)}`;
+      return `- ${from}${verb} ${to}`;
     }).join("\n");
     lines.push(`[CONNECTIONS]\n${rendered}`);
   }

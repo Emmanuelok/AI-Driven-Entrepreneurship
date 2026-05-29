@@ -1,5 +1,7 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authCohort, requireCohortRole } from "@/lib/cohort-auth";
+import { pushToUser } from "@/lib/push-to-user";
+import { resolveMentions } from "@/lib/mentions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,5 +109,51 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }).select("id").maybeSingle();
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Mention fan-out + announcement-to-cohort broadcast. Title + body
+  // both scanned for @mentions. Fire-and-forget.
+  void (async () => {
+    try {
+      const cohortName = await sb.from("cohorts").select("name").eq("id", id).maybeSingle()
+        .then((r) => (r.data?.name as string) ?? "your cohort");
+
+      const notified = new Set<string>();
+      notified.add(me.userId);
+
+      const { data: members } = await sb.from("cohort_members")
+        .select("user_id, display_name, email, role")
+        .eq("cohort_id", id);
+
+      // Announcements push to every cohort member by default — that's
+      // what makes them an announcement, not a thread.
+      if (kind === "announcement") {
+        for (const m of members ?? []) {
+          if (notified.has(m.user_id)) continue;
+          await pushToUser(m.user_id, {
+            title: `Announcement in ${cohortName}`,
+            body: title.slice(0, 120),
+            url: `/studio/cohorts/${id}`,
+            tag: `cohort-announcement:${data?.id}`,
+          });
+          notified.add(m.user_id);
+        }
+        return;
+      }
+
+      const haystack = `${title} ${text}`;
+      const { userIds: mentioned } = resolveMentions(haystack, members ?? []);
+      for (const uid of mentioned) {
+        if (notified.has(uid)) continue;
+        await pushToUser(uid, {
+          title: `Mentioned in ${cohortName}`,
+          body: `New thread: "${title.slice(0, 80)}"`,
+          url: `/studio/cohorts/${id}`,
+          tag: `cohort-thread:${data?.id}:mention`,
+        });
+        notified.add(uid);
+      }
+    } catch { /* best-effort */ }
+  })();
+
   return Response.json({ ok: true, id: data?.id });
 }

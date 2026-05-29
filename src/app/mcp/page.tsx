@@ -25,16 +25,23 @@ export default function McpCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
 
+  // Server-side search: debounce 200ms then refetch with ?q=. Falls
+  // back to instant fetch on empty query so the initial page paint
+  // isn't delayed.
   useEffect(() => {
-    fetch("/api/mcp/catalog?limit=100")
-      .then((r) => r.json())
-      .then((data) => { if (data.ok) setRows(data.results || []); })
-      .finally(() => setLoading(false));
-  }, []);
+    const handle = setTimeout(() => {
+      setLoading(true);
+      const params = new URLSearchParams({ limit: "100" });
+      if (q.trim()) params.set("q", q.trim());
+      fetch(`/api/mcp/catalog?${params.toString()}`)
+        .then((r) => r.json())
+        .then((data) => { if (data.ok) setRows(data.results || []); })
+        .finally(() => setLoading(false));
+    }, q ? 200 : 0);
+    return () => clearTimeout(handle);
+  }, [q]);
 
-  const filtered = q.trim()
-    ? rows.filter((r) => `${r.name} ${r.description} ${r.tools.map((t) => `${t.name} ${t.description}`).join(" ")}`.toLowerCase().includes(q.toLowerCase()))
-    : rows;
+  const filtered = rows;
 
   return (
     <div className="min-h-screen bg-[#0a0f0d] text-[#e7efe9]">

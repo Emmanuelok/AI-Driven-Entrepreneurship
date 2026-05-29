@@ -10,6 +10,13 @@ import {
 import { Markdown } from "@/components/markdown";
 import { formatDistanceToNow } from "date-fns";
 
+// Highlight @mentions as emerald chips before passing to the markdown
+// renderer. We do this with a pre-pass replace so links and code
+// blocks inside the same body still work.
+function highlightMentions(src: string): string {
+  return src.replace(/(^|[^a-zA-Z0-9_`])@([a-zA-Z][a-zA-Z0-9._-]{1,30})/g, "$1**@$2**");
+}
+
 // Cohort discussions surface. Mount on /studio/cohorts/[id] — shows
 // every thread (optionally filtered by assignment), opens an inline
 // thread detail with realtime replies, lets any member start a new
@@ -233,7 +240,8 @@ function NewThreadDialog({
             })}
           </div>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="One-line title" autoFocus />
-          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder="What do you want to ask, share, or announce?" />
+          <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder="What do you want to ask, share, or announce? Use @name to tag a cohort member." />
+          <p className="text-[10px] text-muted">Tip: <code className="text-emerald">@firstname</code> notifies that cohort member.</p>
           {error && <div className="text-xs text-rust flex items-start gap-1.5"><AlertCircle className="size-3.5 shrink-0 mt-0.5" />{error}</div>}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -358,7 +366,7 @@ function ThreadDetailDialog({
               <h2 className="font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight">{thread.title}</h2>
               <div className="text-[10px] text-muted mt-1">by {memberMap.get(thread.author_id) ?? "Member"}</div>
 
-              <div className="mt-4 text-sm leading-relaxed prose-chat"><Markdown src={thread.body} /></div>
+              <div className="mt-4 text-sm leading-relaxed prose-chat"><Markdown src={highlightMentions(thread.body)} /></div>
 
               {/* Author/instructor controls */}
               <div className="mt-4 flex items-center gap-2 text-[10px] uppercase tracking-widest">
@@ -391,7 +399,7 @@ function ThreadDetailDialog({
                       {" · "}
                       {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
                     </div>
-                    <div className="leading-relaxed prose-chat"><Markdown src={r.body} /></div>
+                    <div className="leading-relaxed prose-chat"><Markdown src={highlightMentions(r.body)} /></div>
                   </div>
                 ))
               )}
@@ -402,7 +410,7 @@ function ThreadDetailDialog({
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 rows={2}
-                placeholder="Reply… (Cmd+Enter to send)"
+                placeholder="Reply… (Cmd+Enter to send · @name to notify)"
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); sendReply(); } }}
               />
               <Button onClick={sendReply} disabled={busy || !reply.trim()}><Send className="size-3.5" /></Button>

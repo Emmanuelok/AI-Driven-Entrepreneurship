@@ -1,6 +1,7 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authCohort } from "@/lib/cohort-auth";
 import { pushToUser } from "@/lib/push-to-user";
+import { resolveMentions } from "@/lib/mentions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,18 +42,45 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ti
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
-  // Notify the thread author (unless they replied to themselves).
-  // Fire-and-forget — never block the reply response on push.
-  if (thread.author_id !== me.userId) {
-    const cohortName = await sb.from("cohorts").select("name").eq("id", id).maybeSingle()
-      .then((r) => (r.data?.name as string) ?? "your cohort");
-    void pushToUser(thread.author_id, {
-      title: `New reply in ${cohortName}`,
-      body: `"${thread.title.slice(0, 80)}" got a new reply.`,
-      url: `/studio/cohorts/${id}`,
-      tag: `cohort-thread:${tid}`,
-    }).catch(() => { /* best-effort */ });
-  }
+  // Notification fan-out (fire-and-forget). Three audiences:
+  //   1. thread author (unless they replied to themselves)
+  //   2. @mentioned cohort members in the reply body
+  //   3. (NOT: every reply participant — would spam long threads)
+  void (async () => {
+    try {
+      const cohortName = await sb.from("cohorts").select("name").eq("id", id).maybeSingle()
+        .then((r) => (r.data?.name as string) ?? "your cohort");
+
+      const notified = new Set<string>();
+      notified.add(me.userId); // never push to yourself
+
+      if (!notified.has(thread.author_id)) {
+        await pushToUser(thread.author_id, {
+          title: `New reply in ${cohortName}`,
+          body: `"${thread.title.slice(0, 80)}" got a new reply.`,
+          url: `/studio/cohorts/${id}`,
+          tag: `cohort-thread:${tid}`,
+        });
+        notified.add(thread.author_id);
+      }
+
+      // Resolve @mentions against the cohort roster.
+      const { data: members } = await sb.from("cohort_members")
+        .select("user_id, display_name, email")
+        .eq("cohort_id", id);
+      const { userIds: mentioned } = resolveMentions(text, members ?? []);
+      for (const uid of mentioned) {
+        if (notified.has(uid)) continue;
+        await pushToUser(uid, {
+          title: `Mentioned in ${cohortName}`,
+          body: `"${thread.title.slice(0, 80)}" — someone @-mentioned you.`,
+          url: `/studio/cohorts/${id}`,
+          tag: `cohort-thread:${tid}:mention`,
+        });
+        notified.add(uid);
+      }
+    } catch { /* best-effort */ }
+  })();
 
   return Response.json({ ok: true, id: data?.id });
 }
