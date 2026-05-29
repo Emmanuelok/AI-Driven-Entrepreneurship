@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Server, ArrowLeft, ExternalLink, Wrench, ShieldCheck, Hash } from "lucide-react";
 
@@ -21,13 +22,18 @@ type Entry = {
 // runtime info.
 
 export default function McpCatalogPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get("q") ?? "";
+
   const [rows, setRows] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQ);
 
-  // Server-side search: debounce 200ms then refetch with ?q=. Falls
-  // back to instant fetch on empty query so the initial page paint
-  // isn't delayed.
+  // Server-side search: debounce 200ms then refetch with ?q=. Also
+  // mirror the query into the URL so /mcp?q=tomato is a shareable
+  // deep link. We use replace (not push) so back-button history
+  // doesn't fill up with intermediate keystroke states.
   useEffect(() => {
     const handle = setTimeout(() => {
       setLoading(true);
@@ -37,9 +43,12 @@ export default function McpCatalogPage() {
         .then((r) => r.json())
         .then((data) => { if (data.ok) setRows(data.results || []); })
         .finally(() => setLoading(false));
+
+      const url = q.trim() ? `/mcp?q=${encodeURIComponent(q.trim())}` : "/mcp";
+      router.replace(url, { scroll: false });
     }, q ? 200 : 0);
     return () => clearTimeout(handle);
-  }, [q]);
+  }, [q, router]);
 
   const filtered = rows;
 

@@ -10,6 +10,7 @@ import { useVoice } from "@/hooks/use-voice";
 import { getRecommendations } from "@/lib/recommendations";
 import { genomeVoiceInstruction, genomeSummary } from "@/lib/genome";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
+import { insightStarter } from "@/lib/insights";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -29,7 +30,31 @@ export function Companion() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [proactiveDismissed, setProactiveDismissed] = useState(false);
+  // One personalized starter derived from the user's connection graph
+  // (e.g. "Why does post-harvest-loss keep pulling me back?"). Computed
+  // lazily once the companion first opens — the snapshot fetch hits a
+  // 60s cache so subsequent opens are free.
+  const [graphStarter, setGraphStarter] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open || graphStarter !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await buildSiteContextSnapshotAsync("companion");
+        if (cancelled) return;
+        const s = insightStarter(snap.insights ? {
+          topProblem: snap.insights.topProblem ?? null,
+          ventureFromSketch: snap.insights.ventureFromSketch ?? [],
+          orphanBuilds: snap.insights.orphanBuilds ?? [],
+          byKind: [],
+        } : null);
+        if (s) setGraphStarter(s);
+      } catch { /* no starter, no problem */ }
+    })();
+    return () => { cancelled = true; };
+  }, [open, graphStarter]);
 
   // Track route changes
   useEffect(() => {
@@ -201,6 +226,16 @@ export function Companion() {
                 </div>
                 <div className="space-y-1">
                   <div className="text-[10px] uppercase tracking-widest text-muted">Try saying</div>
+                  {graphStarter && (
+                    <button
+                      onClick={() => send(graphStarter)}
+                      className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-emerald/40 bg-emerald/5 hover:bg-emerald/10 transition"
+                      title="Suggested from a pattern in your connection graph"
+                    >
+                      <span className="text-[10px] uppercase tracking-widest text-emerald mr-1.5">From your graph</span>
+                      {graphStarter}
+                    </button>
+                  )}
                   {ctx.suggestions.map((s) => (
                     <button key={s} onClick={() => send(s)} className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-border hover:border-emerald/40 hover:bg-surface-2 transition">
                       {s}

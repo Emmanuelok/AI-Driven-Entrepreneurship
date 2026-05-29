@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeInsights } from "./insights";
+import { computeInsights, insightStarter } from "./insights";
 import type { ConnectionRow } from "./connections";
 
 function edge(from: [string, string], to: [string, string], label: string | null = null): ConnectionRow {
@@ -54,6 +54,44 @@ describe("computeInsights", () => {
     ];
     const i = computeInsights(rows, { builds, ventures: [] });
     expect(i.orphanBuilds.map((b) => b.id)).toEqual(["b-orphan"]);
+  });
+
+  it("returns null when no pattern is strong enough for a starter", () => {
+    expect(insightStarter(null)).toBeNull();
+    expect(insightStarter({ topProblem: null, ventureFromSketch: [], orphanBuilds: [], byKind: [] })).toBeNull();
+    // degree 1 is not enough to claim a pattern
+    expect(insightStarter({ topProblem: { id: "p1", degree: 1 }, ventureFromSketch: [], orphanBuilds: [], byKind: [] })).toBeNull();
+  });
+
+  it("starter prefers a pulled-toward problem over other patterns", () => {
+    const s = insightStarter({
+      topProblem: { id: "post-harvest-loss", degree: 3 },
+      ventureFromSketch: [{ id: "v1", name: "Lentil Co." }],
+      orphanBuilds: [{ id: "b1", name: "USSD" }],
+      byKind: [],
+    });
+    expect(s).toContain("post-harvest-loss");
+    expect(s).toContain("Ship Hour");
+  });
+
+  it("starter falls back to sketch ancestry when no strong problem", () => {
+    const s = insightStarter({
+      topProblem: null,
+      ventureFromSketch: [{ id: "v1", name: "Lentil Co." }],
+      orphanBuilds: [],
+      byKind: [],
+    });
+    expect(s).toContain("Lentil Co.");
+  });
+
+  it("starter falls back to orphan build as last resort", () => {
+    const s = insightStarter({
+      topProblem: null,
+      ventureFromSketch: [],
+      orphanBuilds: [{ id: "b1", name: "Cold-chain Tracker" }],
+      byKind: [],
+    });
+    expect(s).toContain("Cold-chain Tracker");
   });
 
   it("tallies endpoints from both sides for byKind coverage", () => {

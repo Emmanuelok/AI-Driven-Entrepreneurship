@@ -50,7 +50,7 @@ export function MentionAutocompleteTextarea({
           filtered={a.filtered}
           active={a.active}
           onInsert={a.insert}
-          className="absolute mt-1 left-2 right-2 sm:left-2 sm:right-auto sm:min-w-[240px] sm:max-w-[320px]"
+          anchorRef={a.ref}
         />
       )}
     </div>

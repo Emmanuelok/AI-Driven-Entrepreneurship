@@ -19,6 +19,31 @@ export type InsightsSummary = {
   byKind: Array<{ kind: string; count: number }>;
 };
 
+// Turn the strongest pattern into a single ready-to-send Sage starter.
+// Returns null when no pattern is strong enough to be worth nudging.
+//
+// Priority order matches the user's likely "what should I do next?"
+// triage: a pulled-toward problem > an idea matured into a venture >
+// an orphan build worth tying back to something. We never return more
+// than one starter — the companion has space for one personalized
+// nudge, not a list.
+export function insightStarter(summary: InsightsSummary | null | undefined): string | null {
+  if (!summary) return null;
+  const { topProblem, ventureFromSketch, orphanBuilds } = summary;
+  if (topProblem && topProblem.degree >= 2) {
+    return `Why does ${topProblem.id} keep pulling me back? Help me decide if it's worth picking as my Ship Hour wedge.`;
+  }
+  if (ventureFromSketch.length > 0) {
+    const v = ventureFromSketch[0];
+    return `My ${v.name} venture grew out of a brainstorm canvas. Help me trace what's still hypothesis vs what I've validated.`;
+  }
+  if (orphanBuilds.length > 0) {
+    const b = orphanBuilds[0];
+    return `My "${b.name}" build isn't connected to anything yet. Walk me through what problem or venture it should attach to.`;
+  }
+  return null;
+}
+
 export function computeInsights(
   rows: ConnectionRow[],
   entities: {
