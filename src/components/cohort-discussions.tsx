@@ -83,6 +83,7 @@ export function CohortDiscussions({
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
+  const [q, setQ] = useState("");
 
   const memberMap = new Map(members.map((m) => [m.user_id, m.display_name || m.email || "Member"]));
 
@@ -94,13 +95,19 @@ export function CohortDiscussions({
       if (!session) { setLoading(false); return; }
       const url = new URL(`/api/v2/cohorts/${cohortId}/threads`, window.location.origin);
       if (assignmentId) url.searchParams.set("assignmentId", assignmentId);
+      if (q.trim()) url.searchParams.set("q", q.trim());
       const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${session.access_token}` } });
       const data = await res.json();
       if (data.ok) setThreads(data.results ?? []);
     } finally { setLoading(false); }
-  }, [cohortId, assignmentId]);
+  }, [cohortId, assignmentId, q]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Debounce search so each keystroke doesn't refetch immediately;
+  // empty query fetches instantly.
+  useEffect(() => {
+    const handle = setTimeout(refresh, q ? 200 : 0);
+    return () => clearTimeout(handle);
+  }, [refresh, q]);
 
   // Realtime: any thread or reply change in this cohort → refetch list.
   useEffect(() => {
@@ -115,21 +122,32 @@ export function CohortDiscussions({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-xs uppercase tracking-[0.22em] text-emerald flex items-center gap-1.5">
           <MessageSquare className="size-3.5" /> Discussion
           {assignmentTitle && (
             <span className="text-muted normal-case tracking-normal text-[10px]">· filtered to <strong className="text-foreground">{assignmentTitle}</strong></span>
           )}
         </h2>
-        <Button size="sm" variant="secondary" onClick={() => setComposing(true)}><Plus className="size-3" /> New thread</Button>
+        <div className="flex items-center gap-2">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search threads…"
+            className="bg-surface-2 border border-border rounded-full px-3 py-1 text-xs outline-none focus:border-emerald w-44"
+          />
+          <Button size="sm" variant="secondary" onClick={() => setComposing(true)}><Plus className="size-3" /> New thread</Button>
+        </div>
       </div>
 
       {loading ? (
         <div className="text-xs text-muted italic inline-flex items-center gap-2"><Loader2 className="size-3 animate-spin" /> Loading…</div>
       ) : threads.length === 0 ? (
         <Card className="p-6 text-sm text-muted italic">
-          {assignmentTitle ? `No threads on "${assignmentTitle}" yet.` : "No discussions yet — start the first thread."}
+          {q.trim() ? `No threads match "${q.trim()}".`
+            : assignmentTitle ? `No threads on "${assignmentTitle}" yet.`
+            : "No discussions yet — start the first thread."}
         </Card>
       ) : (
         <ul className="space-y-2">

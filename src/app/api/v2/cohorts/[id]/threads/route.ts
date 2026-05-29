@@ -28,6 +28,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const url = new URL(req.url);
   const assignmentId = url.searchParams.get("assignmentId");
+  const searchTerm = (url.searchParams.get("q") || "").trim();
 
   let q = sb.from("cohort_threads")
     .select("id, cohort_id, assignment_id, author_id, kind, title, body, pinned, resolved_at, created_at, updated_at")
@@ -37,6 +38,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     .limit(200);
 
   if (assignmentId) q = q.eq("assignment_id", assignmentId);
+  if (searchTerm) {
+    // Case-insensitive substring search on title OR body. Postgres
+    // ilike handles the case-fold; tsvector upgrade lives in a
+    // future migration if scale demands it.
+    const pattern = `%${searchTerm.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+    q = q.or(`title.ilike.${pattern},body.ilike.${pattern}`);
+  }
 
   const { data: threads, error } = await q;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });

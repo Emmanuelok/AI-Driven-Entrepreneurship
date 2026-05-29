@@ -148,13 +148,49 @@ function Wedge({ onNext }: { onNext: () => void }) {
   const dept = useMemo(() => resolveDepartment(user?.field), [user?.field]);
   const rec = useMemo(() => getRecommendations(user?.field), [user]);
 
+  // The user's "pulled-toward" problem from their connection graph,
+  // if any. Asynchronously fetched on mount; null until resolved or
+  // when no pattern is strong enough. When set, we promote it to the
+  // top of the Atlas pool with a "you keep coming back" banner.
+  const [pulledTowardProblemId, setPulledTowardProblemId] = useState<string | null>(null);
+  const [pulledTowardDegree, setPulledTowardDegree] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { fetchUserConnectionsCached } = await import("@/lib/connections-client");
+        const { computeInsights } = await import("@/lib/insights");
+        const rows = await fetchUserConnectionsCached();
+        if (cancelled || rows.length === 0) return;
+        const summary = computeInsights(rows, { builds: [], ventures: [] });
+        if (summary.topProblem && summary.topProblem.degree >= 2) {
+          // Only promote if it's a real Atlas problem we can present
+          // as a card; mystery IDs (deleted, externally created) get
+          // skipped silently.
+          if (PROBLEMS.some((p) => p.id === summary.topProblem!.id)) {
+            setPulledTowardProblemId(summary.topProblem.id);
+            setPulledTowardDegree(summary.topProblem.degree);
+          }
+        }
+      } catch { /* silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const atlasPool = useMemo(() => {
     const ids = new Set<string>();
     const out: typeof PROBLEMS = [];
+    // The pulled-toward problem always comes first, regardless of
+    // discipline match — the user's behavioral signal beats any
+    // static heuristic.
+    if (pulledTowardProblemId) {
+      const promoted = PROBLEMS.find((p) => p.id === pulledTowardProblemId);
+      if (promoted) { ids.add(promoted.id); out.push(promoted); }
+    }
     (rec.problems ?? []).forEach((p) => { if (!ids.has(p.id)) { ids.add(p.id); out.push(p); } });
     PROBLEMS.forEach((p) => { if (!ids.has(p.id) && p.severity >= 4) { ids.add(p.id); out.push(p); } });
     return out.slice(0, 9);
-  }, [rec]);
+  }, [rec, pulledTowardProblemId]);
 
   const [mode, setMode] = useState<WedgeMode>("atlas");
   const [pickedId, setPickedId] = useState(shipSession?.wedge?.problemId ?? "");
@@ -237,23 +273,45 @@ function Wedge({ onNext }: { onNext: () => void }) {
 
       {/* MODE 1 — stock Atlas problems filtered to discipline */}
       {mode === "atlas" && (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
-          {atlasPool.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPickedId(p.id)}
-              className={`text-left glass rounded-2xl p-5 transition group border ${pickedId === p.id ? "border-emerald shadow-lg shadow-emerald/20" : "border-border hover:border-emerald/40"}`}
-            >
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-widest mb-3">
-                <Badge color="emerald">{p.sector}</Badge>
-                <span className="text-muted">{p.region}</span>
+        <>
+          {pulledTowardProblemId && (
+            <div className="mt-6 rounded-2xl border border-amber/40 bg-amber/5 p-4 flex items-start gap-3">
+              <Sparkles className="size-4 text-amber shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs uppercase tracking-widest text-amber mb-1">You keep coming back to this</div>
+                <p className="text-sm text-foreground/95 leading-relaxed">
+                  Your connection graph shows <strong>{pulledTowardDegree}</strong> edges tied to{" "}
+                  <code className="text-amber font-mono">{pulledTowardProblemId}</code>. We&apos;ve promoted it to the top of the list — pick it if it&apos;s where your real fight is.
+                </p>
               </div>
-              <h3 className="font-medium leading-snug">{p.title}</h3>
-              <p className="mt-2 text-xs text-muted line-clamp-2">{p.affected}</p>
-              {pickedId === p.id && <CheckCircle2 className="size-5 text-emerald mt-3" />}
-            </button>
-          ))}
-        </div>
+            </div>
+          )}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
+            {atlasPool.map((p) => {
+              const promoted = p.id === pulledTowardProblemId;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setPickedId(p.id)}
+                  className={`text-left glass rounded-2xl p-5 transition group border ${pickedId === p.id ? "border-emerald shadow-lg shadow-emerald/20" : promoted ? "border-amber/60 shadow-lg shadow-amber/10" : "border-border hover:border-emerald/40"}`}
+                >
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-widest mb-3">
+                    <Badge color="emerald">{p.sector}</Badge>
+                    <span className="text-muted">{p.region}</span>
+                  </div>
+                  {promoted && (
+                    <div className="text-[10px] uppercase tracking-widest text-amber mb-2 flex items-center gap-1">
+                      <Sparkles className="size-2.5" /> From your graph
+                    </div>
+                  )}
+                  <h3 className="font-medium leading-snug">{p.title}</h3>
+                  <p className="mt-2 text-xs text-muted line-clamp-2">{p.affected}</p>
+                  {pickedId === p.id && <CheckCircle2 className="size-5 text-emerald mt-3" />}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* MODE 2 — AI-generated wedges from discipline + site brain */}

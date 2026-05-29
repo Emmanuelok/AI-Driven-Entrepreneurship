@@ -11,6 +11,7 @@ import { getRecommendations } from "@/lib/recommendations";
 import { genomeVoiceInstruction, genomeSummary } from "@/lib/genome";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 import { insightStarter } from "@/lib/insights";
+import { logUxEvent } from "@/lib/ux-events";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -228,7 +229,7 @@ export function Companion() {
                   <div className="text-[10px] uppercase tracking-widest text-muted">Try saying</div>
                   {graphStarter && (
                     <button
-                      onClick={() => send(graphStarter)}
+                      onClick={() => { logUxEvent("companion_starter_clicked", { source: "graph" }); send(graphStarter); }}
                       className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-emerald/40 bg-emerald/5 hover:bg-emerald/10 transition"
                       title="Suggested from a pattern in your connection graph"
                     >
@@ -237,7 +238,7 @@ export function Companion() {
                     </button>
                   )}
                   {ctx.suggestions.map((s) => (
-                    <button key={s} onClick={() => send(s)} className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-border hover:border-emerald/40 hover:bg-surface-2 transition">
+                    <button key={s} onClick={() => { logUxEvent("companion_starter_clicked", { source: "page" }); send(s); }} className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-border hover:border-emerald/40 hover:bg-surface-2 transition">
                       {s}
                     </button>
                   ))}
