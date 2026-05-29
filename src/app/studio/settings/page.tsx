@@ -7,6 +7,7 @@ import { Card, Button, Input, Badge } from "@/components/ui";
 import { User, Bell, Shield, Download, Trash2, KeyRound, Zap, Globe, AlertTriangle, Wallet } from "lucide-react";
 import { PushToggle } from "@/components/push-toggle";
 import { ByoKeyPanel } from "@/components/byo-key-panel";
+import { McpTokensPanel } from "@/components/mcp-tokens-panel";
 import { SellerStatusPanel } from "@/components/seller-status-panel";
 import { SellerPayouts } from "@/components/seller-payouts";
 import { RefundInbox } from "@/components/refund-inbox";
@@ -148,6 +149,7 @@ export default function SettingsPage() {
           <p className="text-xs text-muted mb-2">Without a personal key above, AI runs on the platform-wide <code className="text-emerald">ANTHROPIC_API_KEY</code> set in deploy env. Demo mode kicks in when neither is configured.</p>
           <div className="bg-surface-2 rounded-xl p-3 font-mono text-[10px]">ANTHROPIC_API_KEY=sk-ant-…</div>
         </div>
+        <McpTokensPanel />
       </Card>
 
       <Card className="p-6 mb-6">
