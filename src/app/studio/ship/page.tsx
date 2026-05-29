@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { useMe } from "@/store/me";
 import { PROBLEMS } from "@/lib/problems";
-import { getRecommendations } from "@/lib/recommendations";
+import { getRecommendations, resolveDepartment } from "@/lib/recommendations";
+import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 import { Markdown } from "@/components/markdown";
 import { genomeVoiceInstruction, genomeSummary } from "@/lib/genome";
 import {
   Sparkles, ArrowRight, ArrowLeft, Rocket, MapPin, Target, Wrench,
   Send, Copy, Check, Download, RefreshCcw, Trophy, Clock, Brain, Mic, X,
-  CircleDot, CheckCircle2,
+  CircleDot, CheckCircle2, GraduationCap, Wand2, Pencil, Loader2,
 } from "lucide-react";
 import { Button, Card, Badge, Input, Textarea } from "@/components/ui";
 
@@ -133,11 +134,21 @@ function Begin({ onStart, userName, field }: { onStart: () => void; userName: st
 }
 
 /* ---------------- STAGE: WEDGE ---------------- */
+// Three modes so no student stares at maize-and-tomatoes when they're
+// in Mechatronics or Public Health:
+//   1. atlas     — stock PROBLEMS filtered to their department
+//   2. generate  — Claude proposes 6 wedges from their field + brain
+//   3. custom    — they describe their own in plain prose
+type WedgeMode = "atlas" | "generate" | "custom";
+type GeneratedWedge = { id: string; sector: string; region: string; title: string; affected: string; whyYou: string };
+
 function Wedge({ onNext }: { onNext: () => void }) {
   const { user } = useStore();
   const { shipSession, updateShipSession } = useMe();
+  const dept = useMemo(() => resolveDepartment(user?.field), [user?.field]);
   const rec = useMemo(() => getRecommendations(user?.field), [user]);
-  const candidatePool = useMemo(() => {
+
+  const atlasPool = useMemo(() => {
     const ids = new Set<string>();
     const out: typeof PROBLEMS = [];
     (rec.problems ?? []).forEach((p) => { if (!ids.has(p.id)) { ids.add(p.id); out.push(p); } });
@@ -145,10 +156,50 @@ function Wedge({ onNext }: { onNext: () => void }) {
     return out.slice(0, 9);
   }, [rec]);
 
+  const [mode, setMode] = useState<WedgeMode>("atlas");
   const [pickedId, setPickedId] = useState(shipSession?.wedge?.problemId ?? "");
   const [whyMe, setWhyMe] = useState(shipSession?.wedge?.whyMe ?? "");
 
-  const picked = PROBLEMS.find((p) => p.id === pickedId);
+  // AI-generated set + the user's freeform wedge.
+  const [generated, setGenerated] = useState<GeneratedWedge[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [genHint, setGenHint] = useState("");
+  const [genError, setGenError] = useState<string | null>(null);
+
+  const [customTitle, setCustomTitle] = useState("");
+  const [customSector, setCustomSector] = useState("");
+  const [customAffected, setCustomAffected] = useState("");
+
+  // Lookup the picked wedge across all three sources.
+  const picked: { id: string; title: string; sector?: string; region?: string; affected?: string; whyYou?: string } | null =
+    pickedId.startsWith("custom:freeform")
+      ? (customTitle.trim() ? { id: pickedId, title: customTitle, sector: customSector, affected: customAffected } : null)
+      : pickedId.startsWith("custom:")
+        ? generated.find((g) => g.id === pickedId) ?? null
+        : PROBLEMS.find((p) => p.id === pickedId) ?? null;
+
+  async function generateWedges() {
+    setGenerating(true); setGenError(null);
+    try {
+      const res = await fetch("/api/generate/wedge-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field: user?.field,
+          region: user?.country,
+          userHint: genHint.trim() || undefined,
+          siteContext: await buildSiteContextSnapshotAsync("wedge"),
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) { setGenError(data.error ?? "Couldn't generate wedges."); return; }
+      setGenerated(data.candidates ?? []);
+    } catch (e) {
+      setGenError((e as Error).message);
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   function save() {
     if (!picked || !whyMe.trim()) return;
@@ -156,28 +207,140 @@ function Wedge({ onNext }: { onNext: () => void }) {
     onNext();
   }
 
+  const fieldLabel = dept?.name ?? user?.field ?? null;
+
   return (
     <div className="max-w-5xl mx-auto px-5 sm:px-8 py-12">
       <StageHeader stage={1} title="Pick your wedge" subtitle="Of the problems your discipline equips you to attack, which one will you give your hour to?" />
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-8">
-        {candidatePool.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setPickedId(p.id)}
-            className={`text-left glass rounded-2xl p-5 transition group border ${pickedId === p.id ? "border-emerald shadow-lg shadow-emerald/20" : "border-border hover:border-emerald/40"}`}
-          >
-            <div className="flex items-center justify-between text-[10px] uppercase tracking-widest mb-3">
-              <Badge color="emerald">{p.sector}</Badge>
-              <span className="text-muted">{p.region}</span>
-            </div>
-            <h3 className="font-medium leading-snug">{p.title}</h3>
-            <p className="mt-2 text-xs text-muted line-clamp-2">{p.affected}</p>
-            {pickedId === p.id && <CheckCircle2 className="size-5 text-emerald mt-3" />}
-          </button>
-        ))}
+      {/* Mode picker + discipline banner */}
+      <div className="mt-6 flex items-center justify-between flex-wrap gap-3">
+        {fieldLabel && mode === "atlas" && (
+          <div className="text-xs text-muted inline-flex items-center gap-1.5">
+            <GraduationCap className="size-3.5 text-emerald" />
+            Showing wedges picked for <span className="text-foreground font-medium">{fieldLabel}</span>
+          </div>
+        )}
+        <div className="flex gap-1 ml-auto">
+          <ModeTab active={mode === "atlas"} onClick={() => { setMode("atlas"); setPickedId(""); }} icon={GraduationCap}>From the Atlas</ModeTab>
+          <ModeTab active={mode === "generate"} onClick={() => { setMode("generate"); setPickedId(""); }} icon={Wand2}>Generate for me</ModeTab>
+          <ModeTab active={mode === "custom"} onClick={() => { setMode("custom"); setPickedId("custom:freeform"); }} icon={Pencil}>Describe my own</ModeTab>
+        </div>
       </div>
 
+      {/* MODE 1 — stock Atlas problems filtered to discipline */}
+      {mode === "atlas" && (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
+          {atlasPool.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPickedId(p.id)}
+              className={`text-left glass rounded-2xl p-5 transition group border ${pickedId === p.id ? "border-emerald shadow-lg shadow-emerald/20" : "border-border hover:border-emerald/40"}`}
+            >
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-widest mb-3">
+                <Badge color="emerald">{p.sector}</Badge>
+                <span className="text-muted">{p.region}</span>
+              </div>
+              <h3 className="font-medium leading-snug">{p.title}</h3>
+              <p className="mt-2 text-xs text-muted line-clamp-2">{p.affected}</p>
+              {pickedId === p.id && <CheckCircle2 className="size-5 text-emerald mt-3" />}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* MODE 2 — AI-generated wedges from discipline + site brain */}
+      {mode === "generate" && (
+        <div className="mt-6 space-y-4">
+          <Card className="p-5">
+            <p className="text-sm text-muted leading-relaxed mb-3">
+              Sage will draft 6 wedges sized to your discipline{fieldLabel ? ` (${fieldLabel})` : ""}, your region, and what you&apos;ve been working on. Optionally hint at a direction.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Optional: 'I want to work on water access' or 'something I can do without leaving campus'"
+                value={genHint}
+                onChange={(e) => setGenHint(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") generateWedges(); }}
+              />
+              <Button onClick={generateWedges} disabled={generating}>
+                {generating ? <><Loader2 className="size-3.5 animate-spin" /> Drafting</> : <><Wand2 className="size-3.5" /> {generated.length > 0 ? "Re-draft" : "Generate"}</>}
+              </Button>
+            </div>
+            {genError && <p className="text-xs text-rust mt-2">{genError}</p>}
+          </Card>
+
+          {generated.length > 0 && (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {generated.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => setPickedId(g.id)}
+                  className={`text-left glass rounded-2xl p-5 transition border ${pickedId === g.id ? "border-emerald shadow-lg shadow-emerald/20" : "border-border hover:border-emerald/40"}`}
+                >
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-widest mb-3">
+                    <Badge color="emerald">{g.sector}</Badge>
+                    <span className="text-muted">{g.region}</span>
+                  </div>
+                  <h3 className="font-medium leading-snug">{g.title}</h3>
+                  <p className="mt-2 text-xs text-muted line-clamp-2">{g.affected}</p>
+                  <p className="mt-2 text-[10px] text-amber italic line-clamp-2"><Sparkles className="size-2.5 inline mr-1" />Why you: {g.whyYou}</p>
+                  {pickedId === g.id && <CheckCircle2 className="size-5 text-emerald mt-3" />}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {generated.length === 0 && !generating && (
+            <div className="rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted">
+              No wedges yet — hit <strong className="text-foreground">Generate</strong> to draft 6 from your discipline.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODE 3 — user describes their own */}
+      {mode === "custom" && (
+        <Card className="mt-6 p-6 space-y-4">
+          <p className="text-sm text-muted leading-relaxed">
+            Describe the problem in your own words. It can be anything — what matters is that <em>you</em> see the pain and could move on it this hour.
+          </p>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">What&apos;s the problem? <span className="text-rust">*</span></div>
+            <Textarea
+              placeholder="One sentence. e.g. 'JAMB candidates in Northern Nigeria pay GHS-equivalent ₦15,000 for tutoring that's taught only in English, leaving Hausa-first students behind.'"
+              value={customTitle}
+              onChange={(e) => setCustomTitle(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">Sector / discipline</div>
+              <Input
+                placeholder={dept?.relevantSectors?.[0] ?? "Health, Education, Energy, …"}
+                value={customSector}
+                onChange={(e) => setCustomSector(e.target.value)}
+              />
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">Who is affected?</div>
+              <Input
+                placeholder="e.g. 1.8M JAMB sitters/yr, Hausa-first"
+                value={customAffected}
+                onChange={(e) => setCustomAffected(e.target.value)}
+              />
+            </div>
+          </div>
+          {customTitle.trim() && (
+            <div className="text-[10px] text-emerald flex items-center gap-1.5">
+              <CheckCircle2 className="size-3" /> Wedge captured. Tell Sage why you&apos;re unfair-advantaged below.
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* "Why you, specifically?" — same across all three modes */}
       {picked && (
         <Card className="mt-8 p-6 border-emerald/30 bg-emerald/5">
           <div className="text-xs uppercase tracking-widest text-emerald mb-3 flex items-center gap-1.5"><Sparkles className="size-3.5" /> Why you, specifically?</div>
@@ -185,7 +348,7 @@ function Wedge({ onNext }: { onNext: () => void }) {
             Write 2–3 sentences. Pretend an investor just asked. Not the polished version — the honest one.
           </p>
           <Textarea
-            placeholder="My mother sells tomatoes at Tamale Central. I watched her lose four crates last Tuesday. I know this market the way nobody else in my class does."
+            placeholder={picked.whyYou ? `Sage thinks: "${picked.whyYou}"\n\nNow tell us in your own words — what's actually true about you and this problem?` : "My mother sells tomatoes at Tamale Central. I watched her lose four crates last Tuesday. I know this market the way nobody else in my class does."}
             value={whyMe}
             onChange={(e) => setWhyMe(e.target.value)}
             rows={4}
@@ -196,6 +359,17 @@ function Wedge({ onNext }: { onNext: () => void }) {
         </Card>
       )}
     </div>
+  );
+}
+
+function ModeTab({ active, onClick, icon: Icon, children }: { active: boolean; onClick: () => void; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1.5 ${active ? "border-emerald bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}
+    >
+      <Icon className="size-2.5" /> {children}
+    </button>
   );
 }
 
