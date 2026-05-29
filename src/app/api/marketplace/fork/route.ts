@@ -24,10 +24,7 @@ export async function POST(req: Request) {
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   if (!build) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
 
-  await sb.rpc("bump_build_forks", { _slug: slug });
-
-  // Audit: forks are interesting for the original author + for spotting
-  // viral builds in operator dashboards.
+  // Audit + identify the forker (also used for paywall check below).
   let forkerId: string | undefined;
   const auth = req.headers.get("authorization") || "";
   const token = auth.replace(/^Bearer\s+/i, "");
@@ -35,7 +32,29 @@ export async function POST(req: Request) {
     const { data: u } = await sb.auth.getUser(token);
     forkerId = u?.user?.id;
   }
-  await logEvent({ kind: "fork", scope: "marketplace", userId: forkerId, ctx: { from_slug: slug, original_owner: build.owner_id } });
+
+  // Paywall: if the build is priced AND the forker hasn't paid (and
+  // isn't the owner), block here and tell the client to send them to
+  // checkout. Owner forks are always free.
+  const { data: pricing } = await sb.from("build_pricing").select("price_cents, currency").eq("slug", slug).maybeSingle();
+  if (pricing && pricing.price_cents > 0 && forkerId !== build.owner_id) {
+    if (!forkerId) {
+      return Response.json({ ok: false, error: "auth_required", message: "Sign in to purchase this build." }, { status: 401 });
+    }
+    const { data: purchase } = await sb.from("build_purchases").select("paid_at").eq("slug", slug).eq("user_id", forkerId).maybeSingle();
+    if (!purchase) {
+      return Response.json({
+        ok: false,
+        error: "payment_required",
+        message: `This build costs ${(pricing.price_cents / 100).toFixed(2)} ${pricing.currency.toUpperCase()}. Purchase it to fork.`,
+        priceCents: pricing.price_cents,
+        currency: pricing.currency,
+      }, { status: 402 });
+    }
+  }
+
+  await sb.rpc("bump_build_forks", { _slug: slug });
+  await logEvent({ kind: "fork", scope: "marketplace", userId: forkerId, ctx: { from_slug: slug, original_owner: build.owner_id, paid: !!pricing } });
 
   // Tell the original author someone forked their work — best moment
   // for them to drop a comment back or follow the new builder.

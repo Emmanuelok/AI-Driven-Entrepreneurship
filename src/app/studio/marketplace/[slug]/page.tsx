@@ -5,10 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBuild } from "@/store/build";
 import { Card, Button, Badge } from "@/components/ui";
-import { GitFork, Eye, ArrowLeft, ExternalLink, Smartphone, Monitor, Tablet } from "lucide-react";
+import { GitFork, Eye, ArrowLeft, ExternalLink, Smartphone, Monitor, Tablet, DollarSign, Lock, Check } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { injectConsoleBridge } from "@/components/build-tools";
 import { Claps, Comments } from "@/components/social";
+import { BuildPricingDialog, BuildPriceBadge } from "@/components/build-pricing-dialog";
+
+type Pricing = { price_cents: number; currency: string; application_fee_pct: number } | null;
+type Purchase = { paid_at?: string; amount_cents?: number; currency?: string; isOwner?: boolean } | null;
 
 type Build = {
   slug: string;
@@ -33,6 +37,9 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
   const [forking, setForking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [device, setDevice] = useState<Device>("desktop");
+  const [pricing, setPricing] = useState<Pricing>(null);
+  const [purchase, setPurchase] = useState<Purchase>(null);
+  const [pricingOpen, setPricingOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -46,6 +53,25 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
       } finally {
         setBusy(false);
       }
+      // Pricing is public; purchase needs auth.
+      try {
+        const pRes = await fetch(`/api/v2/marketplace/build/${encodeURIComponent(slug)}/pricing`);
+        const pData = await pRes.json();
+        if (pData.ok) setPricing(pData.pricing);
+      } catch { /* silent */ }
+      try {
+        const sb = (await import("@/lib/supabase")).supabaseBrowser();
+        if (sb) {
+          const { data: { session } } = await sb.auth.getSession();
+          if (session) {
+            const uRes = await fetch(`/api/v2/marketplace/build/${encodeURIComponent(slug)}/purchase`, {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            const uData = await uRes.json();
+            if (uData.ok) setPurchase(uData.purchase);
+          }
+        }
+      } catch { /* silent */ }
     })();
   }, [slug]);
 
@@ -53,11 +79,22 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
     if (!build) return;
     setForking(true);
     try {
+      const sb = (await import("@/lib/supabase")).supabaseBrowser();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (sb) {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) headers.Authorization = `Bearer ${session.access_token}`;
+      }
       const res = await fetch("/api/marketplace/fork", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ slug }),
       });
+      if (res.status === 402) {
+        // Paywall hit — kick to Stripe Checkout.
+        await startCheckout();
+        return;
+      }
       const data = await res.json();
       if (!data.ok) { alert(data.error || "Couldn't fork."); return; }
       const pid = createProject(
@@ -69,6 +106,26 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
       router.push(`/studio/build/${pid}`);
     } finally {
       setForking(false);
+    }
+  }
+
+  async function startCheckout() {
+    try {
+      const sb = (await import("@/lib/supabase")).supabaseBrowser();
+      if (!sb) { alert("Cloud sync isn't configured."); return; }
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { alert("Sign in to purchase."); return; }
+      const res = await fetch(`/api/v2/marketplace/build/${slug}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (data.alreadyPaid) { setPurchase({ paid_at: new Date().toISOString() } as Purchase); return; }
+      if (!data.ok || !data.url) { alert(data.message || data.error || "Couldn't start checkout."); return; }
+      window.location.href = data.url;
+    } catch (e) {
+      alert((e as Error).message);
     }
   }
 
@@ -109,13 +166,45 @@ export default function MarketplaceDetailPage({ params }: { params: Promise<{ sl
             <span>Updated {formatDistanceToNow(new Date(build.updated_at), { addSuffix: true })}</span>
           </div>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
+          <BuildPriceBadge pricing={pricing} />
+          {purchase?.isOwner && (
+            <Button variant="secondary" onClick={() => setPricingOpen(true)}>
+              <DollarSign className="size-4" /> {pricing ? "Pricing" : "Sell this"}
+            </Button>
+          )}
           <Claps kind="build" slug={slug} />
-          <Button onClick={fork} disabled={forking} size="lg">
-            <GitFork className="size-4" /> {forking ? "Forking…" : "Fork to my studio"}
-          </Button>
+          {pricing && pricing.price_cents > 0 && !purchase?.isOwner && !purchase?.paid_at ? (
+            <Button onClick={startCheckout} size="lg">
+              <Lock className="size-4" /> Buy for {(pricing.price_cents / 100).toFixed(2)} {pricing.currency.toUpperCase()}
+            </Button>
+          ) : (
+            <Button onClick={fork} disabled={forking} size="lg">
+              <GitFork className="size-4" /> {forking ? "Forking…" : "Fork to my studio"}
+            </Button>
+          )}
         </div>
       </header>
+
+      {purchase?.paid_at && (
+        <Card className="p-3 mt-4 mb-2 border border-emerald/30 bg-emerald/5">
+          <div className="text-xs text-emerald flex items-center gap-2">
+            <Check className="size-3.5" />
+            Purchased · {purchase.amount_cents ? `${(purchase.amount_cents / 100).toFixed(2)} ${(purchase.currency ?? "usd").toUpperCase()}` : "lifetime access"}
+          </div>
+        </Card>
+      )}
+
+      <BuildPricingDialog
+        slug={slug}
+        open={pricingOpen}
+        onClose={() => setPricingOpen(false)}
+        onSaved={async () => {
+          const pRes = await fetch(`/api/v2/marketplace/build/${encodeURIComponent(slug)}/pricing`);
+          const pData = await pRes.json();
+          if (pData.ok) setPricing(pData.pricing);
+        }}
+      />
 
       <Card className="p-0 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2 border-b border-border">

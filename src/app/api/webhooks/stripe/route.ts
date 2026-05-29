@@ -42,36 +42,52 @@ export async function POST(req: Request) {
       }).eq("stripe_account_id", account.id);
     } else if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const cohortId = session.metadata?.sankofa_cohort_id;
-      const studentId = session.metadata?.sankofa_student_id;
-      if (!cohortId || !studentId) {
-        return new Response(JSON.stringify({ ok: true, ignored: "missing_metadata" }), { status: 200 });
-      }
-      // Look up the canonical amount + currency from the session.
       const amountCents = (session.amount_total ?? 0) as number;
       const currency = (session.currency ?? "usd") as string;
-      await sb.from("cohort_enrollments").upsert({
-        cohort_id: cohortId,
-        user_id: studentId,
-        stripe_session_id: session.id,
-        stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : null,
-        amount_cents: amountCents,
-        currency,
-      }, { onConflict: "cohort_id,user_id" });
+      const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : null;
 
-      // Auto-add to cohort_members so the student gets the cohort UI
-      // immediately. No-op if they're already a member.
-      const { data: existingMember } = await sb.from("cohort_members").select("cohort_id").eq("cohort_id", cohortId).eq("user_id", studentId).maybeSingle();
-      if (!existingMember) {
-        const { data: u } = await sb.auth.admin.getUserById(studentId);
-        const meta = (u?.user?.user_metadata ?? {}) as { name?: string };
-        await sb.from("cohort_members").insert({
+      // Dispatch on which product was purchased. Metadata is set by the
+      // checkout endpoints; we route by the keys present.
+      const cohortId = session.metadata?.sankofa_cohort_id;
+      const studentId = session.metadata?.sankofa_student_id;
+      const buildSlug = session.metadata?.sankofa_build_slug;
+      const buyerId = session.metadata?.sankofa_buyer_id;
+
+      if (cohortId && studentId) {
+        await sb.from("cohort_enrollments").upsert({
           cohort_id: cohortId,
           user_id: studentId,
-          role: "student",
-          email: u?.user?.email,
-          display_name: meta.name ?? null,
-        });
+          stripe_session_id: session.id,
+          stripe_payment_intent_id: paymentIntentId,
+          amount_cents: amountCents,
+          currency,
+        }, { onConflict: "cohort_id,user_id" });
+
+        // Auto-add to cohort_members so the student gets the cohort UI
+        // immediately. No-op if they're already a member.
+        const { data: existingMember } = await sb.from("cohort_members").select("cohort_id").eq("cohort_id", cohortId).eq("user_id", studentId).maybeSingle();
+        if (!existingMember) {
+          const { data: u } = await sb.auth.admin.getUserById(studentId);
+          const meta = (u?.user?.user_metadata ?? {}) as { name?: string };
+          await sb.from("cohort_members").insert({
+            cohort_id: cohortId,
+            user_id: studentId,
+            role: "student",
+            email: u?.user?.email,
+            display_name: meta.name ?? null,
+          });
+        }
+      } else if (buildSlug && buyerId) {
+        await sb.from("build_purchases").upsert({
+          slug: buildSlug,
+          user_id: buyerId,
+          stripe_session_id: session.id,
+          stripe_payment_intent_id: paymentIntentId,
+          amount_cents: amountCents,
+          currency,
+        }, { onConflict: "slug,user_id" });
+      } else {
+        return new Response(JSON.stringify({ ok: true, ignored: "missing_metadata" }), { status: 200 });
       }
     }
   } catch (e) {

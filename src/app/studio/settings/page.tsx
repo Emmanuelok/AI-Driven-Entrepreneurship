@@ -8,6 +8,7 @@ import { User, Bell, Shield, Download, Trash2, KeyRound, Zap, Globe, AlertTriang
 import { PushToggle } from "@/components/push-toggle";
 import { ByoKeyPanel } from "@/components/byo-key-panel";
 import { SellerStatusPanel } from "@/components/seller-status-panel";
+import { SellerPayouts } from "@/components/seller-payouts";
 
 // Every persisted store name → human label, for export + nuke.
 const STORE_KEYS: Record<string, string> = {
@@ -150,6 +151,7 @@ export default function SettingsPage() {
       <Card className="p-6 mb-6">
         <h2 className="font-medium flex items-center gap-2 mb-4"><Wallet className="size-4 text-amber" /> Payments</h2>
         <SellerStatusPanel />
+        <SellerPayouts />
       </Card>
 
       <Card className="p-6 mb-6">
