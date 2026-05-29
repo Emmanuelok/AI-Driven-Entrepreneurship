@@ -17,6 +17,7 @@ import { Circle, CheckCircle2, MinusCircle, Loader2, DollarSign, Lock } from "lu
 import { RefundRequestButton } from "@/components/refund-request-button";
 import { DiscountCodeInput } from "@/components/discount-code-input";
 import { CohortPricingDialog, CohortPriceBadge } from "@/components/cohort-pricing-dialog";
+import { CohortAnalytics } from "@/components/cohort-analytics";
 
 type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
 type Member = { user_id: string; role: "owner" | "instructor" | "student"; email: string | null; display_name: string | null; joined_at: string };
@@ -275,6 +276,9 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </Card>
       )}
+
+      {/* Analytics — instructor only, hides itself when no students/assignments */}
+      {isInstructor && <CohortAnalytics cohortId={id} refreshKey={progress.rows.length} />}
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         {/* Assignments column */}

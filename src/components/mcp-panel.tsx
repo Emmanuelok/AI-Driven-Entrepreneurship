@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { Card, Button, Input, Textarea, Badge } from "@/components/ui";
 import { Server, Plus, Trash2, Copy, Check, AlertCircle, Key, ExternalLink, BookOpen } from "lucide-react";
+import { McpInstallSnippets } from "@/components/mcp-install-snippets";
 
 type Tool = { name: string; description: string; agentPrompt: string; inputSchema?: Record<string, unknown> };
 type Config = { enabled: boolean; name?: string; description?: string; tools: Tool[] };
@@ -105,7 +106,10 @@ export function McpPanel({ buildId, isCloud, isOwner }: { buildId: string; isClo
           <div className="text-[10px] uppercase tracking-widest text-emerald mb-2">Server URL</div>
           <UrlPill text={url} />
         </div>
-        <InstallSnippets serverName={cfg.name ?? buildId} url={url} />
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald mb-2">Install snippet</div>
+          <McpInstallSnippets serverName={cfg.name ?? buildId} url={url} />
+        </div>
         <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-muted hover:text-emerald transition">
           <BookOpen className="size-2.5" /> MCP docs <ExternalLink className="size-2.5" />
         </a>
@@ -251,94 +255,6 @@ function UrlPill({ text }: { text: string }) {
       >
         {copied ? <Check className="size-3.5 text-emerald" /> : <Copy className="size-3.5" />}
       </Button>
-    </div>
-  );
-}
-
-// ─── Install snippets ─────────────────────────────────────────────────────
-function InstallSnippets({ serverName, url }: { serverName: string; url: string }) {
-  const [tab, setTab] = useState<"claude" | "cursor" | "raw">("claude");
-  // Keep the snippet name URL-safe / config-file-safe.
-  const safe = (serverName || "sankofa-build").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "sankofa-build";
-
-  const claude = `{
-  "mcpServers": {
-    "${safe}": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "${url}",
-        "--header",
-        "Authorization: Bearer YOUR_SMCP_TOKEN"
-      ]
-    }
-  }
-}`;
-
-  const cursor = `{
-  "mcpServers": {
-    "${safe}": {
-      "url": "${url}",
-      "headers": {
-        "Authorization": "Bearer YOUR_SMCP_TOKEN"
-      }
-    }
-  }
-}`;
-
-  const raw = `# Bearer-authenticated MCP HTTP server
-URL:    ${url}
-Header: Authorization: Bearer YOUR_SMCP_TOKEN
-Protocol: JSON-RPC 2.0 over POST
-
-# Initialize handshake
-curl -X POST "${url}" \\
-  -H "Authorization: Bearer YOUR_SMCP_TOKEN" \\
-  -H "Content-Type: application/json" \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'`;
-
-  const body = tab === "claude" ? claude : tab === "cursor" ? cursor : raw;
-  const file = tab === "claude" ? "~/Library/Application Support/Claude/claude_desktop_config.json"
-             : tab === "cursor" ? "~/.cursor/mcp.json"
-             : "";
-
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-widest text-emerald mb-2">Install snippet</div>
-      <div className="flex gap-1 mb-2">
-        {(["claude", "cursor", "raw"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`text-[10px] uppercase tracking-widest px-2.5 py-1 rounded-full border transition ${tab === t ? "border-emerald bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}
-          >
-            {t === "claude" ? "Claude Desktop" : t === "cursor" ? "Cursor" : "Raw HTTP"}
-          </button>
-        ))}
-      </div>
-      <CodeBlock text={body} />
-      {file && <p className="text-[10px] text-muted mt-1.5">Paste into <code className="text-foreground">{file}</code>. Replace <code className="text-foreground">YOUR_SMCP_TOKEN</code> with a token from Settings → MCP tokens.</p>}
-    </div>
-  );
-}
-
-function CodeBlock({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="relative">
-      <pre className="bg-[#06100d] border border-border rounded-lg p-3 text-[10px] font-[family-name:var(--font-mono)] overflow-x-auto whitespace-pre-wrap break-all">{text}</pre>
-      <button
-        onClick={async () => {
-          await navigator.clipboard.writeText(text);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        }}
-        className="absolute top-2 right-2 size-6 rounded-md bg-surface-2 border border-border flex items-center justify-center text-muted hover:text-emerald"
-        aria-label="Copy snippet"
-      >
-        {copied ? <Check className="size-3 text-emerald" /> : <Copy className="size-3" />}
-      </button>
     </div>
   );
 }
