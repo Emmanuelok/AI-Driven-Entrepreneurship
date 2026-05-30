@@ -279,7 +279,7 @@ function School({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: Fo
             <div className="text-2xl">{s.icon}</div>
             <div>
               <div className="font-medium text-sm">{s.name}</div>
-              <div className="text-[11px] text-muted">{s.departments.length} departments</div>
+              <div className="text-[11px] text-muted">{s.departments.length} department{s.departments.length === 1 ? "" : "s"}</div>
             </div>
           </button>
         ))}

@@ -7,6 +7,8 @@ import { useSketch } from "@/store/sketch";
 import { useLetters } from "@/store/letters";
 import type { SiteContextSnapshot } from "@/lib/site-brain";
 import { genomeVoiceInstruction } from "@/lib/genome";
+import { resolveDepartment } from "@/lib/recommendations";
+import { getDepartment } from "@/lib/disciplines";
 
 // Build a Site Brain snapshot from the local zustand stores. Pure
 // synchronous read — call right before a fetch. Cheap; safe to call
@@ -35,6 +37,13 @@ export function buildSiteContextSnapshot(scope?: string): SiteContextSnapshot {
 
   const firstName = s.user?.name?.split(" ")[0];
 
+  // Resolve the user's field → department → discipline-specific
+  // signals (AI opportunities, local examples, suggested seed). When
+  // the field doesn't resolve cleanly, we just skip — the rest of the
+  // snapshot still works.
+  const dept = resolveDepartment(s.user?.field);
+  const fullDept = dept ? getDepartment(dept.id) : null;
+
   const snap: SiteContextSnapshot = {
     user: s.user ? {
       firstName,
@@ -48,6 +57,14 @@ export function buildSiteContextSnapshot(scope?: string): SiteContextSnapshot {
       level: 1 + Math.floor((s.xp ?? 0) / 200),
       streak: s.streak,
       xp: s.xp,
+    } : undefined,
+
+    discipline: fullDept ? {
+      school: fullDept.school.name,
+      department: fullDept.department.name,
+      suggestedVentureSeed: fullDept.department.suggestedVentureSeed,
+      aiOpportunities: fullDept.department.aiOpportunities,
+      localExamples: fullDept.department.localExamples,
     } : undefined,
 
     genome: me.genome ? {

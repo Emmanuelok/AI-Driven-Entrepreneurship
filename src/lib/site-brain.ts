@@ -33,6 +33,16 @@ export type SiteContextSnapshot = {
     streak?: number;
     xp?: number;
   };
+  // Discipline-specific context resolved from the user's field via
+  // disciplines.ts. Gives every AI call authentic anchors instead of
+  // a generic "studies X" label.
+  discipline?: {
+    school?: string;
+    department?: string;
+    suggestedVentureSeed?: string;
+    aiOpportunities?: { title: string; why: string }[];
+    localExamples?: string[];
+  };
   // Studio Genome — how they like to be talked to
   genome?: {
     voice?: string;
@@ -111,6 +121,24 @@ export function formatSiteContext(snap: SiteContextSnapshot | null | undefined):
       u.streak && `${u.streak}-day streak`,
     ].filter(Boolean);
     if (bits.length) lines.push(`[USER]\n${bits.map((b) => `- ${b}`).join("\n")}`);
+  }
+
+  if (snap.discipline) {
+    const d = snap.discipline;
+    const parts: string[] = [];
+    if (d.school) parts.push(`school: ${d.school}`);
+    if (d.department) parts.push(`department: ${d.department}`);
+    if (d.suggestedVentureSeed) parts.push(`discipline-grounded venture seed: ${d.suggestedVentureSeed}`);
+    if (d.localExamples?.length) {
+      parts.push(`local situations they recognize: ${d.localExamples.slice(0, 3).join(" · ")}`);
+    }
+    if (d.aiOpportunities?.length) {
+      parts.push("3 high-leverage AI opportunities in their discipline:");
+      for (const op of d.aiOpportunities.slice(0, 3)) {
+        parts.push(`  · ${op.title} — ${op.why}`);
+      }
+    }
+    if (parts.length) lines.push(`[DISCIPLINE]\n${parts.map((p) => p.startsWith("  ·") ? p : `- ${p}`).join("\n")}`);
   }
 
   if (snap.genome) {
