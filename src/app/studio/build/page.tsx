@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useBuild } from "@/store/build";
 import { useStore } from "@/store";
 import { BUILD_TEMPLATES, templatesForDiscipline, getBuildTemplate, BuildTemplate } from "@/lib/build-templates";
+import { resolveDepartment } from "@/lib/recommendations";
+import { getDepartment } from "@/lib/disciplines";
 import { Card, Button, Input, Badge, Dialog, EmptyState } from "@/components/ui";
 import { SimilarButton } from "@/components/similar-button";
-import { Zap, Plus, Sparkles, ArrowRight, Code, Cpu, Eye, Brain, Wrench, Hammer, FileText, Trash2, Clock } from "lucide-react";
+import { Zap, Plus, Sparkles, ArrowRight, Code, Cpu, Eye, Brain, Wrench, Hammer, FileText, Trash2, Clock, Lightbulb, GraduationCap } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const KIND_LABEL: Record<string, { label: string; icon: typeof Code; color: string }> = {
@@ -65,6 +67,38 @@ export default function BuildHomePage() {
 
   const tplOrder = templatesForDiscipline(user?.field);
 
+  // Resolve the student's full department record so we can offer
+  // "Start from one of your discipline's AI opportunities" — the
+  // generative complement to the per-template filter below.
+  const deptDept = useMemo(() => resolveDepartment(user?.field), [user?.field]);
+  const dept = useMemo(() => deptDept ? getDepartment(deptDept.id)?.department : null, [deptDept]);
+
+  // The opportunity the user is starting from (open in dialog). When
+  // set, we map it to the most-relevant template kind and seed Sage
+  // with an opening prompt tailored to the opportunity.
+  const [selectedOpp, setSelectedOpp] = useState<{ title: string; why: string } | null>(null);
+  const [oppName, setOppName] = useState("");
+
+  function startFromOpportunity(opp: { title: string; why: string }, projectName: string) {
+    // Pick a template kind that fits "AI opportunity" most of the time:
+    // simple-chat-agent is the most general-purpose starter. If a
+    // template name closer-matches the opportunity, use it instead.
+    const lowerTitle = opp.title.toLowerCase();
+    const matchByName = BUILD_TEMPLATES.find((t) =>
+      lowerTitle.includes(t.name.toLowerCase().split(" ")[0]) ||
+      t.tagline.toLowerCase().includes(lowerTitle.split(" ")[0])
+    );
+    const tpl = matchByName ?? getBuildTemplate("simple-chat-agent") ?? BUILD_TEMPLATES[0];
+    const id = createProject(projectName || opp.title, opp.why, tpl.id, tpl.starterCode);
+    // Stash an opening prompt for Sage — picked up on first mount of
+    // the build detail page (existing single-shot mechanism).
+    try {
+      const prompt = `I want to build "${opp.title}". The angle from my discipline: ${opp.why}\n\nStart by sketching the simplest interactive version a user could try in 30 seconds, then we'll iterate.`;
+      sessionStorage.setItem(`sankofa-build-opening-${id}`, prompt);
+    } catch { /* sessionStorage unavailable in some browsers — silent */ }
+    router.push(`/studio/build/${id}`);
+  }
+
   function begin(tpl: BuildTemplate, projectName: string) {
     const id = createProject(projectName || tpl.name, tpl.tagline, tpl.id, tpl.starterCode);
     router.push(`/studio/build/${id}`);
@@ -102,6 +136,40 @@ export default function BuildHomePage() {
             Tuned for <span className="font-medium text-foreground">{user.field}</span> — templates that match your discipline are highlighted first.
           </div>
         </Card>
+      )}
+
+      {/* Discipline-grounded AI opportunities. Generative complement to
+          the static template grid: each card is a unique angle this
+          student's discipline unfairly opens. Clicking seeds Sage with
+          a kickoff prompt tied to the opportunity's specifics. */}
+      {dept && dept.aiOpportunities.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-2 mb-3">
+            <GraduationCap className="size-3.5 text-emerald" />
+            <h2 className="text-xs uppercase tracking-[0.22em] text-emerald">Start from a {dept.name} angle</h2>
+          </div>
+          <p className="text-sm text-muted mb-4 max-w-2xl">
+            Three angles your discipline opens that most builders don&apos;t have. Pick one and Sage will scaffold a working v0 you can ship by tonight.
+          </p>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {dept.aiOpportunities.slice(0, 3).map((op) => (
+              <button
+                key={op.title}
+                onClick={() => { setSelectedOpp(op); setOppName(op.title.slice(0, 60)); }}
+                className="text-left rounded-2xl border border-emerald/30 bg-emerald/5 hover:bg-emerald/10 hover:border-emerald/50 transition p-4 group"
+              >
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-emerald mb-2">
+                  <Lightbulb className="size-2.5" /> Discipline angle
+                </div>
+                <div className="text-sm font-medium leading-snug">{op.title}</div>
+                <p className="mt-2 text-xs text-muted leading-relaxed line-clamp-3">{op.why}</p>
+                <div className="mt-3 text-[10px] text-emerald inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                  Start building <ArrowRight className="size-2.5" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Existing projects */}
@@ -192,6 +260,29 @@ export default function BuildHomePage() {
             </button>
           ))}
         </div>
+      </Dialog>
+
+      {/* Discipline-opportunity dialog — open-in-Sage with a seeded prompt */}
+      <Dialog open={selectedOpp !== null} onClose={() => setSelectedOpp(null)} title={selectedOpp ? "Start from your discipline" : ""} size="md">
+        {selectedOpp && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald/30 bg-emerald/5 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">{dept?.name}</div>
+              <div className="font-medium text-sm leading-snug">{selectedOpp.title}</div>
+              <p className="mt-2 text-xs text-muted leading-relaxed">{selectedOpp.why}</p>
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Project name</div>
+              <Input value={oppName} onChange={(e) => setOppName(e.target.value)} placeholder={selectedOpp.title} />
+            </div>
+            <p className="text-[11px] text-muted leading-relaxed">
+              Sage will read the angle above and start sketching a single-file v0 you can iterate on. The Site Brain&apos;s <code className="text-emerald">[DISCIPLINE]</code> block keeps every follow-up grounded in your field.
+            </p>
+            <Button onClick={() => { const opp = selectedOpp; setSelectedOpp(null); startFromOpportunity(opp, oppName || opp.title); }} className="w-full" size="lg">
+              <Zap className="size-4" /> Open in Build Studio
+            </Button>
+          </div>
+        )}
       </Dialog>
 
       <Dialog open={selectedTpl !== null} onClose={() => setSelectedTpl(null)} title={selectedTpl ? `Start: ${selectedTpl.name}` : ""} size="md">
