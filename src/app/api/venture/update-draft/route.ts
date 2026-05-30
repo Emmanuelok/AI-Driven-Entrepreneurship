@@ -1,9 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 
@@ -31,14 +29,11 @@ Rules:
 - Tone: direct, founder-voice. NO buzzwords. NO "we're crushing it". NO emojis (the UI adds them).`;
 
 export async function POST(req: Request) {
-  const rl = rateLimit({ scope: "update-draft", ipKey: clientIp(req), maxCalls: 10 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "update-draft", maxCalls: 10 });
+  if (!guard.ok) return guard.response;
   const raw = await req.json();
   const body = raw as Body;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) return Response.json(fallback(body));
+  if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));
   const runway = (body.economics?.burnMonthlyUsd ?? 0) > 0 && (body.economics?.cashOnHandUsd ?? 0) > 0
@@ -58,7 +53,7 @@ Cash on hand: $${(body.economics?.cashOnHandUsd ?? 0).toLocaleString()}
 Runway: ${runway}
 Monthly churn: ${body.economics?.churnMonthlyPct ?? "?"}%`;
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1100,

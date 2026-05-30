@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,16 +13,13 @@ type Body = { systemPrompt: string; input: string };
 export async function POST(req: Request) {
   // Evals get hammered when students "run all" — 30/min covers a suite of 10
   // tests run 3x in quick succession before hitting the wall.
-  const rl = rateLimit({ scope: "eval-run", ipKey: clientIp(req), maxCalls: 30 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "eval-run", maxCalls: 30 });
+  if (!guard.ok) return guard.response;
   const body = (await req.json()) as Body;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) {
+  if (!guard.apiKey) {
     return Response.json({ output: `[demo] No API key on the server. Set ANTHROPIC_API_KEY to actually run evals.\nYour test input was: ${body.input.slice(0, 120)}` });
   }
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   try {
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",

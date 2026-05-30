@@ -1,9 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,21 +40,18 @@ Rules:
 Bias: if the venture's wedge or region implies specific context (e.g. Northern Ghana agritech, mobile-money fintech), surface it as a must-have. Don't import Silicon Valley templates into African markets.`;
 
 export async function POST(req: Request) {
-  const rl = rateLimit({ scope: "role-spec", ipKey: clientIp(req), maxCalls: 8 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "role-spec", maxCalls: 8 });
+  if (!guard.ok) return guard.response;
   const raw = await req.json();
   const body = raw as Body;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) return Response.json(fallback(body));
+  if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));
   const ctx = `Venture: ${body.ventureName} — ${body.tagline}
 ${body.region ? `Region: ${body.region}\n` : ""}Role: ${body.roleTitle} (${body.type})
 ${body.equityPct ? `Equity: ${body.equityPct}%\n` : ""}${body.compensationUsd ? `Comp: $${body.compensationUsd}/yr\n` : ""}${body.wedge?.who ? `Wedge: ${body.wedge.who}. Pain: ${body.wedge.pain ?? "n/a"}\n` : ""}${body.canvas ? Object.entries(body.canvas).filter(([, v]) => v?.trim()).map(([k, v]) => `${k}: ${v}`).join("\n") : ""}`;
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   try {
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",

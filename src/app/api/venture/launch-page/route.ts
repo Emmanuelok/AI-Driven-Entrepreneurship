@@ -1,9 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 
@@ -35,14 +33,11 @@ Rules:
 - whatsappBlurb: under 280 chars. Greeting, what it is, who it's for, link placeholder "[link]". No emojis.`;
 
 export async function POST(req: Request) {
-  const rl = rateLimit({ scope: "launch-page", ipKey: clientIp(req), maxCalls: 10 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "launch-page", maxCalls: 10 });
+  if (!guard.ok) return guard.response;
   const raw = await req.json();
   const body = raw as Body;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) return Response.json(fallback(body));
+  if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));
   const ctx = [
@@ -53,7 +48,7 @@ export async function POST(req: Request) {
     ...Object.entries(body.canvas ?? {}).filter(([, v]) => v && v.trim()).map(([k, v]) => `${k}: ${v}`),
   ].filter(Boolean).join("\n");
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 900,

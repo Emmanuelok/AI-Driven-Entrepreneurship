@@ -1,9 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
 import { moderateOrBlock } from "@/lib/moderation";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
@@ -43,8 +41,8 @@ const BLOCK_PROMPTS: Record<string, string> = {
 
 export async function POST(req: Request) {
   // Generous cap — students legitimately ask for 9 blocks back-to-back.
-  const rl = rateLimit({ scope: "assist-canvas", ipKey: clientIp(req), maxCalls: 25 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "assist-canvas", maxCalls: 25 });
+  if (!guard.ok) return guard.response;
   const raw = await req.json();
   const body = raw as Body;
   const brain = siteSystemBlock(readSiteContext(raw));
@@ -53,10 +51,7 @@ export async function POST(req: Request) {
   const candidate = `${body.ventureName} ${body.tagline} ${Object.values(body.currentCanvas).join(" ")}`;
   const blocked = await moderateOrBlock(candidate, { skipLLM: true });
   if (blocked) return blocked;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) {
+  if (!guard.apiKey) {
     return Response.json({ text: fallback(body) });
   }
   const blockHint = BLOCK_PROMPTS[body.block] ?? `Draft the '${body.block}' block of the Lean Canvas.`;
@@ -70,7 +65,7 @@ export async function POST(req: Request) {
     ...Object.entries(body.currentCanvas).filter(([, v]) => v && v.trim()).map(([k, v]) => `- ${k}: ${v}`),
   ].filter(Boolean).join("\n");
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 700,

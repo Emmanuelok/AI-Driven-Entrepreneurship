@@ -1,10 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { embed } from "@/lib/embeddings";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
-import { enforceQuotaForPlatform } from "@/lib/quota";
+import { aiGuard } from "@/lib/ai-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,8 +33,8 @@ type Msg = { role: "user" | "assistant"; content: string };
 
 export async function POST(req: Request) {
   // 40 questions / min covers a rapid Q&A session without breaking a sweat.
-  const rl = rateLimit({ scope: "tutor", ipKey: clientIp(req), maxCalls: 40 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "tutor", maxCalls: 40 });
+  if (!guard.ok) return guard.response;
 
   const raw = await req.json();
   const { messages, context, authToken } = raw as {
@@ -54,16 +52,13 @@ export async function POST(req: Request) {
   // Quietly skipped when cloud sync isn't configured or the user is anonymous.
   const ragContext = await retrieveStudentContext(messages[messages.length - 1].content, authToken);
 
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) {
+  if (!guard.apiKey) {
     return new Response(makeFallbackStream(messages[messages.length - 1].content, context), {
       headers: { "Content-Type": "text/plain; charset=utf-8", "x-sage-mode": "demo" },
     });
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   const contextLine = context
     ? `\n\nSTUDENT CONTEXT:\n${[
         context.language && `- Preferred language: ${context.language}`,

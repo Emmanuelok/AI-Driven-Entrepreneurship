@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,12 +32,9 @@ Output STRICT JSON only. No markdown, no fences. Shape:
 { "passed": boolean, "score": number (0-10), "reasoning": string (2-4 sentences) }`;
 
 export async function POST(req: Request) {
-  const rl = rateLimit({ scope: "eval-judge", ipKey: clientIp(req), maxCalls: 30 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "eval-judge", maxCalls: 30 });
+  if (!guard.ok) return guard.response;
   const body = (await req.json()) as Body;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
 
   // Pre-judge: if mustInclude is set, fail fast on any missing substring.
   if (body.mustInclude && body.mustInclude.length > 0) {
@@ -53,7 +48,7 @@ export async function POST(req: Request) {
     }
   }
 
-  if (!apiKey) {
+  if (!guard.apiKey) {
     return Response.json({
       passed: body.output.length > 30,
       score: 5,
@@ -61,7 +56,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   try {
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",

@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 import { moderateOrBlock } from "@/lib/moderation";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
@@ -49,18 +47,15 @@ Output STRICT JSON only. No markdown fences. Shape:
 
 export async function POST(req: Request) {
   // Heavy route (2200 max tokens) — strictest cap.
-  const rl = rateLimit({ scope: "rehearse-critique", ipKey: clientIp(req), maxCalls: 4 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "rehearse-critique", maxCalls: 4 });
+  if (!guard.ok) return guard.response;
 
   const raw = await req.json();
   const body = raw as Body;
   const brain = siteSystemBlock(readSiteContext(raw));
   const blocked = await moderateOrBlock(body.transcript, { skipLLM: true });
   if (blocked) return blocked;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) return Response.json(fallback(body));
+  if (!guard.apiKey) return Response.json(fallback(body));
 
   const wordCount = body.transcript.trim().split(/\s+/).filter(Boolean).length;
   const wpm = body.actualSeconds > 0 ? Math.round((wordCount / body.actualSeconds) * 60) : 0;
@@ -77,7 +72,7 @@ Word count: ${wordCount} · ${wpm} wpm${deckCtx}
 TRANSCRIPT:
 ${body.transcript}`;
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   try {
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",

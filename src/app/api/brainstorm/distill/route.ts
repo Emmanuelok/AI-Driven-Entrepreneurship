@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
@@ -88,14 +86,11 @@ Rules:
 - Wedge: BRUTALLY specific beachhead. "2-acre maize farmers in Tamale" beats "African farmers".`;
 
 export async function POST(req: Request) {
-  const rl = rateLimit({ scope: "distill", ipKey: clientIp(req), maxCalls: 8 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "distill", maxCalls: 8 });
+  if (!guard.ok) return guard.response;
   const raw = await req.json();
   const body = raw as Body;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) return Response.json(fallback(body));
+  if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));
   const SYSTEM = body.destination === "ai" ? AI_SYSTEM : VENTURE_SYSTEM;
@@ -107,7 +102,7 @@ ${body.region ? `Region context: ${body.region}` : ""}
 Notes captured on the canvas (stickies, text labels, frame names):
 ${body.notes.length > 0 ? body.notes.map((n, i) => `  ${i + 1}. ${n}`).join("\n") : "  (none — work from the title/prompt)"}`;
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   try {
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",

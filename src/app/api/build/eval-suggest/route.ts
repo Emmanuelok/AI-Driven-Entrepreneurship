@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
@@ -28,15 +26,12 @@ Output STRICT JSON only. No markdown fences. Shape:
 { "tests": [{ "name": string, "input": string, "rubric": string, "mustInclude": string[] }] }`;
 
 export async function POST(req: Request) {
-  const rl = rateLimit({ scope: "eval-suggest", ipKey: clientIp(req), maxCalls: 6 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "eval-suggest", maxCalls: 6 });
+  if (!guard.ok) return guard.response;
   const raw = await req.json();
   const body = raw as Body;
   const brain = siteSystemBlock(readSiteContext(raw));
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) {
+  if (!guard.apiKey) {
     return Response.json({
       tests: [
         { name: "[demo] happy path", input: "Sample user input.", rubric: "Responds in plain English, addresses the question.", mustInclude: [] },
@@ -44,7 +39,7 @@ export async function POST(req: Request) {
       ],
     });
   }
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   try {
     const res = await client.messages.create({
       model: "claude-sonnet-4-6",

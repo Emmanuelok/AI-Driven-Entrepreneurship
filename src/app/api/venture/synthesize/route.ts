@@ -1,8 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { aiUsageHeaders } from "@/lib/ai-headers";
-import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
-import { resolveAnthropicKey } from "@/lib/anthropic-key";
-import { enforceQuotaForPlatform } from "@/lib/quota";
+import { aiGuard } from "@/lib/ai-guard";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
@@ -35,22 +33,19 @@ Rules:
 export async function POST(req: Request) {
   // 8 syntheses/min/IP — protects against accidental loop-clicks burning
   // 2k+ output tokens each.
-  const rl = rateLimit({ scope: "synthesize", ipKey: clientIp(req), maxCalls: 8 });
-  if (!rl.ok) return rateLimited(rl);
+  const guard = await aiGuard({ req, scope: "synthesize", maxCalls: 8 });
+  if (!guard.ok) return guard.response;
 
   const raw = await req.json();
   const body = raw as Body;
-  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
-  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
-  if (quotaBlocked) return quotaBlocked;
-  if (!apiKey) {
+  if (!guard.apiKey) {
     return Response.json(fallback(body));
   }
   if (body.interviews.length < 3) {
     return Response.json({ error: "need_more_interviews", message: "Log at least 3 interviews before synthesizing." }, { status: 400 });
   }
   const brain = siteSystemBlock(readSiteContext(raw));
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey: guard.apiKey });
   const payload = body.interviews.map((iv, i) => `[#${i + 1}] ${iv.name} · ${iv.role} · verdict=${iv.verdict}${iv.willingnessToPay ? ` · WTP=$${iv.willingnessToPay}` : ""}\n${iv.notes}`).join("\n\n");
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
