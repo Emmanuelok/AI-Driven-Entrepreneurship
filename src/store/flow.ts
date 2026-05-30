@@ -65,6 +65,9 @@ type State = {
 
   createFlow: (name?: string) => string;
   deleteFlow: (id: string) => void;
+  // Merge a cloud-fetched flow into the local store. If the local
+  // copy is newer (later updatedAt) we keep ours — last-write-wins.
+  upsertFromCloud: (flow: Flow) => void;
   renameFlow: (id: string, name: string) => void;
   updateFlowMeta: (id: string, patch: Partial<Pick<Flow, "name" | "description">>) => void;
 
@@ -109,6 +112,19 @@ export const useFlow = create<State>()(
         return id;
       },
       deleteFlow: (id) => set({ flows: get().flows.filter((f) => f.id !== id) }),
+      upsertFromCloud: (incoming) => set({
+        flows: (() => {
+          const cur = get().flows;
+          const i = cur.findIndex((f) => f.id === incoming.id);
+          if (i < 0) return [incoming, ...cur];
+          // Local newer → keep ours (avoids clobbering unsaved edits
+          // that just haven't synced yet).
+          if (cur[i].updatedAt >= incoming.updatedAt) return cur;
+          const next = cur.slice();
+          next[i] = incoming;
+          return next;
+        })(),
+      }),
       renameFlow: (id, name) => set({ flows: get().flows.map((f) => f.id === id ? { ...f, name, updatedAt: Date.now() } : f) }),
       updateFlowMeta: (id, patch) => set({ flows: get().flows.map((f) => f.id === id ? { ...f, ...patch, updatedAt: Date.now() } : f) }),
 

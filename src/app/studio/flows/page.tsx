@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFlow } from "@/store/flow";
+import { fetchCloudFlowList, fetchCloudFlow, deleteCloudFlow } from "@/lib/flow-sync";
 import { Card, Button, EmptyState } from "@/components/ui";
-import { Network, Plus, Trash2, ChevronRight } from "lucide-react";
+import { Network, Plus, Trash2, ChevronRight, Cloud } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 // Flow Studio index page. Lists every local flow + a "new flow" CTA.
@@ -14,9 +15,36 @@ import { formatDistanceToNow } from "date-fns";
 
 export default function FlowStudioIndex() {
   const router = useRouter();
-  const { flows, createFlow, deleteFlow } = useFlow();
+  const { flows, createFlow, deleteFlow, upsertFromCloud } = useFlow();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
+  const [syncing, setSyncing] = useState(false);
+
+  // Pull any cloud flows the user has on other devices into the local
+  // store on first mount. Best-effort: signed-out users silently skip.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setSyncing(true);
+      try {
+        const cloud = await fetchCloudFlowList();
+        if (cancelled || cloud.length === 0) return;
+        const localIds = new Set(useFlow.getState().flows.map((f) => f.id));
+        // For flows we don't have locally, fetch the full graph and
+        // merge in. We don't pull graphs we already have to avoid
+        // overwriting in-progress local edits.
+        for (const c of cloud) {
+          if (cancelled) return;
+          if (localIds.has(c.id)) continue;
+          const full = await fetchCloudFlow(c.id);
+          if (full) upsertFromCloud(full);
+        }
+      } finally {
+        if (!cancelled) setSyncing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [upsertFromCloud]);
 
   function create() {
     const id = createFlow(name.trim() || undefined);
@@ -38,7 +66,14 @@ export default function FlowStudioIndex() {
             Chain together problem framing, persona, wedge, interviews, pitch, landing copy, and a working HTML prototype — all in one canvas. When the graph is ready, ship it to your Venture Studio or AI Build Studio in one click.
           </p>
         </div>
-        <Button onClick={() => setCreating(true)}><Plus className="size-4" /> New flow</Button>
+        <div className="flex items-center gap-2">
+          {syncing && (
+            <span className="text-[10px] text-muted inline-flex items-center gap-1">
+              <Cloud className="size-3" /> Syncing…
+            </span>
+          )}
+          <Button onClick={() => setCreating(true)}><Plus className="size-4" /> New flow</Button>
+        </div>
       </div>
 
       {creating && (
@@ -78,7 +113,12 @@ export default function FlowStudioIndex() {
                       </div>
                     </div>
                     <button
-                      onClick={(e) => { e.preventDefault(); if (confirm(`Delete "${f.name}"?`)) deleteFlow(f.id); }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (!confirm(`Delete "${f.name}"? This removes the cloud copy too.`)) return;
+                        deleteFlow(f.id);
+                        void deleteCloudFlow(f.id);
+                      }}
                       className="opacity-0 group-hover:opacity-100 text-muted hover:text-rust transition"
                       aria-label="Delete flow"
                     >

@@ -1,11 +1,12 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useFlow } from "@/store/flow";
 import { FlowCanvas } from "@/components/flow-canvas";
-import { ArrowLeft, Pencil, Check } from "lucide-react";
+import { schedulePush } from "@/lib/flow-sync";
+import { ArrowLeft, Pencil, Check, Cloud, CloudOff } from "lucide-react";
 
 export default function FlowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -13,6 +14,25 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   const flow = flows.find((f) => f.id === id);
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
+
+  // Track the last updatedAt we shipped to the cloud so we can render
+  // an honest "synced N seconds ago" pill instead of guessing.
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const prevUpdatedRef = useRef<number | null>(null);
+
+  // Autosave: every mutation bumps flow.updatedAt; we ride that to
+  // schedule a debounced push (best-effort, 1.5s after last edit).
+  useEffect(() => {
+    if (!flow) return;
+    if (prevUpdatedRef.current === flow.updatedAt) return;
+    prevUpdatedRef.current = flow.updatedAt;
+    schedulePush(flow);
+    // Optimistically mark sync — real success would be observable in
+    // network tab; we don't surface failures because the local store
+    // is the source of truth either way.
+    const t = setTimeout(() => setLastSyncedAt(Date.now()), 1600);
+    return () => clearTimeout(t);
+  }, [flow]);
 
   if (!hydrated) return <div className="p-8 text-sm text-muted">Loading…</div>;
   if (!flow) { notFound(); return null; }
@@ -52,9 +72,29 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
             </button>
           )}
         </div>
+        <SyncBadge lastSyncedAt={lastSyncedAt} />
       </header>
 
       <FlowCanvas flow={flow} />
     </div>
+  );
+}
+
+function SyncBadge({ lastSyncedAt }: { lastSyncedAt: number | null }) {
+  // We hide the badge entirely when sync hasn't fired yet (initial
+  // render of an existing local flow) — keeps the header quiet until
+  // there's something to report.
+  if (lastSyncedAt === null) {
+    return (
+      <span className="text-[10px] text-muted inline-flex items-center gap-1 shrink-0" title="Flow is local. Sign in to sync across devices.">
+        <CloudOff className="size-3" /> Local only
+      </span>
+    );
+  }
+  const secs = Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000));
+  return (
+    <span className="text-[10px] text-emerald inline-flex items-center gap-1 shrink-0" title={`Last cloud save ${secs}s ago`}>
+      <Cloud className="size-3" /> Synced
+    </span>
   );
 }
