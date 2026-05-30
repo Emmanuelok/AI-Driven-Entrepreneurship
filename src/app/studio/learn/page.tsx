@@ -1,14 +1,32 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { TRACKS } from "@/lib/curriculum";
 import { INTERACTIVE_LESSONS } from "@/lib/interactive-lessons";
+import { resolveDepartment } from "@/lib/recommendations";
 import { useStore } from "@/store";
-import { Card, Badge, Button } from "@/components/ui";
-import { Clock, Layers, Play, Sparkles, ChevronRight, Zap, Brain } from "lucide-react";
+import { Card, Badge } from "@/components/ui";
+import { Clock, Layers, Play, Sparkles, ChevronRight, Zap, Brain, GraduationCap } from "lucide-react";
 
 export default function LearnPage() {
-  const { progress } = useStore();
+  const { progress, user } = useStore();
+  const dept = useMemo(() => resolveDepartment(user?.field), [user?.field]);
+
+  // Tracks wired to the user's department, in the order the discipline
+  // recommends them. Everything else follows, original order preserved.
+  const { recommended, rest } = useMemo(() => {
+    if (!dept) return { recommended: [] as typeof TRACKS, rest: TRACKS };
+    const relIds = dept.relevantTracks;
+    const recommended = relIds
+      .map((id) => TRACKS.find((t) => t.id === id))
+      .filter((t): t is (typeof TRACKS)[number] => !!t);
+    const recSet = new Set(recommended.map((t) => t.id));
+    const rest = TRACKS.filter((t) => !recSet.has(t.id));
+    return { recommended, rest };
+  }, [dept]);
+
+  const orderedTracks = [...recommended, ...rest];
 
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
@@ -46,9 +64,45 @@ export default function LearnPage() {
         </div>
       </Card>
 
+      {/* Recommended-for-your-discipline strip */}
+      {dept && recommended.length > 0 && (
+        <div className="mb-10">
+          <div className="flex items-center gap-2 mb-3">
+            <GraduationCap className="size-3.5 text-emerald" />
+            <p className="text-xs uppercase tracking-[0.22em] text-emerald">Wired for {dept.name}</p>
+          </div>
+          <p className="text-sm text-muted mb-4 max-w-2xl">
+            These tracks were matched to your discipline during onboarding. Start here — they map directly onto the AI opportunities your field unlocks.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {recommended.map((t) => {
+              const completed = t.lessons.filter((l) => progress[`${t.id}/${l.id}`]?.status === "completed").length;
+              const pct = (completed / t.lessons.length) * 100;
+              return (
+                <Link key={t.id} href={`/studio/learn/${t.id}`} className="glass rounded-2xl p-5 border-emerald/30 hover:border-emerald/50 transition group">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="size-2 rounded-full" style={{ background: t.color }} />
+                    <Badge color="emerald">{t.pillar}</Badge>
+                  </div>
+                  <div className="font-medium leading-snug">{t.title}</div>
+                  <p className="text-xs text-muted mt-1.5 line-clamp-2">{t.tagline}</p>
+                  <div className="mt-3 h-1 bg-surface-2 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: t.color }} />
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between text-[11px] text-muted">
+                    <span>{completed}/{t.lessons.length} done</span>
+                    <span className="text-emerald flex items-center gap-1 group-hover:gap-1.5 transition-all">Open <ChevronRight className="size-3" /></span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-end justify-between flex-wrap gap-6 mb-10">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2">Learning tracks</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2">{dept ? "All learning tracks" : "Learning tracks"}</p>
           <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
             Tracks built from the best of every platform — adapted for your continent.
           </h1>
@@ -66,17 +120,23 @@ export default function LearnPage() {
       </div>
 
       <div className="grid gap-5">
-        {TRACKS.map((t) => {
+        {orderedTracks.map((t) => {
           const completed = t.lessons.filter((l) => progress[`${t.id}/${l.id}`]?.status === "completed").length;
           const pct = (completed / t.lessons.length) * 100;
+          const isRecommended = !!dept && dept.relevantTracks.includes(t.id);
           return (
-            <Card key={t.id} className="overflow-hidden">
+            <Card key={t.id} className={`overflow-hidden ${isRecommended ? "ring-1 ring-emerald/20" : ""}`}>
               <div className="p-6 sm:p-8 grid lg:grid-cols-[2fr_3fr] gap-8 items-start">
                 <div>
-                  <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-3 mb-3 flex-wrap">
                     <span className="size-2.5 rounded-full" style={{ background: t.color }} />
                     <Badge color="emerald">{t.pillar}</Badge>
                     <Badge color="muted">{t.level}</Badge>
+                    {isRecommended && (
+                      <span className="text-[10px] uppercase tracking-widest text-emerald inline-flex items-center gap-1">
+                        <GraduationCap className="size-2.5" /> For your discipline
+                      </span>
+                    )}
                   </div>
                   <h2 className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl font-semibold leading-tight">{t.title}</h2>
                   <p className="mt-3 text-muted leading-relaxed">{t.tagline}</p>
