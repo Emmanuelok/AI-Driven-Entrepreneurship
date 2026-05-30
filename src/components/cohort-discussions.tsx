@@ -32,6 +32,20 @@ function highlightMentions(src: string): string {
   return src.replace(/(^|[^a-zA-Z0-9_`])@([a-zA-Z][a-zA-Z0-9._-]{1,30})/g, "$1**@$2**");
 }
 
+// Highlight a search match inline in thread title + body preview.
+// Splits on the case-insensitive (escaped) query and wraps every
+// match in a <mark>. Empty query returns the text unchanged.
+function highlightMatch(text: string, query: string): React.ReactNode {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return parts.map((p, i) =>
+    p.toLowerCase() === query.toLowerCase()
+      ? <mark key={i} className="bg-amber/30 text-foreground rounded-sm px-0.5">{p}</mark>
+      : <span key={i}>{p}</span>
+  );
+}
+
 // Cohort discussions surface. Mount on /studio/cohorts/[id] — shows
 // every thread (optionally filtered by assignment), opens an inline
 // thread detail with realtime replies, lets any member start a new
@@ -156,6 +170,7 @@ export function CohortDiscussions({
               key={t.id}
               thread={t}
               authorName={memberMap.get(t.author_id) ?? "Member"}
+              query={q.trim()}
               onOpen={() => setOpenId(t.id)}
             />
           ))}
@@ -189,7 +204,7 @@ export function CohortDiscussions({
   );
 }
 
-function ThreadCard({ thread, authorName, onOpen }: { thread: Thread; authorName: string; onOpen: () => void }) {
+function ThreadCard({ thread, authorName, query, onOpen }: { thread: Thread; authorName: string; query: string; onOpen: () => void }) {
   const Meta = KIND_META[thread.kind];
   const Icon = Meta.icon;
   const lastTs = thread.lastReplyAt ?? thread.updated_at;
@@ -205,8 +220,8 @@ function ThreadCard({ thread, authorName, onOpen }: { thread: Thread; authorName
           {thread.resolved_at && <Badge color="emerald"><CheckCircle2 className="size-2.5 inline mr-1" />Resolved</Badge>}
           <span className="text-[10px] text-muted ml-auto">{formatDistanceToNow(new Date(lastTs), { addSuffix: true })}</span>
         </div>
-        <div className="font-medium text-sm leading-snug">{thread.title}</div>
-        <div className="mt-1 text-xs text-muted line-clamp-2 leading-relaxed">{thread.body}</div>
+        <div className="font-medium text-sm leading-snug">{highlightMatch(thread.title, query)}</div>
+        <div className="mt-1 text-xs text-muted line-clamp-2 leading-relaxed">{highlightMatch(thread.body, query)}</div>
         <div className="mt-2 flex items-center justify-between text-[10px] text-muted">
           <span>by {authorName}</span>
           <span className="inline-flex items-center gap-1"><MessageSquare className="size-2.5" /> {thread.replyCount} {thread.replyCount === 1 ? "reply" : "replies"}</span>

@@ -59,6 +59,25 @@ export async function GET(req: Request) {
     else starterCounts.other++;
   }
 
+  // Proactive CTR — clicks divided by impressions, sliced by source.
+  // Tells the operator whether the closed-fab nudge is over- or
+  // under-triggering on the graph variant vs the page-context one.
+  const proactive = {
+    shown: { graph: 0, page: 0 },
+    clicked: { graph: 0, page: 0 },
+  };
+  for (const r of list) {
+    if (r.kind !== "companion_proactive_shown" && r.kind !== "companion_proactive_clicked") continue;
+    const src = typeof r.meta?.source === "string" ? (r.meta.source as string) : "other";
+    if (src !== "graph" && src !== "page") continue;
+    if (r.kind === "companion_proactive_shown") proactive.shown[src]++;
+    else proactive.clicked[src]++;
+  }
+  const proactiveCtr = {
+    graph: proactive.shown.graph > 0 ? proactive.clicked.graph / proactive.shown.graph : null,
+    page: proactive.shown.page > 0 ? proactive.clicked.page / proactive.shown.page : null,
+  };
+
   // Pad the 14-day series for each kind so the sparkline doesn't skip
   // zero days.
   const dailySeries: Record<string, { day: string; n: number }[]> = {};
@@ -80,6 +99,8 @@ export async function GET(req: Request) {
     totals: { events: list.length, kinds: kinds.length },
     kinds,
     starterCounts,
+    proactive,
+    proactiveCtr,
     dailySeries,
   });
 }

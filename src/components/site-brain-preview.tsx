@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Brain, ChevronDown } from "lucide-react";
+import { Brain, ChevronDown, RefreshCw } from "lucide-react";
 import { buildSiteContextSnapshot } from "@/lib/site-brain-snapshot";
 import { formatSiteContext } from "@/lib/site-brain";
 
@@ -11,6 +11,7 @@ import { formatSiteContext } from "@/lib/site-brain";
 
 export function SiteBrainPreview() {
   const [open, setOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <div className="mt-6 pt-6 border-t border-border">
@@ -28,7 +29,19 @@ export function SiteBrainPreview() {
       </p>
 
       {open && (
-        <SnapshotBlock />
+        <>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-[10px] text-muted italic">Snapshot taken {refreshKey === 0 ? "on open" : "just now"}.</span>
+            <button
+              onClick={() => setRefreshKey((k) => k + 1)}
+              className="text-[10px] uppercase tracking-widest text-muted hover:text-emerald inline-flex items-center gap-1 transition"
+              title="Re-read your local stores — useful after adding work in another tab"
+            >
+              <RefreshCw className="size-2.5" /> Refresh
+            </button>
+          </div>
+          <SnapshotBlock key={refreshKey} />
+        </>
       )}
     </div>
   );
@@ -36,7 +49,8 @@ export function SiteBrainPreview() {
 
 function SnapshotBlock() {
   // Build the snapshot lazily — only when the user expands the panel,
-  // so we don't pay the (cheap) cost on every Settings render.
+  // so we don't pay the (cheap) cost on every Settings render. The
+  // parent's key prop forces a re-mount + re-read on Refresh.
   const snapshot = buildSiteContextSnapshot("preview");
   const block = formatSiteContext(snapshot);
 

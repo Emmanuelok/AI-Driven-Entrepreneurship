@@ -160,6 +160,8 @@ type Telemetry = {
   totals: { events: number; kinds: number };
   kinds: { kind: string; total: number }[];
   starterCounts: { graph: number; page: number; other: number };
+  proactive: { shown: { graph: number; page: number }; clicked: { graph: number; page: number } };
+  proactiveCtr: { graph: number | null; page: number | null };
   dailySeries: Record<string, { day: string; n: number }[]>;
 };
 
@@ -227,6 +229,19 @@ function TelemetrySection() {
         </div>
       )}
 
+      {(data.proactive.shown.graph + data.proactive.shown.page > 0) && (
+        <div className="rounded-xl border border-[#2a3a35] bg-[#0a0f0d] p-4 mb-5">
+          <div className="text-[10px] uppercase tracking-widest text-[#8aa39a] mb-3">Proactive nudge — CTR by source</div>
+          <div className="grid grid-cols-2 gap-3">
+            <CtrCell label="Graph nudge" tone="#2cc295" shown={data.proactive.shown.graph} clicked={data.proactive.clicked.graph} ctr={data.proactiveCtr.graph} />
+            <CtrCell label="Page nudge"  tone="#6c8cff" shown={data.proactive.shown.page}  clicked={data.proactive.clicked.page}  ctr={data.proactiveCtr.page} />
+          </div>
+          <p className="mt-3 text-[10px] text-[#6b8079] leading-relaxed">
+            CTR &gt; ~20% → the proactive surface is earning its real estate. Below ~5% → consider tightening the freshness gate (currently ≥ 1 edge in 7d) or improving the starter copy.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-2">
         {data.kinds.map((k) => (
           <div key={k.kind} className="flex items-center gap-3 px-3 py-2 rounded-xl border border-[#2a3a35] bg-[#0a0f0d]">
@@ -247,6 +262,18 @@ function TelemetrySection() {
         )}
       </div>
     </section>
+  );
+}
+
+function CtrCell({ label, tone, shown, clicked, ctr }: { label: string; tone: string; shown: number; clicked: number; ctr: number | null }) {
+  return (
+    <div className="rounded-lg border border-[#2a3a35] bg-[#141d1a] p-3">
+      <div className="text-[10px] uppercase tracking-widest text-[#8aa39a]">{label}</div>
+      <div className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold" style={{ color: tone }}>
+        {ctr === null ? "—" : `${Math.round(ctr * 100)}%`}
+      </div>
+      <div className="text-[10px] text-[#8aa39a] mt-0.5">{clicked} / {shown} clicks per impression</div>
+    </div>
   );
 }
 
