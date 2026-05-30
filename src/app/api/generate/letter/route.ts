@@ -4,7 +4,7 @@ import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 export const runtime = "nodejs";
 
 type Body = {
-  reason: "milestone" | "session-end" | "weekly" | "pattern-notice" | "first-week";
+  reason: "milestone" | "session-end" | "weekly" | "pattern-notice" | "first-week" | "discipline-checkin";
   name: string;
   field: string;
   genomeVoice: string;
@@ -21,6 +21,30 @@ export async function POST(req: Request) {
 
   const brain = siteSystemBlock(readSiteContext(raw));
 
+  // The discipline check-in is a distinct letter shape: Sage uses the
+  // [DISCIPLINE] block already in the brain context (the student's
+  // field-specific AI opportunities) to ask a pointed "are you working
+  // in the direction your discipline makes you unfairly good at?"
+  const isCheckin = body.reason === "discipline-checkin";
+  const letterGuidance = isCheckin
+    ? `A Sage discipline check-in letter is:
+- Addressed to ${body.name} by first name
+- Names ONE of the AI opportunities from their discipline (see the [DISCIPLINE] block above) specifically, by name
+- Honestly asks whether their recent work is moving toward or away from that unfair advantage
+- One concrete next step that nudges them toward their discipline's leverage — not generic "keep going"
+- Never lectures; a mentor noticing, not a careers office
+- A warm signature line
+
+Length: 180-280 words. Markdown. No emoji.`
+    : `A Sage letter is:
+- Addressed to ${body.name} by first name
+- One specific opening observation (not "I noticed your progress")
+- One concrete reflection on what changed in them this week/session
+- One challenge for next week — specific, achievable, slightly uncomfortable
+- A signature line that's warm but not saccharine
+
+Length: 180-280 words. Markdown. No emoji. No bullet points unless absolutely necessary.`;
+
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({
     model: "claude-sonnet-4-6",
@@ -30,14 +54,7 @@ export async function POST(req: Request) {
         type: "text",
         text: `${brain}You are Sage, a mentor at Sankofa Studio. You write occasional letters to your students — like a real mentor would. Not chat messages. Considered, written, kept. ${body.genomeVoice}
 
-A Sage letter is:
-- Addressed to ${body.name} by first name
-- One specific opening observation (not "I noticed your progress")
-- One concrete reflection on what changed in them this week/session
-- One challenge for next week — specific, achievable, slightly uncomfortable
-- A signature line that's warm but not saccharine
-
-Length: 180-280 words. Markdown. No emoji. No bullet points unless absolutely necessary.`,
+${letterGuidance}`,
         cache_control: { type: "ephemeral" },
       },
     ],
@@ -54,7 +71,7 @@ ${body.memorySummary}
 What they've done recently:
 ${body.recentActivity}
 
-Output JSON: {"title": "...", "body": "markdown letter"}`,
+${isCheckin ? "Ground the letter in their discipline's specific AI opportunities from the [DISCIPLINE] block. Name one by name.\n\n" : ""}Output JSON: {"title": "...", "body": "markdown letter"}`,
       },
     ],
   });
@@ -102,6 +119,24 @@ A challenge before we speak again: write me one paragraph about what you actuall
 I'm proud of you.
 
 — Sage`,
+    };
+  }
+  if (b.reason === "discipline-checkin") {
+    return {
+      title: `${first}, are you working where you're strongest?`,
+      body: `Dear ${first},
+
+I've been thinking about your field — ${b.field} — and the specific kind of advantage it hands you. Not a generic one. A particular one that most founders chasing the same problems simply don't have.
+
+Here's the honest question I want to sit with you on: is your recent work moving *toward* that advantage, or away from it? It's an easy thing to drift from. The loudest opportunities are rarely the ones your discipline makes you unfairly good at — they're just the ones everyone's talking about.
+
+When I look at what you've touched lately${b.recentActivity ? ` — ${b.recentActivity.split("/")[0]}` : ""}, I want to ask you to draw one line. Pick the single problem from your discipline that you could attack better than 95% of people, *because* of what you've studied. Then point your next two weeks at it.
+
+You don't have to abandon what you're doing. Just check the compass.
+
+— Sage
+
+*(Wire \`ANTHROPIC_API_KEY\` for a letter that names your discipline's specific opportunities.)*`,
     };
   }
   if (b.reason === "weekly") {

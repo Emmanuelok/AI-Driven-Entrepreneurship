@@ -8,7 +8,7 @@ import { useMe } from "@/store/me";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import { Card, Badge, Button, EmptyState } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
-import { Mail, ArrowLeft, Archive, Sparkles, Clock } from "lucide-react";
+import { Mail, ArrowLeft, Archive, Sparkles, Clock, GraduationCap } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ConnectionsPanel } from "@/components/connections-panel";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
@@ -22,7 +22,7 @@ export default function LettersPage() {
   const visible = letters.filter((l) => !l.archived);
   const selected = visible.find((l) => l.id === selectedId);
 
-  async function requestWeekly() {
+  async function requestLetter(reason: "weekly" | "discipline-checkin") {
     if (!user || generating) return;
     setGenerating(true);
     try {
@@ -30,7 +30,7 @@ export default function LettersPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          reason: "weekly",
+          reason,
           name: user.name,
           field: user.field,
           genomeVoice: genomeVoiceInstruction(genome),
@@ -41,12 +41,16 @@ export default function LettersPage() {
         }),
       });
       const data = await res.json() as { title: string; body: string };
-      const id = writeLetter({ reason: "Weekly reflection", title: data.title, body: data.body });
+      const label = reason === "discipline-checkin" ? "Discipline check-in" : "Weekly reflection";
+      const id = writeLetter({ reason: label, title: data.title, body: data.body });
       setSelectedId(id);
     } finally {
       setGenerating(false);
     }
   }
+
+  const requestWeekly = () => requestLetter("weekly");
+  const requestCheckin = () => requestLetter("discipline-checkin");
 
   return (
     <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
@@ -64,9 +68,16 @@ export default function LettersPage() {
             Sage writes occasionally — after a real session, at milestones, when patterns are worth noticing. Not chat messages. Considered letters, like a real mentor would write.
           </p>
         </div>
-        <Button onClick={requestWeekly} disabled={generating}>
-          <Sparkles className="size-4" /> {generating ? "Sage is writing…" : "Ask for a weekly letter"}
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          {user?.field && user.field !== "General" && (
+            <Button variant="secondary" onClick={requestCheckin} disabled={generating}>
+              <GraduationCap className="size-4" /> Discipline check-in
+            </Button>
+          )}
+          <Button onClick={requestWeekly} disabled={generating}>
+            <Sparkles className="size-4" /> {generating ? "Sage is writing…" : "Ask for a weekly letter"}
+          </Button>
+        </div>
       </div>
 
       {visible.length === 0 ? (
