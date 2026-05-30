@@ -20,13 +20,38 @@ const CANVAS_H = 1600;
 const NODE_W = 280;
 const NODE_H_MIN = 140;
 
-export function FlowCanvas({ flow }: { flow: Flow }) {
+// Lightweight peer-presence shape used to render lock indicators on
+// individual nodes. Mirrors src/lib/flow-presence.ts without importing
+// it (the canvas is environment-agnostic — the page wires presence in).
+export type FlowCanvasPeer = {
+  userId: string;
+  displayName: string;
+  color: string;
+  selectedNodeId: string | null;
+};
+
+export function FlowCanvas({ flow, peers = [], onSelectedChange }: { flow: Flow; peers?: FlowCanvasPeer[]; onSelectedChange?: (id: string | null) => void }) {
   const { addNode, removeNode, moveNode, patchNodeConfig, setNodeLabel, setNodeStatus, setNodeOutput, addEdge, removeEdge } = useFlow();
   const router = useRouter();
   const { createVenture } = useStore();
   const { createProject } = useBuild();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, _setSelectedIdRaw] = useState<string | null>(null);
+  // Wrap setSelectedId so the page's presence-track call sees the
+  // change. Avoids leaking onSelectedChange callbacks into every
+  // setSelectedId call site below.
+  const setSelectedId = (id: string | null) => {
+    _setSelectedIdRaw(id);
+    onSelectedChange?.(id);
+  };
+
+  // Peer locks: which other user is editing which node right now.
+  // Stored as nodeId → peer so the NodeView can render a coloured chip.
+  const peerByNodeId = useMemo(() => {
+    const m = new Map<string, FlowCanvasPeer>();
+    for (const p of peers) if (p.selectedNodeId) m.set(p.selectedNodeId, p);
+    return m;
+  }, [peers]);
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [runningAll, setRunningAll] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(true);
@@ -244,6 +269,7 @@ export function FlowCanvas({ flow }: { flow: Flow }) {
                 key={n.id}
                 node={n}
                 selected={n.id === selectedId}
+                peerLock={peerByNodeId.get(n.id) ?? null}
                 onSelect={() => setSelectedId(n.id)}
                 onMouseDown={(e) => onMouseDownNode(e, n.id)}
                 onRun={() => run(n)}
@@ -280,8 +306,9 @@ export function FlowCanvas({ flow }: { flow: Flow }) {
 }
 
 // ───────────────────────────────────────────────────────────────────────
-function NodeView({ node, selected, onSelect, onMouseDown, onRun, onPort, onDelete }: {
+function NodeView({ node, selected, peerLock, onSelect, onMouseDown, onRun, onPort, onDelete }: {
   node: FlowNode; selected: boolean;
+  peerLock: FlowCanvasPeer | null;
   onSelect: () => void;
   onMouseDown: (e: React.MouseEvent) => void;
   onRun: () => void;
@@ -301,9 +328,21 @@ function NodeView({ node, selected, onSelect, onMouseDown, onRun, onPort, onDele
     <div
       onMouseDown={onMouseDown}
       onClick={onSelect}
-      className={`absolute rounded-2xl border-2 backdrop-blur-sm shadow-2xl select-none cursor-move ${tone[m.color]} ${selected ? "ring-2 ring-emerald/60" : ""}`}
-      style={{ left: node.x, top: node.y, width: NODE_W }}
+      className={`absolute rounded-2xl border-2 backdrop-blur-sm shadow-2xl select-none cursor-move ${tone[m.color]} ${selected ? "ring-2 ring-emerald/60" : ""} ${peerLock ? "outline outline-2 outline-offset-2" : ""}`}
+      style={{ left: node.x, top: node.y, width: NODE_W, outlineColor: peerLock?.color }}
     >
+      {/* Peer-lock chip — shows who else is currently editing this node */}
+      {peerLock && (
+        <span
+          className="absolute -top-2.5 -right-2.5 z-10 size-5 rounded-full border-2 border-surface text-[9px] font-bold flex items-center justify-center text-black shadow-md"
+          style={{ background: peerLock.color }}
+          title={`${peerLock.displayName} is editing this node`}
+          data-no-drag
+        >
+          {peerLock.displayName[0]?.toUpperCase() ?? "?"}
+        </span>
+      )}
+
       {/* In/Out ports */}
       <button
         data-no-drag

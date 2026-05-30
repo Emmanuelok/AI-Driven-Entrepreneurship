@@ -14,6 +14,7 @@ import { AGENTS } from "@/lib/agents";
 import { useStore, level, xpInLevel, xpToNextLevel } from "@/store";
 import { useExt } from "@/store/extensions";
 import { useMe } from "@/store/me";
+import { useDisciplineCheckinTrigger } from "@/lib/auto-checkin";
 import { Card, Badge, Stat, Button } from "@/components/ui";
 import { CohortAssignmentsWidget } from "@/components/cohort-assignments-widget";
 import { getRecommendations } from "@/lib/recommendations";
@@ -49,6 +50,11 @@ export default function Dashboard() {
   const { goals, recentActivity, memories, prefs, todaysBrief, setBrief, markPriorityDone } = useMe();
   const [briefing, setBriefing] = useState(false);
   const [greeting, setGreeting] = useState("Welcome back");
+
+  // Auto-fires a discipline check-in letter (once per session, cooled
+  // down 14 days) when the user's connection-graph signal is strong.
+  // No-op when conditions don't hold; never blocks render.
+  useDisciplineCheckinTrigger();
 
   // Compute time-dependent values only on the client to avoid SSR/CSR mismatch.
   useEffect(() => {

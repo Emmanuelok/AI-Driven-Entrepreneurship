@@ -18,10 +18,12 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   const flow = flows.find((f) => f.id === id);
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
-  // Presence: who else is in this flow right now. Hidden when signed
-  // out or when there's only me — keeps the header quiet for the
-  // single-user case.
-  const peers = useFlowPresence(id, user ? { userId: user.id, displayName: user.name || "Member" } : null);
+  // Presence: who else is in this flow right now + which node each is
+  // currently looking at. selectedId is bubbled up from the canvas via
+  // onSelectedChange and tracked into the presence payload so peers
+  // see lock chips on the same nodes.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const peers = useFlowPresence(id, user ? { userId: user.id, displayName: user.name || "Member" } : null, selectedId);
 
   // Track the last updatedAt we shipped to the cloud so we can render
   // an honest "synced N seconds ago" pill instead of guessing.
@@ -120,7 +122,11 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         <SyncBadge lastSyncedAt={lastSyncedAt} remoteBump={remoteBump} />
       </header>
 
-      <FlowCanvas flow={flow} />
+      <FlowCanvas
+        flow={flow}
+        peers={peers.map((p) => ({ userId: p.userId, displayName: p.displayName, color: p.color, selectedNodeId: p.selectedNodeId }))}
+        onSelectedChange={setSelectedId}
+      />
     </div>
   );
 }
