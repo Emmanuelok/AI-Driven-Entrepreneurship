@@ -19,6 +19,7 @@ describe("aiGuard", () => {
     if (g.ok) {
       expect(g.apiKey).toBeNull();
       expect(g.keySource).toBe("none");
+      expect(g.userId).toBeNull();
     }
   });
 
@@ -68,5 +69,14 @@ describe("aiGuard", () => {
       const body = await blocked.response.json();
       expect(body.error).toBe("rate_limited");
     }
+  });
+
+  it("keys the bucket by IP when no auth token resolves", async () => {
+    // Two different IPs → two independent buckets even at maxCalls: 1.
+    const scope = `t-${Date.now()}-ip-split`;
+    const ip1 = await aiGuard({ req: req({ "x-forwarded-for": "1.1.1.1" }), scope, maxCalls: 1 });
+    const ip2 = await aiGuard({ req: req({ "x-forwarded-for": "2.2.2.2" }), scope, maxCalls: 1 });
+    expect(ip1.ok).toBe(true);
+    expect(ip2.ok).toBe(true);
   });
 });

@@ -25,6 +25,7 @@
 import { rateLimit, rateLimited, clientIp, type RateLimitResult } from "@/lib/rate-limit";
 import { resolveAnthropicKey } from "@/lib/anthropic-key";
 import { enforceQuotaForPlatform } from "@/lib/quota";
+import { resolveAuthedUserId } from "@/lib/authed-user";
 
 export type AiGuardOptions = {
   req: Request;
@@ -41,13 +42,21 @@ export type AiGuardResult =
       ok: true;
       apiKey: string | null;
       keySource: "byok" | "platform" | "none";
+      userId: string | null;            // resolved if a valid Bearer token was supplied
       rateLimit: RateLimitResult;
     };
 
 export async function aiGuard(opts: AiGuardOptions): Promise<AiGuardResult> {
+  // Resolve the authed user FIRST so we can key the rate-limit bucket
+  // by user instead of IP. Per-user keying prevents the "spin up 5
+  // proxies to get 5× the limit" evasion that per-IP keying allows.
+  // Anonymous callers fall back to IP — better than nothing.
+  const userId = await resolveAuthedUserId(opts.req);
+  const ipKey = userId ? `user:${userId}` : `ip:${clientIp(opts.req)}`;
+
   const rl = rateLimit({
     scope: opts.scope,
-    ipKey: clientIp(opts.req),
+    ipKey,
     maxCalls: opts.maxCalls,
     windowMs: opts.windowMs,
     maxTokensIn: opts.maxTokensIn,
@@ -63,5 +72,5 @@ export async function aiGuard(opts: AiGuardOptions): Promise<AiGuardResult> {
   const quotaBlocked = await enforceQuotaForPlatform(opts.req, keySource);
   if (quotaBlocked) return { ok: false, response: quotaBlocked };
 
-  return { ok: true, apiKey, keySource, rateLimit: rl };
+  return { ok: true, apiKey, keySource, userId, rateLimit: rl };
 }
