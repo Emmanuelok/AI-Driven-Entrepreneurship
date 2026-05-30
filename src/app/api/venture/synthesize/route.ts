@@ -1,12 +1,27 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { aiGuard } from "@/lib/ai-guard";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type Interview = { name: string; role: string; notes: string; verdict: string; willingnessToPay?: number };
-type Body = { ventureName: string; tagline: string; interviews: Interview[]; canvas?: Record<string, string> };
+const InterviewShape = z.object({
+  name: z.string().max(200),
+  role: z.string().max(200),
+  notes: z.string().max(20_000),
+  verdict: z.string().max(200),
+  willingnessToPay: z.number().finite().min(0).max(10_000_000).optional(),
+});
+const Body = z.object({
+  ventureName: z.string().min(1).max(200),
+  tagline: z.string().max(400),
+  interviews: z.array(InterviewShape).max(200),
+  canvas: z.record(z.string(), z.string().max(8000)).optional(),
+}).loose();
+type Interview = z.infer<typeof InterviewShape>;
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You synthesize raw customer-discovery interviews into a strategic picture.
 
@@ -36,15 +51,16 @@ export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "synthesize", maxCalls: 8 });
   if (!guard.ok) return guard.response;
 
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   if (!guard.apiKey) {
     return Response.json(fallback(body));
   }
   if (body.interviews.length < 3) {
     return Response.json({ error: "need_more_interviews", message: "Log at least 3 interviews before synthesizing." }, { status: 400 });
   }
-  const brain = siteSystemBlock(readSiteContext(raw));
+  const brain = siteSystemBlock(readSiteContext(parsed.raw));
   const client = new Anthropic({ apiKey: guard.apiKey });
   const payload = body.interviews.map((iv, i) => `[#${i + 1}] ${iv.name} · ${iv.role} · verdict=${iv.verdict}${iv.willingnessToPay ? ` · WTP=$${iv.willingnessToPay}` : ""}\n${iv.notes}`).join("\n\n");
   const res = await client.messages.create({

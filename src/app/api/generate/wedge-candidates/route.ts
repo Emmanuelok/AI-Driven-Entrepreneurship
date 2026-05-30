@@ -17,7 +17,15 @@ export const dynamic = "force-dynamic";
 //
 // Output JSON: { "candidates": [{ id, sector, region, title, affected, whyYou }] }
 
-type Body = { field?: string; region?: string; userHint?: string };
+import { z } from "zod";
+import { parseBodyWithRaw } from "@/lib/parse-body";
+
+const Body = z.object({
+  field: z.string().max(200).optional(),
+  region: z.string().max(200).optional(),
+  userHint: z.string().max(2000).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You generate 6 specific, attackable wedge problems for an African / developing-world undergraduate about to spend ONE HOUR shipping their first artifact. Pure JSON output.
 
@@ -48,8 +56,10 @@ export async function POST(req: Request) {
   const rl = rateLimit({ scope: "wedge-candidates", ipKey: clientIp(req), maxCalls: 6 });
   if (!rl.ok) return rateLimited(rl);
 
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
 

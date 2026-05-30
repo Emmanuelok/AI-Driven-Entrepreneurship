@@ -1,21 +1,30 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type ArtifactKind = "problem-brief" | "interview-script" | "loi" | "pricing-page" | "outreach-script" | "pitch-summary" | "landing-copy";
+const ArtifactKind = z.enum(["problem-brief", "interview-script", "loi", "pricing-page", "outreach-script", "pitch-summary", "landing-copy"]);
+type ArtifactKind = z.infer<typeof ArtifactKind>;
 
-type Body = {
-  kind: ArtifactKind;
-  ventureName: string;
-  problem: string;
-  persona: { name: string; role: string; location: string; pain: string };
-  sliceText: string;
-  whyMe: string;
-  genomeVoice: string;
-  userName: string;
-  userField: string;
-};
+const Body = z.object({
+  kind: ArtifactKind,
+  ventureName: z.string().min(1).max(200),
+  problem: z.string().max(8000),
+  persona: z.object({
+    name: z.string().max(200),
+    role: z.string().max(200),
+    location: z.string().max(200),
+    pain: z.string().max(2000),
+  }),
+  sliceText: z.string().max(4000),
+  whyMe: z.string().max(4000),
+  genomeVoice: z.string().max(2000),
+  userName: z.string().max(80),
+  userField: z.string().max(200),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const PROMPTS: Record<ArtifactKind, (b: Body) => { system: string; user: string }> = {
   "problem-brief": (b) => ({
@@ -140,8 +149,10 @@ No buzzwords. Local context.`,
 };
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const promptPair = PROMPTS[body.kind];
   if (!promptPair) return Response.json({ error: "unknown kind" }, { status: 400 });

@@ -1,23 +1,27 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type Body = {
-  question: string;
-  expectedConcepts: string[];
-  studentAnswer: string;
-  genomeVoice: string;
-  firstName: string;
-};
+const Body = z.object({
+  question: z.string().min(1).max(4000),
+  expectedConcepts: z.array(z.string().max(400)).max(20),
+  studentAnswer: z.string().max(8000),
+  genomeVoice: z.string().max(2000),
+  firstName: z.string().max(80),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
 
-  const brain = siteSystemBlock(readSiteContext(raw));
+  const brain = siteSystemBlock(readSiteContext(parsed.raw));
 
   const client = new Anthropic({ apiKey });
   const res = await client.messages.create({

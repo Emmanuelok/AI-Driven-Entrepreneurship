@@ -1,19 +1,26 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Body = {
-  prompt: string;
-  currentCode: string;
-  templateName?: string;
-  history?: { role: "user" | "assistant"; content: string }[];
-  genomeVoice?: string;
-  userName?: string;
-  field?: string;
-  imageDataUrl?: string; // when set, Claude vision is used to rebuild the UI in the image
-};
+const Body = z.object({
+  prompt: z.string().min(1).max(16000),
+  currentCode: z.string().max(200_000),
+  templateName: z.string().max(200).optional(),
+  history: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().max(20_000),
+  })).max(40).optional(),
+  genomeVoice: z.string().max(2000).optional(),
+  userName: z.string().max(80).optional(),
+  field: z.string().max(200).optional(),
+  // Vision: base64 data URLs can get large; cap at ~5MB.
+  imageDataUrl: z.string().max(7_000_000).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You are an expert front-end engineer pair-programming with a student inside the Sankofa Studio AI Build Studio.
 
@@ -40,10 +47,11 @@ If the user asks a question (instead of a build request), reply normally with a 
 Do not include <link rel="stylesheet"> from external sources. Do not include <script src="..."> from CDNs unless the user explicitly requests it. Web Speech API, Web Serial, Canvas, fetch to same-origin are all fine.`;
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  const brain = siteSystemBlock(readSiteContext(raw));
+  const brain = siteSystemBlock(readSiteContext(parsed.raw));
 
   if (!apiKey) {
     return new Response(makeFallback(body), { headers: { "Content-Type": "text/plain; charset=utf-8", "x-mode": "demo" } });

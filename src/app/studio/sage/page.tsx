@@ -9,8 +9,9 @@ import { useLetters } from "@/store/letters";
 import { Markdown } from "@/components/markdown";
 import { useVoice } from "@/hooks/use-voice";
 import { genomeVoiceInstruction } from "@/lib/genome";
-import { getRecommendations } from "@/lib/recommendations";
-import { Brain, Mic, MicOff, Send, ArrowLeft, Volume2, VolumeX, Sparkles, X, Mail } from "lucide-react";
+import { getRecommendations, resolveDepartment } from "@/lib/recommendations";
+import { getDepartment } from "@/lib/disciplines";
+import { Brain, Mic, MicOff, Send, ArrowLeft, Volume2, VolumeX, Sparkles, X, Mail, GraduationCap, Lightbulb } from "lucide-react";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -244,6 +245,7 @@ export default function SagePage() {
                 <p className="font-[family-name:var(--font-display)] text-2xl sm:text-3xl leading-snug">
                   {opening}
                 </p>
+                <DisciplineStarters userField={user?.field} onPick={(text) => setInput(text)} />
               </motion.div>
             )}
 
@@ -421,6 +423,40 @@ export default function SagePage() {
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// Discipline-aware starter prompts. Mirrors the Build Studio's
+// "Start from a <Department> angle" strip: surfaces three of the
+// student's discipline-grounded angles as one-click chat starters.
+// Sage's [DISCIPLINE] brain block keeps the follow-up grounded.
+function DisciplineStarters({ userField, onPick }: { userField: string | undefined; onPick: (text: string) => void }) {
+  const dept = userField ? resolveDepartment(userField) : undefined;
+  const full = dept ? getDepartment(dept.id)?.department : null;
+  if (!full || full.aiOpportunities.length === 0) return null;
+  return (
+    <div className="mt-10 mx-auto max-w-3xl">
+      <div className="flex items-center justify-center gap-2 mb-3 text-[10px] uppercase tracking-[0.22em] text-emerald">
+        <GraduationCap className="size-3" /> Start from your discipline
+      </div>
+      <div className="grid sm:grid-cols-3 gap-2.5">
+        {full.aiOpportunities.slice(0, 3).map((op) => {
+          const seed = `I want to think with you about "${op.title}". My discipline's angle: ${op.why}. What's the smallest version of this I could test with one real person this week?`;
+          return (
+            <button
+              key={op.title}
+              onClick={() => onPick(seed)}
+              className="text-left rounded-2xl border border-emerald/30 bg-emerald/5 hover:bg-emerald/10 hover:border-emerald/50 transition p-3.5 group"
+            >
+              <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-widest text-emerald mb-1.5">
+                <Lightbulb className="size-2.5" /> Angle
+              </div>
+              <div className="text-xs font-medium leading-snug line-clamp-3">{op.title}</div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
