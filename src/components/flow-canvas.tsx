@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Play, Loader2, Check, AlertCircle, Trash2, Link2, X, Code as CodeIcon, FileText, Boxes } from "lucide-react";
+import { Play, Loader2, Check, AlertCircle, Trash2, Link2, X, Code as CodeIcon, FileText, Boxes, Beaker } from "lucide-react";
 import { useFlow, resolveRefs, topoSort, type Flow, type FlowNode } from "@/store/flow";
 import { NODE_META, NODE_KINDS_ORDERED, type NodeKind } from "@/lib/flow-nodes";
 import { runNode } from "@/lib/flow-run";
@@ -77,10 +77,14 @@ export function FlowCanvas({ flow }: { flow: Flow }) {
   }
 
   // ── Run a single node ────────────────────────────────────────────
-  async function run(node: FlowNode) {
+  // `overridePrompt` supports the "Play with" mode: the node runs
+  // with a one-off prompt without that prompt being persisted in the
+  // store. Useful for sketching alternatives before committing them.
+  async function run(node: FlowNode, overridePrompt?: string) {
     setNodeStatus(flow.id, node.id, "running");
     try {
-      const promptRaw = node.config.prompt
+      const promptRaw = overridePrompt
+        ?? node.config.prompt
         ?? (node.kind === "problem" ? (node.config.problemId ? PROBLEMS.find((p) => p.id === node.config.problemId)?.title ?? "" : "") : "")
         ?? "";
       const resolved = resolveRefs(promptRaw, flow.nodes);
@@ -266,6 +270,8 @@ export function FlowCanvas({ flow }: { flow: Flow }) {
             onChangeConfig={(p) => patchNodeConfig(flow.id, selected.id, p)}
             onChangeLabel={(l) => setNodeLabel(flow.id, selected.id, l)}
             onClose={() => setSelectedId(null)}
+            onTryWith={(override) => run(selected, override)}
+            onCommitPrompt={(prompt) => patchNodeConfig(flow.id, selected.id, { prompt })}
           />
         )}
       </div>
@@ -349,14 +355,29 @@ function NodeView({ node, selected, onSelect, onMouseDown, onRun, onPort, onDele
 }
 
 // ───────────────────────────────────────────────────────────────────────
-function PropertiesPanel({ node, onChangeConfig, onChangeLabel, onClose }: {
+function PropertiesPanel({ node, onChangeConfig, onChangeLabel, onClose, onTryWith, onCommitPrompt }: {
   node: FlowNode;
   flowId: string;
   onChangeConfig: (p: Partial<FlowNode["config"]>) => void;
   onChangeLabel: (label: string) => void;
   onClose: () => void;
+  onTryWith: (overridePrompt: string) => void;
+  onCommitPrompt: (prompt: string) => void;
 }) {
   const m = NODE_META[node.kind];
+  // "Play with" state — a sandbox prompt the user can re-run without
+  // saving it back to the node config. Useful when sketching
+  // alternatives ("what if I asked for 3 personas instead of 1?")
+  // before committing to a permanent change.
+  const [playOpen, setPlayOpen] = useState(false);
+  const [playDraft, setPlayDraft] = useState(node.config.prompt ?? "");
+  // Reset the draft when switching nodes.
+  const lastIdRef = useRef(node.id);
+  if (lastIdRef.current !== node.id) {
+    lastIdRef.current = node.id;
+    setPlayDraft(node.config.prompt ?? "");
+    setPlayOpen(false);
+  }
   return (
     <aside className="w-80 shrink-0 border-l border-border bg-surface-2/20 overflow-y-auto">
       <div className="p-4 border-b border-border flex items-center justify-between">
@@ -426,6 +447,49 @@ function PropertiesPanel({ node, onChangeConfig, onChangeLabel, onClose }: {
               {node.output.tokensIn !== undefined && <>in {node.output.tokensIn} · out {node.output.tokensOut} · </>}
               {node.output.durationMs}ms
             </div>
+          </div>
+        )}
+
+        {/* Play with — sandbox an alternate prompt without committing it */}
+        {node.kind !== "note" && (
+          <div className="pt-3 border-t border-border/50">
+            <button
+              onClick={() => setPlayOpen(!playOpen)}
+              className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-emerald hover:text-amber transition"
+            >
+              <span className="inline-flex items-center gap-1.5"><Beaker className="size-2.5" /> Play with this node</span>
+              <span className="text-muted">{playOpen ? "Hide" : "Open"}</span>
+            </button>
+            {playOpen && (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  value={playDraft}
+                  onChange={(e) => setPlayDraft(e.target.value)}
+                  rows={5}
+                  placeholder="Sketch an alternate prompt. Hit Try to run it without saving."
+                  className="w-full bg-[#06100d] border border-emerald/30 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald font-mono resize-y"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => onTryWith(playDraft)}
+                    disabled={!playDraft.trim()}
+                    className="text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-emerald bg-emerald/10 text-emerald hover:bg-emerald/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Try without saving
+                  </button>
+                  <button
+                    onClick={() => { onCommitPrompt(playDraft); setPlayOpen(false); }}
+                    disabled={!playDraft.trim() || playDraft === (node.config.prompt ?? "")}
+                    className="text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full border border-amber bg-amber/10 text-amber hover:bg-amber/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Keep it
+                  </button>
+                </div>
+                <p className="text-[9px] text-muted leading-relaxed">
+                  &quot;Try&quot; re-runs this node with the draft above; the result writes to <strong className="text-foreground">Last output</strong>. &quot;Keep it&quot; replaces the saved Prompt with the draft.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

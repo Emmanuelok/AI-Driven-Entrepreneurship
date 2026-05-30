@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import { useFlow } from "@/store/flow";
 import { FlowCanvas } from "@/components/flow-canvas";
 import { schedulePush } from "@/lib/flow-sync";
+import { subscribeToFlow } from "@/lib/flow-realtime";
 import { ArrowLeft, Pencil, Check, Cloud, CloudOff } from "lucide-react";
 
 export default function FlowDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +34,26 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
     const t = setTimeout(() => setLastSyncedAt(Date.now()), 1600);
     return () => clearTimeout(t);
   }, [flow]);
+
+  // Realtime co-edit: subscribe to remote UPDATEs and DELETEs for
+  // this flow id. Updates trigger a refetch + LWW merge; deletes
+  // drop the flow from the local store. Subscription lifecycle is
+  // tied to the page mount.
+  useEffect(() => {
+    return subscribeToFlow(id);
+  }, [id]);
+
+  // Pulse the sync pill when remote updatedAt advances ahead of ours
+  // (i.e. someone else just edited and we pulled the change). Local
+  // edits don't trigger this because they share the same updatedAt
+  // value through both ref + state.
+  const [remoteBump, setRemoteBump] = useState(0);
+  useEffect(() => {
+    if (!flow) return;
+    if (prevUpdatedRef.current !== null && flow.updatedAt > prevUpdatedRef.current + 100) {
+      setRemoteBump((n) => n + 1);
+    }
+  }, [flow?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!hydrated) return <div className="p-8 text-sm text-muted">Loading…</div>;
   if (!flow) { notFound(); return null; }
@@ -72,7 +93,7 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
             </button>
           )}
         </div>
-        <SyncBadge lastSyncedAt={lastSyncedAt} />
+        <SyncBadge lastSyncedAt={lastSyncedAt} remoteBump={remoteBump} />
       </header>
 
       <FlowCanvas flow={flow} />
@@ -80,21 +101,29 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   );
 }
 
-function SyncBadge({ lastSyncedAt }: { lastSyncedAt: number | null }) {
-  // We hide the badge entirely when sync hasn't fired yet (initial
-  // render of an existing local flow) — keeps the header quiet until
-  // there's something to report.
-  if (lastSyncedAt === null) {
+function SyncBadge({ lastSyncedAt, remoteBump }: { lastSyncedAt: number | null; remoteBump: number }) {
+  // Flash the badge for ~1.5s when a remote update lands.
+  const [flashing, setFlashing] = useState(false);
+  useEffect(() => {
+    if (remoteBump === 0) return;
+    setFlashing(true);
+    const t = setTimeout(() => setFlashing(false), 1500);
+    return () => clearTimeout(t);
+  }, [remoteBump]);
+
+  if (lastSyncedAt === null && !flashing) {
     return (
       <span className="text-[10px] text-muted inline-flex items-center gap-1 shrink-0" title="Flow is local. Sign in to sync across devices.">
         <CloudOff className="size-3" /> Local only
       </span>
     );
   }
-  const secs = Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000));
   return (
-    <span className="text-[10px] text-emerald inline-flex items-center gap-1 shrink-0" title={`Last cloud save ${secs}s ago`}>
-      <Cloud className="size-3" /> Synced
+    <span
+      className={`text-[10px] inline-flex items-center gap-1 shrink-0 transition-colors ${flashing ? "text-amber" : "text-emerald"}`}
+      title={flashing ? "Remote edit just merged" : "Last cloud save just now"}
+    >
+      <Cloud className={`size-3 ${flashing ? "animate-pulse" : ""}`} /> {flashing ? "Remote update" : "Synced"}
     </span>
   );
 }
