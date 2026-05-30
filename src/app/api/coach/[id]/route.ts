@@ -1,6 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { COACHES, getCoach } from "@/lib/coaches";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { rateLimit, rateLimited, clientIp } from "@/lib/rate-limit";
+import { resolveAnthropicKey } from "@/lib/anthropic-key";
+import { enforceQuotaForPlatform } from "@/lib/quota";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +11,12 @@ export const dynamic = "force-dynamic";
 type Msg = { role: "user" | "assistant"; content: string };
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  // Coach chats stream up to 1500 tokens each — protect the platform
+  // key from budget drain. 30/min/IP is generous for a real
+  // conversation but stops a script from looping the endpoint.
+  const rl = rateLimit({ scope: "coach", ipKey: clientIp(req), maxCalls: 30 });
+  if (!rl.ok) return rateLimited(rl);
+
   const { id } = await ctx.params;
   const coach = getCoach(id);
   const raw = await req.json();
@@ -18,7 +27,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return Response.json({ error: "messages required" }, { status: 400 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // Resolve BYOK or platform key + enforce the daily platform quota so
+  // anonymous traffic can't burn the operator's Anthropic budget.
+  const { key: apiKey, source: keySource } = resolveAnthropicKey(req);
+  const quotaBlocked = await enforceQuotaForPlatform(req, keySource);
+  if (quotaBlocked) return quotaBlocked;
   if (!apiKey) {
     return new Response(makeFallback(coach.id, messages[messages.length - 1].content), {
       headers: { "Content-Type": "text/plain; charset=utf-8", "x-mode": "demo", "x-coach": coach.id },

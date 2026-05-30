@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const secret = url.searchParams.get("secret");
   const expected = process.env.CRON_SECRET;
-  if (expected && secret !== expected) {
+  if (!expected || secret !== expected) {
     return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 

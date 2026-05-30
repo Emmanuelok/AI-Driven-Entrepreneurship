@@ -48,31 +48,39 @@ const TEMPLATES: Record<Event, (d: Record<string, unknown>) => Rendered> = {
     body: "<p>If you can read this, Resend is wired and your team can ship product emails.</p>",
   }),
   "interview-ready": (d) => ({
-    subject: `${d.ventureName ?? "Your venture"} — pattern synthesis ready`,
+    subject: `${ef(d.ventureName, "Your venture")} — pattern synthesis ready`,
     heading: "Your interviews have a story.",
-    body: `<p>Akili just finished synthesizing the ${d.count ?? "latest batch of"} discovery interviews you logged for <strong>${d.ventureName ?? "your venture"}</strong>. The clusters, personas, and next 3 moves are waiting on the Discover tab.</p>`,
+    body: `<p>Akili just finished synthesizing the ${ef(d.count, "latest batch of")} discovery interviews you logged for <strong>${ef(d.ventureName, "your venture")}</strong>. The clusters, personas, and next 3 moves are waiting on the Discover tab.</p>`,
     cta: d.url ? { href: String(d.url), label: "Open the synthesis" } : undefined,
   }),
   "deck-feedback": (d) => ({
-    subject: `${d.coach ?? "A coach"} reviewed your pitch deck`,
-    heading: `${d.coach ?? "A coach"} weighed in.`,
-    body: `<p>You asked for eyes on your <strong>${d.ventureName ?? "pitch deck"}</strong>. Their notes are in.</p>${d.summary ? `<p style="border-left:3px solid #2cc295;padding-left:14px;color:#cfe0d8;">${escapeHtml(String(d.summary))}</p>` : ""}`,
+    subject: `${ef(d.coach, "A coach")} reviewed your pitch deck`,
+    heading: `${ef(d.coach, "A coach")} weighed in.`,
+    body: `<p>You asked for eyes on your <strong>${ef(d.ventureName, "pitch deck")}</strong>. Their notes are in.</p>${d.summary ? `<p style="border-left:3px solid #2cc295;padding-left:14px;color:#cfe0d8;">${escapeHtml(String(d.summary))}</p>` : ""}`,
     cta: d.url ? { href: String(d.url), label: "Read the full review" } : undefined,
   }),
   "weekly-digest": (d) => ({
     subject: `Sankofa weekly — ${d.shipped ?? 0} thing${(d.shipped as number) === 1 ? "" : "s"} shipped`,
     heading: "Your week in build.",
-    body: `<p>You logged <strong>${d.interviews ?? 0}</strong> interviews, shipped <strong>${d.shipped ?? 0}</strong> MVP tasks, and ran <strong>${d.aiCalls ?? 0}</strong> AI calls (about $${(typeof d.aiSpend === "number" ? d.aiSpend : 0).toFixed(2)}).</p><p>Most-touched venture: <strong>${d.topVenture ?? "—"}</strong>. Streak: ${d.streak ?? 0} days.</p>`,
+    body: `<p>You logged <strong>${d.interviews ?? 0}</strong> interviews, shipped <strong>${d.shipped ?? 0}</strong> MVP tasks, and ran <strong>${d.aiCalls ?? 0}</strong> AI calls (about $${(typeof d.aiSpend === "number" ? d.aiSpend : 0).toFixed(2)}).</p><p>Most-touched venture: <strong>${ef(d.topVenture, "—")}</strong>. Streak: ${d.streak ?? 0} days.</p>`,
     cta: { href: "/studio", label: "Open your studio" },
   }),
   "funding-deadline": (d) => ({
-    subject: `Deadline in 3 days: ${d.name ?? "funding opportunity"}`,
+    subject: `Deadline in 3 days: ${ef(d.name, "funding opportunity")}`,
     heading: "Three days left.",
-    body: `<p><strong>${d.name ?? "A funding opportunity"}</strong> closes on <strong>${d.deadline ?? "soon"}</strong>. You marked this one on your radar — now's the moment to push the application across the line.</p>`,
+    body: `<p><strong>${ef(d.name, "A funding opportunity")}</strong> closes on <strong>${ef(d.deadline, "soon")}</strong>. You marked this one on your radar — now's the moment to push the application across the line.</p>`,
     cta: d.url ? { href: String(d.url), label: "Open the application" } : undefined,
   }),
 };
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#039;" }[c]!));
+}
+
+// Escape a possibly-undefined client-supplied field for safe HTML
+// interpolation, falling back to a static default. Prevents a venture
+// named "<script>" or with stray markup from breaking the email.
+function ef(value: unknown, fallback: string): string {
+  if (value === undefined || value === null || value === "") return escapeHtml(fallback);
+  return escapeHtml(String(value));
 }
