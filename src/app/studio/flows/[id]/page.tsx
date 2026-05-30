@@ -7,9 +7,9 @@ import { useFlow } from "@/store/flow";
 import { useStore } from "@/store";
 import { FlowCanvas } from "@/components/flow-canvas";
 import { schedulePush } from "@/lib/flow-sync";
-import { subscribeToFlow } from "@/lib/flow-realtime";
+import { useFlowCrdt } from "@/lib/flow-yjs-sync";
 import { useFlowPresence } from "@/lib/flow-presence";
-import { ArrowLeft, Pencil, Check, Cloud, CloudOff } from "lucide-react";
+import { ArrowLeft, Pencil, Check, Cloud, CloudOff, Undo2, Redo2 } from "lucide-react";
 
 export default function FlowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -44,13 +44,31 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
     return () => clearTimeout(t);
   }, [flow]);
 
-  // Realtime co-edit: subscribe to remote UPDATEs and DELETEs for
-  // this flow id. Updates trigger a refetch + LWW merge; deletes
-  // drop the flow from the local store. Subscription lifecycle is
-  // tied to the page mount.
+  // Phase 3b: Yjs CRDT + Supabase broadcast for live multi-peer
+  // co-edit. Replaces the Phase 3a postgres_changes refetch path.
+  // The hook bridges local zustand mutations into Y.Doc, broadcasts
+  // them to peers, applies incoming updates, and reprojects back into
+  // zustand. Persistence (cloud_flows JSONB) still rides via the
+  // existing schedulePush.
+  const crdt = useFlowCrdt(flow);
+
+  // Cmd/Ctrl+Z → undo, Cmd/Ctrl+Shift+Z → redo. Skips when focus is
+  // in a textarea/input so the browser-native undo for text edits
+  // keeps working.
   useEffect(() => {
-    return subscribeToFlow(id);
-  }, [id]);
+    if (!crdt) return;
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      const cmd = e.metaKey || e.ctrlKey;
+      if (!cmd || e.key.toLowerCase() !== "z") return;
+      e.preventDefault();
+      if (e.shiftKey) crdt!.redo(); else crdt!.undo();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [crdt]);
 
   // Pulse the sync pill when remote updatedAt advances ahead of ours
   // (i.e. someone else just edited and we pulled the change). Local
@@ -117,6 +135,26 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
             {peers.length > 5 && (
               <span className="size-5 rounded-full border-2 border-surface bg-surface-2 text-[9px] text-muted flex items-center justify-center">+{peers.length - 5}</span>
             )}
+          </div>
+        )}
+        {crdt && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => crdt.undo()}
+              className="size-6 rounded-md hover:bg-surface-2 text-muted hover:text-foreground inline-flex items-center justify-center transition"
+              title="Undo (Cmd/Ctrl+Z)"
+              aria-label="Undo"
+            >
+              <Undo2 className="size-3" />
+            </button>
+            <button
+              onClick={() => crdt.redo()}
+              className="size-6 rounded-md hover:bg-surface-2 text-muted hover:text-foreground inline-flex items-center justify-center transition"
+              title="Redo (Cmd/Ctrl+Shift+Z)"
+              aria-label="Redo"
+            >
+              <Redo2 className="size-3" />
+            </button>
           </div>
         )}
         <SyncBadge lastSyncedAt={lastSyncedAt} remoteBump={remoteBump} />
