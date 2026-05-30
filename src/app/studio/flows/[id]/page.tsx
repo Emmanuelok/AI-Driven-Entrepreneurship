@@ -4,17 +4,24 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { useFlow } from "@/store/flow";
+import { useStore } from "@/store";
 import { FlowCanvas } from "@/components/flow-canvas";
 import { schedulePush } from "@/lib/flow-sync";
 import { subscribeToFlow } from "@/lib/flow-realtime";
+import { useFlowPresence } from "@/lib/flow-presence";
 import { ArrowLeft, Pencil, Check, Cloud, CloudOff } from "lucide-react";
 
 export default function FlowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { flows, renameFlow, hydrated } = useFlow();
+  const { user } = useStore();
   const flow = flows.find((f) => f.id === id);
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
+  // Presence: who else is in this flow right now. Hidden when signed
+  // out or when there's only me — keeps the header quiet for the
+  // single-user case.
+  const peers = useFlowPresence(id, user ? { userId: user.id, displayName: user.name || "Member" } : null);
 
   // Track the last updatedAt we shipped to the cloud so we can render
   // an honest "synced N seconds ago" pill instead of guessing.
@@ -93,6 +100,23 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
             </button>
           )}
         </div>
+        {peers.length > 0 && (
+          <div className="flex items-center -space-x-1.5 shrink-0" title={`${peers.length} other${peers.length === 1 ? "" : "s"} editing`}>
+            {peers.slice(0, 5).map((p) => (
+              <span
+                key={p.userId}
+                className="size-5 rounded-full border-2 border-surface text-[9px] font-bold flex items-center justify-center text-black"
+                style={{ background: p.color }}
+                title={p.displayName}
+              >
+                {p.displayName[0]?.toUpperCase() ?? "?"}
+              </span>
+            ))}
+            {peers.length > 5 && (
+              <span className="size-5 rounded-full border-2 border-surface bg-surface-2 text-[9px] text-muted flex items-center justify-center">+{peers.length - 5}</span>
+            )}
+          </div>
+        )}
         <SyncBadge lastSyncedAt={lastSyncedAt} remoteBump={remoteBump} />
       </header>
 

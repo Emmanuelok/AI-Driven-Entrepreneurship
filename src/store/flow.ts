@@ -39,6 +39,19 @@ export type FlowNode = {
     durationMs?: number;
     runAt?: number;
   };
+  // Bounded run history (last 10). Powers the "Play with" timeline
+  // scrub — you can step back through prior runs without losing the
+  // current one. Capped at 10 so persisted store size stays sensible.
+  runs?: Array<{
+    ts: number;
+    text?: string;
+    html?: string;
+    json?: Record<string, unknown>;
+    tokensIn?: number;
+    tokensOut?: number;
+    durationMs?: number;
+    promptUsed?: string;  // the resolved prompt sent for that run
+  }>;
   status: "idle" | "running" | "ok" | "error";
   error?: string;
 };
@@ -194,7 +207,24 @@ export const useFlow = create<State>()(
         set({
           flows: get().flows.map((f) => f.id !== flowId ? f : {
             ...f,
-            nodes: f.nodes.map((n) => n.id === nodeId ? { ...n, output, status: "ok" } : n),
+            nodes: f.nodes.map((n) => {
+              if (n.id !== nodeId) return n;
+              // Append to runs[] (capped at 10) so the scrubber has
+              // history without ballooning the persisted store.
+              const runs = (n.runs ?? []).slice(-9);
+              if (output) {
+                runs.push({
+                  ts: output.runAt ?? Date.now(),
+                  text: output.text,
+                  html: output.html,
+                  json: output.json,
+                  tokensIn: output.tokensIn,
+                  tokensOut: output.tokensOut,
+                  durationMs: output.durationMs,
+                });
+              }
+              return { ...n, output, runs, status: "ok" } as FlowNode;
+            }),
             updatedAt: Date.now(),
           }),
         });

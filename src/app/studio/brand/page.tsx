@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, Button, Input, Textarea, Badge } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
-import { Paintbrush, Sparkles, Copy, Download, Wand2 } from "lucide-react";
+import { Paintbrush, Sparkles, Copy, Download, Wand2, GraduationCap } from "lucide-react";
+import { useStore } from "@/store";
+import { resolveDepartment } from "@/lib/recommendations";
+import { getDepartment } from "@/lib/disciplines";
 
 const PALETTES = [
   { name: "Sahel sunrise", colors: ["#0a0f0d", "#f4a949", "#d96444", "#2cc295"] },
@@ -22,6 +25,18 @@ const FONT_PAIRS = [
 ];
 
 export default function BrandStudioPage() {
+  const { user } = useStore();
+  // The student's discipline-grounded venture seed (from
+  // disciplines.ts → resolveDepartment → getDepartment). Used as a
+  // one-click "Use my discipline's seed" prefill on the concept
+  // textarea — the same data the onboarding preview surfaces.
+  const disciplineSeed = useMemo(() => {
+    const dept = resolveDepartment(user?.field);
+    if (!dept) return null;
+    const full = getDepartment(dept.id)?.department;
+    return full?.suggestedVentureSeed ?? null;
+  }, [user?.field]);
+
   const [concept, setConcept] = useState("");
   const [generating, setGenerating] = useState(false);
   const [output, setOutput] = useState("");
@@ -63,7 +78,18 @@ export default function BrandStudioPage() {
       </div>
 
       <Card className="p-5 mb-6">
-        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Your venture concept</div>
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <div className="text-xs uppercase tracking-widest text-muted">Your venture concept</div>
+          {disciplineSeed && !concept && (
+            <button
+              onClick={() => setConcept(disciplineSeed)}
+              className="text-[10px] uppercase tracking-widest text-emerald hover:text-amber transition inline-flex items-center gap-1"
+              title="Prefill from your discipline's suggested venture seed"
+            >
+              <GraduationCap className="size-2.5" /> Use my discipline&apos;s seed
+            </button>
+          )}
+        </div>
         <Textarea
           value={concept}
           onChange={(e) => setConcept(e.target.value)}

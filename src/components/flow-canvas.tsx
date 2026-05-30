@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Loader2, Check, AlertCircle, Trash2, Link2, X, Code as CodeIcon, FileText, Boxes, Beaker } from "lucide-react";
 import { useFlow, resolveRefs, topoSort, type Flow, type FlowNode } from "@/store/flow";
@@ -434,20 +434,7 @@ function PropertiesPanel({ node, onChangeConfig, onChangeLabel, onClose, onTryWi
         )}
 
         {node.output?.text && (
-          <div>
-            <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">Last output</div>
-            <pre className="text-[10px] bg-[#06100d] border border-border rounded-lg p-2.5 max-h-64 overflow-auto whitespace-pre-wrap font-mono">{node.output.text}</pre>
-            {node.output.html && (
-              <details className="mt-2">
-                <summary className="text-[10px] uppercase tracking-widest text-muted cursor-pointer hover:text-emerald">Preview HTML</summary>
-                <iframe srcDoc={node.output.html} className="w-full h-48 mt-2 rounded-lg border border-border bg-white" sandbox="allow-scripts" />
-              </details>
-            )}
-            <div className="text-[9px] text-muted mt-1.5">
-              {node.output.tokensIn !== undefined && <>in {node.output.tokensIn} · out {node.output.tokensOut} · </>}
-              {node.output.durationMs}ms
-            </div>
-          </div>
+          <RunScrubber node={node} />
         )}
 
         {/* Play with — sandbox an alternate prompt without committing it */}
@@ -498,5 +485,97 @@ function PropertiesPanel({ node, onChangeConfig, onChangeLabel, onClose, onTryWi
         </div>
       </div>
     </aside>
+  );
+}
+
+// Timeline scrubber over a node's run history. Defaults to the most
+// recent run (current output); slide back to see prior runs without
+// mutating the store. "Restore" copies the historical run into the
+// node's current output so downstream nodes referencing this @id
+// resolve to it on their next run.
+function RunScrubber({ node }: { node: FlowNode }) {
+  const runs = node.runs ?? [];
+  const total = runs.length;
+  const [idx, setIdx] = useState(Math.max(0, total - 1));
+  const { setNodeOutput } = useFlow();
+  const flowId = useMemo(() => {
+    const f = useFlow.getState().flows.find((x) => x.nodes.some((n) => n.id === node.id));
+    return f?.id ?? "";
+  }, [node.id]);
+
+  // Keep the slider pinned to the latest run when a new one lands.
+  const prevTotalRef = useRef(total);
+  if (prevTotalRef.current !== total) {
+    prevTotalRef.current = total;
+    setIdx(Math.max(0, total - 1));
+  }
+
+  // Show current output when total <= 1; scrubber only adds value at
+  // ≥ 2 runs.
+  if (total <= 1) {
+    return (
+      <div>
+        <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">Last output</div>
+        <pre className="text-[10px] bg-[#06100d] border border-border rounded-lg p-2.5 max-h-64 overflow-auto whitespace-pre-wrap font-mono">{node.output?.text}</pre>
+        {node.output?.html && (
+          <details className="mt-2">
+            <summary className="text-[10px] uppercase tracking-widest text-muted cursor-pointer hover:text-emerald">Preview HTML</summary>
+            <iframe srcDoc={node.output.html} className="w-full h-48 mt-2 rounded-lg border border-border bg-white" sandbox="allow-scripts" />
+          </details>
+        )}
+        <div className="text-[9px] text-muted mt-1.5">
+          {node.output?.tokensIn !== undefined && <>in {node.output.tokensIn} · out {node.output.tokensOut} · </>}
+          {node.output?.durationMs}ms
+        </div>
+      </div>
+    );
+  }
+
+  const current = runs[idx] ?? runs[runs.length - 1];
+  const isLatest = idx === total - 1;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="text-[10px] uppercase tracking-widest text-muted">
+          Run {idx + 1} of {total}{isLatest ? " · latest" : ""}
+        </div>
+        {!isLatest && flowId && (
+          <button
+            onClick={() => setNodeOutput(flowId, node.id, {
+              text: current.text,
+              html: current.html,
+              json: current.json,
+              tokensIn: current.tokensIn,
+              tokensOut: current.tokensOut,
+              durationMs: current.durationMs,
+              runAt: current.ts,
+            })}
+            className="text-[10px] uppercase tracking-widest text-amber hover:text-emerald transition"
+            title="Promote this historical run to the current output — downstream @refs will see it on their next run"
+          >
+            Restore →
+          </button>
+        )}
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={total - 1}
+        value={idx}
+        onChange={(e) => setIdx(parseInt(e.target.value))}
+        className="w-full accent-emerald"
+      />
+      <pre className="text-[10px] bg-[#06100d] border border-border rounded-lg p-2.5 max-h-64 overflow-auto whitespace-pre-wrap font-mono mt-2">{current.text}</pre>
+      {current.html && (
+        <details className="mt-2">
+          <summary className="text-[10px] uppercase tracking-widest text-muted cursor-pointer hover:text-emerald">Preview HTML</summary>
+          <iframe srcDoc={current.html} className="w-full h-48 mt-2 rounded-lg border border-border bg-white" sandbox="allow-scripts" />
+        </details>
+      )}
+      <div className="text-[9px] text-muted mt-1.5">
+        {current.tokensIn !== undefined && <>in {current.tokensIn} · out {current.tokensOut} · </>}
+        {current.durationMs}ms · {new Date(current.ts).toLocaleTimeString()}
+      </div>
+    </div>
   );
 }
