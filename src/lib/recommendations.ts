@@ -48,11 +48,52 @@ export function getRecommendations(field: string | undefined): Recommendations {
   const sectorMatch = PROBLEMS.filter((p) => dept.relevantSectors.includes(p.sector) && !explicit.includes(p));
   const problems = [...explicit, ...sectorMatch].slice(0, 8);
 
-  // Mentors: any whose expertise overlaps
-  const mentors = MENTORS.filter((m) => m.expertise.some((e) => dept.relevantMentorExpertise.some((ex) => e.toLowerCase().includes(ex.toLowerCase()) || ex.toLowerCase().includes(e.toLowerCase())))).slice(0, 6);
+  // Mentors: scored overlap. We score every mentor (not just the
+  // hits) so the recommendations list is stable and the "For your
+  // discipline" toggle on the marketplace page can also use this
+  // function downstream.
+  const mentors = scoreMentors(MENTORS, dept).slice(0, 6);
 
   // Funding: prefer sources whose sectors overlap, or include "Any"
   const funding = FUNDING.filter((f) => f.sectors.includes("Any") || f.sectors.some((s) => dept.relevantSectors.includes(s))).slice(0, 8);
 
   return { department: dept, tracks, agents, problems, mentors, funding };
+}
+
+// ── Mentor scoring ────────────────────────────────────────────────────
+// Score a single mentor against a department's relevantMentorExpertise.
+// Direct (whole-tag) matches weight more than substring matches; we
+// also give pro-bono mentors a small boost so they rank ahead when
+// scores tie (rewards generosity, helps students afford mentorship).
+export function scoreMentorAgainstDepartment(mentor: Mentor, dept: Department): number {
+  let score = 0;
+  for (const e of mentor.expertise) {
+    const eLower = e.toLowerCase();
+    for (const ex of dept.relevantMentorExpertise) {
+      const exLower = ex.toLowerCase();
+      if (eLower === exLower) score += 3;             // exact tag match
+      else if (eLower.includes(exLower) || exLower.includes(eLower)) score += 2; // substring
+    }
+  }
+  // Sector-bridge bonus: when a mentor's expertise overlaps the
+  // department's relevant SECTORS (Health, Energy, etc.) but not its
+  // explicit mentor-expertise list, count it lighter.
+  for (const e of mentor.expertise) {
+    const eLower = e.toLowerCase();
+    for (const s of dept.relevantSectors) {
+      if (eLower.includes(s.toLowerCase())) score += 1;
+    }
+  }
+  if (mentor.pricePerHour === 0 && score > 0) score += 0.5; // pro-bono tiebreaker
+  return score;
+}
+
+// Score + sort every mentor descending. Mentors with score 0 still
+// appear at the bottom so a discipline with thin matches doesn't
+// produce an empty list.
+export function scoreMentors(mentors: Mentor[], dept: Department): Mentor[] {
+  return mentors
+    .map((m) => ({ m, s: scoreMentorAgainstDepartment(m, dept) }))
+    .sort((a, b) => b.s - a.s || a.m.name.localeCompare(b.m.name))
+    .map((x) => x.m);
 }
