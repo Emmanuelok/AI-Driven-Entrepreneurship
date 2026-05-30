@@ -8,7 +8,7 @@ import { useMe } from "@/store/me";
 import { SEED_DECKS } from "@/lib/srs-seed";
 import { SCHOOLS, getDepartment } from "@/lib/disciplines";
 import { GENOME_QUESTIONS, computeGenome } from "@/lib/genome";
-import { Sparkles, ArrowRight, ArrowLeft, Brain, Building2, GraduationCap, Globe2, Heart } from "lucide-react";
+import { Sparkles, ArrowRight, ArrowLeft, Brain, Building2, GraduationCap, Globe2, Heart, Rocket, Lightbulb, MapPin } from "lucide-react";
 
 const COUNTRIES = ["Ghana", "Nigeria", "Kenya", "South Africa", "Uganda", "Tanzania", "Ethiopia", "Rwanda", "Senegal", "Côte d'Ivoire", "Egypt", "Morocco", "Other"];
 const LANGUAGES = ["English", "Pidgin", "Twi", "Yoruba", "Hausa", "Swahili", "Amharic", "French", "Wolof", "Zulu", "Arabic"];
@@ -30,7 +30,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { signIn, addDeck, addCard, createVenture, notify } = useStore();
   const { setGenome, remember } = useMe();
-  const [stage, setStage] = useState<"hello" | "identity" | "place" | "school" | "department" | "program" | "genome" | "weaving" | "ready">("hello");
+  const [stage, setStage] = useState<"hello" | "identity" | "place" | "school" | "department" | "program" | "preview" | "genome" | "weaving" | "ready">("hello");
   const [form, setForm] = useState<Form>({
     name: "", email: "", institution: "",
     schoolId: "", departmentId: "", programId: "",
@@ -89,7 +89,8 @@ export default function OnboardingPage() {
         {stage === "place" && <Place key="place" form={form} setForm={setForm} onNext={() => setStage("school")} onBack={() => setStage("identity")} />}
         {stage === "school" && <School key="school" form={form} setForm={setForm} onNext={() => setStage("department")} onBack={() => setStage("place")} />}
         {stage === "department" && <Department key="department" form={form} setForm={setForm} onNext={() => setStage("program")} onBack={() => setStage("school")} />}
-        {stage === "program" && <Program key="program" form={form} setForm={setForm} onNext={() => setStage("genome")} onBack={() => setStage("department")} />}
+        {stage === "program" && <Program key="program" form={form} setForm={setForm} onNext={() => setStage("preview")} onBack={() => setStage("department")} />}
+        {stage === "preview" && <Preview key="preview" form={form} onNext={() => setStage("genome")} onBack={() => setStage("program")} />}
         {stage === "genome" && (
           <Genome
             key={`genome-${genomeQIdx}`}
@@ -100,7 +101,7 @@ export default function OnboardingPage() {
               if (genomeQIdx < GENOME_QUESTIONS.length - 1) setTimeout(() => setGenomeQIdx(genomeQIdx + 1), 350);
               else setTimeout(() => setStage("weaving"), 500);
             }}
-            onBack={() => { if (genomeQIdx === 0) setStage("program"); else setGenomeQIdx(genomeQIdx - 1); }}
+            onBack={() => { if (genomeQIdx === 0) setStage("preview"); else setGenomeQIdx(genomeQIdx - 1); }}
           />
         )}
         {stage === "weaving" && <Weaving key="weaving" form={form} onDone={() => setStage("ready")} />}
@@ -325,6 +326,88 @@ function Program({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: F
         ))}
       </div>
       <Nav onBack={onBack} onNext={onNext} canNext={!!form.programId} />
+    </StageShell>
+  );
+}
+
+/* ─── Stage 6.5: PREVIEW — what your discipline unlocks ───
+   The "aha" moment in onboarding. After the student commits to a
+   department, surface the three discipline-grounded AI opportunities,
+   the local situations Sage knows to reference, and the suggested
+   seed venture. Earns the next click. */
+function Preview({ form, onNext, onBack }: { form: Form; onNext: () => void; onBack: () => void }) {
+  const ctx = form.departmentId ? getDepartment(form.departmentId) : null;
+  if (!ctx) return null;
+  const { department: d, school: s } = ctx;
+  const firstName = form.name.split(" ")[0] || "you";
+
+  return (
+    <StageShell>
+      <SageBubble text={`Here's why ${d.name} at ${s.name} is unfair-advantaged for ${firstName}. The platform speaks your discipline from this point on.`} />
+
+      {/* AI opportunities — the three angles their discipline opens */}
+      <div className="space-y-2.5">
+        <div className="text-[10px] uppercase tracking-[0.22em] text-emerald flex items-center gap-1.5">
+          <Lightbulb className="size-3" /> Three angles your discipline opens
+        </div>
+        {d.aiOpportunities.slice(0, 3).map((op, i) => (
+          <motion.div
+            key={op.title}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.15 + i * 0.15 }}
+            className="rounded-xl border border-emerald/30 bg-emerald/5 p-3.5"
+          >
+            <div className="text-sm font-medium text-foreground leading-snug">{op.title}</div>
+            <div className="text-xs text-muted mt-1 leading-relaxed">{op.why}</div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Local touchstones — proof we speak your context */}
+      {d.localExamples.length > 0 && (
+        <div className="space-y-2 mt-5">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-amber flex items-center gap-1.5">
+            <MapPin className="size-3" /> Situations Sage will reference
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {d.localExamples.map((ex) => (
+              <span key={ex} className="text-[11px] px-2.5 py-1 rounded-full border border-amber/30 bg-amber/5 text-amber">
+                {ex}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Suggested venture seed — the "you could start here" pitch */}
+      {d.suggestedVentureSeed && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="rounded-2xl border-2 border-emerald bg-emerald/10 p-4 mt-5"
+        >
+          <div className="text-[10px] uppercase tracking-[0.22em] text-emerald flex items-center gap-1.5 mb-1.5">
+            <Rocket className="size-3" /> A venture seed sized to your discipline
+          </div>
+          <p className="text-sm text-foreground leading-relaxed">{d.suggestedVentureSeed}</p>
+          <div className="text-[10px] text-muted mt-2.5 leading-relaxed">
+            You don&apos;t have to build this one — Sage will suggest fresh seeds the moment your Studio Genome is set. This is just to show what your field unlocks.
+          </div>
+        </motion.div>
+      )}
+
+      {/* What you'll see in the Studio — tracks + agents linked to discipline */}
+      <div className="rounded-2xl border border-border bg-surface-2/40 p-3.5 mt-5 text-[11px] text-muted leading-relaxed">
+        <strong className="text-foreground text-xs uppercase tracking-widest">Pre-tuned for you:</strong>
+        {" "}
+        {d.relevantTracks.length} learning track{d.relevantTracks.length === 1 ? "" : "s"} · {d.relevantAgents.length} AI agent{d.relevantAgents.length === 1 ? "" : "s"}
+        {d.relevantMentorExpertise.length > 0 && <> · mentors who know {d.relevantMentorExpertise.slice(0, 2).join(" + ")}</>}
+        {(d.relevantProblemIds?.length ?? 0) > 0 && <> · {d.relevantProblemIds!.length} Atlas problem{d.relevantProblemIds!.length === 1 ? "" : "s"} you could attack</>}
+      </div>
+
+      <Nav onBack={onBack} onNext={onNext} canNext={true} nextLabel="Set my genome →" />
     </StageShell>
   );
 }
