@@ -1,25 +1,29 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type Body = {
-  reason: "milestone" | "session-end" | "weekly" | "pattern-notice" | "first-week" | "discipline-checkin";
-  name: string;
-  field: string;
-  genomeVoice: string;
-  triggerContext: string;
-  memorySummary: string;
-  recentActivity: string;
-};
+const Body = z.object({
+  reason: z.enum(["milestone", "session-end", "weekly", "pattern-notice", "first-week", "discipline-checkin"]),
+  name: z.string().max(120),
+  field: z.string().max(200),
+  genomeVoice: z.string().max(2000),
+  triggerContext: z.string().max(4000),
+  memorySummary: z.string().max(8000),
+  recentActivity: z.string().max(4000),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
 
-  const brain = siteSystemBlock(readSiteContext(raw));
+  const brain = siteSystemBlock(readSiteContext(parsed.raw));
 
   // The discipline check-in is a distinct letter shape: Sage uses the
   // [DISCIPLINE] block already in the brain context (the student's

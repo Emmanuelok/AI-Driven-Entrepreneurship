@@ -1,15 +1,23 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
-type Body = { problem: string; market: string };
+const Body = z.object({
+  problem: z.string().max(8000),
+  market: z.string().max(2000),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You produce structured market-research briefings for African and developing-world startups. Always cite the type of source (e.g. World Bank, AGRA, GSMA) even if exact numbers are estimates. Output JSON.`;
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
 

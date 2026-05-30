@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
@@ -6,7 +8,12 @@ import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Body = { systemPrompt: string; projectName?: string; description?: string };
+const Body = z.object({
+  systemPrompt: z.string().max(20_000),
+  projectName: z.string().max(200).optional(),
+  description: z.string().max(2000).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You design test suites for AI agents.
 
@@ -28,8 +35,10 @@ Output STRICT JSON only. No markdown fences. Shape:
 export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "eval-suggest", maxCalls: 6 });
   if (!guard.ok) return guard.response;
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   const brain = siteSystemBlock(readSiteContext(raw));
   if (!guard.apiKey) {
     return Response.json({

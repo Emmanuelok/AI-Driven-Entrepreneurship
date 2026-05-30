@@ -1,17 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Body = {
-  ventureName: string;
-  tagline?: string;
-  problem: string;
-  solution: string;
-  market?: string;
-  team?: string;
-};
+const Body = z.object({
+  ventureName: z.string().min(1).max(200),
+  tagline: z.string().max(400).optional(),
+  problem: z.string().max(8000),
+  solution: z.string().max(8000),
+  market: z.string().max(4000).optional(),
+  team: z.string().max(4000).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You generate complete, investor-grade pitch decks in JSON. You write like Sequoia partners reviewing a deck. African and developing-world market context. Concrete, never fluffy.`;
 
@@ -45,8 +48,10 @@ Output STRICTLY valid JSON in this shape (no prose, no markdown fences):
 Each body should be 3-5 sentences, sharp, specific, no filler. Use African/local context where helpful.`;
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {

@@ -1,20 +1,31 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type Body = {
-  ventureName: string;
-  month: string;
-  metrics: { mrr: number; customers: number; revenue: number };
-  fundingRaised: number;
-  interviews: number;
-  mvpDone: number;
-  mvpTotal: number;
-  economics?: { burnMonthlyUsd?: number; cashOnHandUsd?: number; churnMonthlyPct?: number };
-};
+const Body = z.object({
+  ventureName: z.string().min(1).max(200),
+  month: z.string().max(40),
+  metrics: z.object({
+    mrr: z.number().finite().min(0).max(1e12),
+    customers: z.number().int().min(0).max(1e9),
+    revenue: z.number().finite().min(0).max(1e12),
+  }),
+  fundingRaised: z.number().finite().min(0).max(1e12),
+  interviews: z.number().int().min(0).max(1e6),
+  mvpDone: z.number().int().min(0).max(1e6),
+  mvpTotal: z.number().int().min(0).max(1e6),
+  economics: z.object({
+    burnMonthlyUsd: z.number().finite().min(0).max(1e10).optional(),
+    cashOnHandUsd: z.number().finite().min(0).max(1e12).optional(),
+    churnMonthlyPct: z.number().finite().min(0).max(100).optional(),
+  }).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You draft monthly investor updates in the Aaron Harris / YC Partner cadence.
 
@@ -31,8 +42,10 @@ Rules:
 export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "update-draft", maxCalls: 10 });
   if (!guard.ok) return guard.response;
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));

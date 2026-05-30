@@ -1,15 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 
 export const runtime = "nodejs";
 
-type Body = { problem: string; persona: string; ventureName?: string };
+const Body = z.object({
+  problem: z.string().max(8000),
+  persona: z.string().max(4000),
+  ventureName: z.string().max(200).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You generate Bob Moesta-style customer-discovery interview scripts. The questions never lead, never pitch, never accept hypotheticals — they extract specific past behavior. Pure JSON output.`;
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {

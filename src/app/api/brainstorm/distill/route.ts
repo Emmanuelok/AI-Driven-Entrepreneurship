@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,13 +13,14 @@ export const dynamic = "force-dynamic";
 //   - a Venture Studio venture spec (name + tagline + canvas + JTBD + wedge)
 // The client then creates the resource and routes.
 
-type Body = {
-  destination: "ai" | "venture";
-  boardTitle: string;
-  boardPrompt: string;
-  notes: string[];   // text from stickies / text / frame labels (filtered, deduped)
-  region?: string;
-};
+const Body = z.object({
+  destination: z.enum(["ai", "venture"]),
+  boardTitle: z.string().max(400),
+  boardPrompt: z.string().max(2000),
+  notes: z.array(z.string().max(2000)).max(500),
+  region: z.string().max(200).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const TEMPLATES = [
   { id: "crop-disease-scanner", what: "AI camera scanner for agriculture, food, materials" },
@@ -88,8 +91,10 @@ Rules:
 export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "distill", maxCalls: 8 });
   if (!guard.ok) return guard.response;
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));

@@ -1,24 +1,29 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { nanoid } from "nanoid";
+import { z } from "zod";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type Body = {
-  name: string;
-  field: string;
-  level: number;
-  streak: number;
-  activeVenture?: string | null;
-  dueCards: number;
-  activeGoals: string[];
-  recentActivity: string[];
-  memoryFacts: string[];
-};
+const Body = z.object({
+  name: z.string().max(120),
+  field: z.string().max(200),
+  level: z.number().int().min(0).max(1000),
+  streak: z.number().int().min(0).max(10_000),
+  activeVenture: z.string().max(400).nullable().optional(),
+  dueCards: z.number().int().min(0).max(100_000),
+  activeGoals: z.array(z.string().max(400)).max(50),
+  recentActivity: z.array(z.string().max(400)).max(50),
+  memoryFacts: z.array(z.string().max(2000)).max(50),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 export async function POST(req: Request) {
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return Response.json(fallback(body));
 

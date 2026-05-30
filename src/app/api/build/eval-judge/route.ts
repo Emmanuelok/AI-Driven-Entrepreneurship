@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
+import { parseBody } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,12 +10,13 @@ export const dynamic = "force-dynamic";
 // Claude-as-judge. Given an input, the agent's output, and a rubric,
 // returns a structured pass/fail + score + reasoning.
 
-type Body = {
-  input: string;
-  output: string;
-  rubric: string;
-  mustInclude?: string[];
-};
+const Body = z.object({
+  input: z.string().max(20_000),
+  output: z.string().max(50_000),
+  rubric: z.string().max(8000),
+  mustInclude: z.array(z.string().max(500)).max(50).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You are a rigorous AI evaluation judge.
 
@@ -34,7 +37,9 @@ Output STRICT JSON only. No markdown, no fences. Shape:
 export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "eval-judge", maxCalls: 30 });
   if (!guard.ok) return guard.response;
-  const body = (await req.json()) as Body;
+  const parsed = await parseBody(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   // Pre-judge: if mustInclude is set, fail fast on any missing substring.
   if (body.mustInclude && body.mustInclude.length > 0) {

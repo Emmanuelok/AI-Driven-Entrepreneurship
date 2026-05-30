@@ -1,18 +1,31 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type Body = {
-  ventureName: string;
-  tagline: string;
-  canvas?: Record<string, string>;
-  jtbd?: { when: string; iWantTo: string; soICan: string; today: string };
-  wedge?: { who: string; pain: string; alternative: string; insight: string };
-  region?: string;
-};
+const Body = z.object({
+  ventureName: z.string().min(1).max(200),
+  tagline: z.string().max(400),
+  canvas: z.record(z.string(), z.string().max(8000)).optional(),
+  jtbd: z.object({
+    when: z.string().max(2000),
+    iWantTo: z.string().max(2000),
+    soICan: z.string().max(2000),
+    today: z.string().max(2000),
+  }).optional(),
+  wedge: z.object({
+    who: z.string().max(2000),
+    pain: z.string().max(2000),
+    alternative: z.string().max(2000),
+    insight: z.string().max(2000),
+  }).optional(),
+  region: z.string().max(200).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You write conversion-grade landing copy for African / developing-world founders.
 
@@ -35,8 +48,10 @@ Rules:
 export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "launch-page", maxCalls: 10 });
   if (!guard.ok) return guard.response;
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));

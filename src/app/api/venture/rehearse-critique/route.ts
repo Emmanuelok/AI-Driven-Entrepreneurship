@@ -1,20 +1,26 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { moderateOrBlock } from "@/lib/moderation";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Body = {
-  ventureName: string;
-  tagline: string;
-  transcript: string;
-  slides?: { title: string; body: string }[];
-  targetSeconds: number;
-  actualSeconds: number;
-};
+const Body = z.object({
+  ventureName: z.string().min(1).max(200),
+  tagline: z.string().max(400),
+  transcript: z.string().max(50_000),
+  slides: z.array(z.object({
+    title: z.string().max(400),
+    body: z.string().max(8000),
+  })).max(40).optional(),
+  targetSeconds: z.number().int().min(0).max(7200),
+  actualSeconds: z.number().int().min(0).max(7200),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You are an elite pitch coach who has prepped founders for YC Demo Day, TechCrunch Disrupt, and 500 Global.
 
@@ -50,9 +56,10 @@ export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "rehearse-critique", maxCalls: 4 });
   if (!guard.ok) return guard.response;
 
-  const raw = await req.json();
-  const body = raw as Body;
-  const brain = siteSystemBlock(readSiteContext(raw));
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const brain = siteSystemBlock(readSiteContext(parsed.raw));
   const blocked = await moderateOrBlock(body.transcript, { skipLLM: true });
   if (blocked) return blocked;
   if (!guard.apiKey) return Response.json(fallback(body));

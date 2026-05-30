@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,17 +11,21 @@ export const dynamic = "force-dynamic";
 // Drafts a role spec from venture context. Output is the founder-voice
 // version that goes on the careers page + a candidate scorecard rubric.
 
-type Body = {
-  ventureName: string;
-  tagline: string;
-  region?: string;
-  roleTitle: string;
-  type: "full-time" | "part-time" | "contractor" | "advisor";
-  equityPct?: number;
-  compensationUsd?: number;
-  canvas?: Record<string, string>;
-  wedge?: { who?: string; pain?: string };
-};
+const Body = z.object({
+  ventureName: z.string().min(1).max(200),
+  tagline: z.string().max(400),
+  region: z.string().max(200).optional(),
+  roleTitle: z.string().min(1).max(200),
+  type: z.enum(["full-time", "part-time", "contractor", "advisor"]),
+  equityPct: z.number().finite().min(0).max(100).optional(),
+  compensationUsd: z.number().finite().min(0).max(1e8).optional(),
+  canvas: z.record(z.string(), z.string().max(8000)).optional(),
+  wedge: z.object({
+    who: z.string().max(2000).optional(),
+    pain: z.string().max(2000).optional(),
+  }).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You write role specs founders actually use, not corporate JD slop.
 
@@ -42,8 +48,10 @@ Bias: if the venture's wedge or region implies specific context (e.g. Northern G
 export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "role-spec", maxCalls: 8 });
   if (!guard.ok) return guard.response;
-  const raw = await req.json();
-  const body = raw as Body;
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const raw = parsed.raw;
   if (!guard.apiKey) return Response.json(fallback(body));
 
   const brain = siteSystemBlock(readSiteContext(raw));

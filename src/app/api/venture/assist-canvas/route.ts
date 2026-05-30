@@ -1,20 +1,33 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 import { moderateOrBlock } from "@/lib/moderation";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 
-type Body = {
-  block: string;
-  ventureName: string;
-  tagline: string;
-  region?: string;
-  currentCanvas: Record<string, string>;
-  jtbd?: { when: string; iWantTo: string; soICan: string; today: string };
-  wedge?: { who: string; pain: string; alternative: string; insight: string };
-};
+const Body = z.object({
+  block: z.string().min(1).max(80),
+  ventureName: z.string().min(1).max(200),
+  tagline: z.string().max(400),
+  region: z.string().max(200).optional(),
+  currentCanvas: z.record(z.string(), z.string().max(8000)),
+  jtbd: z.object({
+    when: z.string().max(2000),
+    iWantTo: z.string().max(2000),
+    soICan: z.string().max(2000),
+    today: z.string().max(2000),
+  }).optional(),
+  wedge: z.object({
+    who: z.string().max(2000),
+    pain: z.string().max(2000),
+    alternative: z.string().max(2000),
+    insight: z.string().max(2000),
+  }).optional(),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 const SYSTEM = `You help African / developing-world founders sharpen one block of their Lean Canvas at a time.
 
@@ -43,9 +56,10 @@ export async function POST(req: Request) {
   // Generous cap — students legitimately ask for 9 blocks back-to-back.
   const guard = await aiGuard({ req, scope: "assist-canvas", maxCalls: 25 });
   if (!guard.ok) return guard.response;
-  const raw = await req.json();
-  const body = raw as Body;
-  const brain = siteSystemBlock(readSiteContext(raw));
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const brain = siteSystemBlock(readSiteContext(parsed.raw));
   // Pattern-only moderation: canvas content is dense business text where
   // a Haiku judge call would add 600ms × 9 blocks of latency for marginal gain.
   const candidate = `${body.ventureName} ${body.tagline} ${Object.values(body.currentCanvas).join(" ")}`;

@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
+import { parseBody } from "@/lib/parse-body";
 import { aiGuard } from "@/lib/ai-guard";
 import { aiUsageHeaders } from "@/lib/ai-headers";
 
@@ -8,14 +10,20 @@ export const dynamic = "force-dynamic";
 // Runs ONE test case through Claude with the agent's system prompt and
 // returns the raw output. The judge endpoint scores it.
 
-type Body = { systemPrompt: string; input: string };
+const Body = z.object({
+  systemPrompt: z.string().max(20_000),
+  input: z.string().max(20_000),
+}).loose();
+type Body = z.infer<typeof Body>;
 
 export async function POST(req: Request) {
   // Evals get hammered when students "run all" — 30/min covers a suite of 10
   // tests run 3x in quick succession before hitting the wall.
   const guard = await aiGuard({ req, scope: "eval-run", maxCalls: 30 });
   if (!guard.ok) return guard.response;
-  const body = (await req.json()) as Body;
+  const parsed = await parseBody(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   if (!guard.apiKey) {
     return Response.json({ output: `[demo] No API key on the server. Set ANTHROPIC_API_KEY to actually run evals.\nYour test input was: ${body.input.slice(0, 120)}` });
   }
