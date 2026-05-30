@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authCohort, requireCohortRole } from "@/lib/cohort-auth";
 import { pushToUser } from "@/lib/push-to-user";
 import { resolveMentions } from "@/lib/mentions";
+import { parseBody } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +17,13 @@ export const dynamic = "force-dynamic";
 
 type ThreadKind = "question" | "note" | "announcement";
 const KINDS: ThreadKind[] = ["question", "note", "announcement"];
+
+const CreateBody = z.object({
+  kind: z.enum(["question", "note", "announcement"]).default("question"),
+  assignmentId: z.string().min(1).max(120).nullable().optional(),
+  title: z.string().trim().min(3).max(200),
+  body: z.string().trim().min(1).max(8000),
+});
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   if (!isSupabaseConfigured()) return Response.json({ ok: true, mode: "local", results: [] });
@@ -81,21 +90,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const me = await authCohort(token, id);
   if (!me) return Response.json({ ok: false, error: "not_a_member" }, { status: 403 });
 
-  let body: { kind?: string; assignmentId?: string | null; title?: string; body?: string };
-  try { body = await req.json(); } catch { return Response.json({ ok: false, error: "invalid_json" }, { status: 400 }); }
+  const parsed = await parseBody(req, CreateBody);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  const kind: ThreadKind = body.kind;
+  void KINDS; // retained for backward-compat consumers (e.g. server-side imports)
 
-  const kind = (body.kind ?? "question") as ThreadKind;
-  if (!KINDS.includes(kind)) return Response.json({ ok: false, error: "invalid_kind" }, { status: 400 });
   // Announcements are instructor-only — a student spamming "announcement"
   // kind would be UI-misleading.
   if (kind === "announcement") {
     const forbidden = requireCohortRole(me, "instructor");
     if (forbidden) return forbidden;
   }
-  const title = (body.title ?? "").trim();
-  if (title.length < 3) return Response.json({ ok: false, error: "title_too_short" }, { status: 400 });
-  const text = (body.body ?? "").trim();
-  if (text.length < 1) return Response.json({ ok: false, error: "body_required" }, { status: 400 });
+  const title = body.title;
+  const text = body.body;
 
   const sb = supabaseAdmin();
   if (!sb) return Response.json({ ok: false, error: "admin_unavailable" }, { status: 500 });

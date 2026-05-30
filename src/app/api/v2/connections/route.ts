@@ -1,5 +1,20 @@
+import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { CONNECTION_KINDS, type ConnectionKind } from "@/lib/connections";
+import { parseBody } from "@/lib/parse-body";
+
+const KIND_VALUES = CONNECTION_KINDS as unknown as readonly [ConnectionKind, ...ConnectionKind[]];
+
+const CreateConnectionBody = z.object({
+  fromKind: z.enum(KIND_VALUES),
+  fromId: z.string().trim().min(1).max(120),
+  toKind: z.enum(KIND_VALUES),
+  toId: z.string().trim().min(1).max(120),
+  label: z.string().trim().max(80).nullish().transform((v) => v || null),
+}).refine((d) => !(d.fromKind === d.toKind && d.fromId === d.toId), {
+  message: "self-link not allowed",
+  path: ["toId"],
+});
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,20 +92,9 @@ export async function POST(req: Request) {
   const me = await authedUser(req);
   if (!me) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
-  let body: { fromKind?: unknown; fromId?: unknown; toKind?: unknown; toId?: unknown; label?: unknown };
-  try { body = await req.json(); } catch { return Response.json({ ok: false, error: "invalid_json" }, { status: 400 }); }
-
-  if (!isKind(body.fromKind) || !isKind(body.toKind)) {
-    return Response.json({ ok: false, error: "invalid_kind" }, { status: 400 });
-  }
-  const fromId = typeof body.fromId === "string" ? body.fromId.trim() : "";
-  const toId = typeof body.toId === "string" ? body.toId.trim() : "";
-  if (!fromId || !toId) return Response.json({ ok: false, error: "missing_ids" }, { status: 400 });
-  if (body.fromKind === body.toKind && fromId === toId) {
-    return Response.json({ ok: false, error: "self_link" }, { status: 400 });
-  }
-
-  const label = typeof body.label === "string" ? body.label.trim().slice(0, 80) || null : null;
+  const parsed = await parseBody(req, CreateConnectionBody);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   const sb = supabaseAdmin();
   if (!sb) return Response.json({ ok: false, error: "admin_unavailable" }, { status: 500 });
@@ -98,10 +102,10 @@ export async function POST(req: Request) {
   const { data, error } = await sb.from("connections").insert({
     user_id: me.id,
     from_kind: body.fromKind,
-    from_id: fromId,
+    from_id: body.fromId,
     to_kind: body.toKind,
-    to_id: toId,
-    label,
+    to_id: body.toId,
+    label: body.label,
   }).select("id").maybeSingle();
 
   if (error) {

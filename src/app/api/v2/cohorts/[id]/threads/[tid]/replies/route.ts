@@ -1,7 +1,13 @@
+import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authCohort } from "@/lib/cohort-auth";
 import { pushToUser } from "@/lib/push-to-user";
 import { resolveMentions } from "@/lib/mentions";
+import { parseBody } from "@/lib/parse-body";
+
+const ReplyBody = z.object({
+  body: z.string().trim().min(1).max(8000),
+});
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,10 +26,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ti
   const me = await authCohort(token, id);
   if (!me) return Response.json({ ok: false, error: "not_a_member" }, { status: 403 });
 
-  let body: { body?: string };
-  try { body = await req.json(); } catch { return Response.json({ ok: false, error: "invalid_json" }, { status: 400 }); }
-  const text = (body.body ?? "").trim();
-  if (text.length < 1) return Response.json({ ok: false, error: "body_required" }, { status: 400 });
+  const parsed = await parseBody(req, ReplyBody);
+  if (!parsed.ok) return parsed.response;
+  const text = parsed.data.body;
 
   const sb = supabaseAdmin();
   if (!sb) return Response.json({ ok: false, error: "admin_unavailable" }, { status: 500 });

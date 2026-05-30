@@ -1,12 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { COACHES, getCoach } from "@/lib/coaches";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 import { aiGuard } from "@/lib/ai-guard";
+import { parseBodyWithRaw } from "@/lib/parse-body";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+// Cap individual messages at 8KB and the chat history at 30 turns —
+// well over a real conversation, blocks pathological loops.
+const Body = z.object({
+  messages: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().min(1).max(8000),
+  })).min(1).max(30),
+  context: z.record(z.string(), z.unknown()).optional(),
+}).loose();
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   // Coach chats stream up to 1500 tokens each — protect the platform
@@ -15,15 +27,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const guard = await aiGuard({ req, scope: "coach", maxCalls: 30 });
   if (!guard.ok) return guard.response;
 
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const { messages, context } = parsed.data;
+  const raw = parsed.raw;
+
   const { id } = await ctx.params;
   const coach = getCoach(id);
-  const raw = await req.json();
-  const { messages, context } = raw as { messages: Msg[]; context?: Record<string, unknown> };
   const brain = siteSystemBlock(readSiteContext(raw));
-
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return Response.json({ error: "messages required" }, { status: 400 });
-  }
 
   if (!guard.apiKey) {
     return new Response(makeFallback(coach.id, messages[messages.length - 1].content), {

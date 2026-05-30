@@ -1,8 +1,24 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { embed } from "@/lib/embeddings";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 import { aiGuard } from "@/lib/ai-guard";
+import { parseBodyWithRaw } from "@/lib/parse-body";
+
+const Body = z.object({
+  messages: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().min(1).max(8000),
+  })).min(1).max(30),
+  context: z.object({
+    lessonId: z.string().max(120).optional(),
+    problemId: z.string().max(120).optional(),
+    ventureId: z.string().max(120).optional(),
+    language: z.string().max(40).optional(),
+  }).optional(),
+  authToken: z.string().max(4000).optional(),
+}).loose();
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,17 +52,10 @@ export async function POST(req: Request) {
   const guard = await aiGuard({ req, scope: "tutor", maxCalls: 40 });
   if (!guard.ok) return guard.response;
 
-  const raw = await req.json();
-  const { messages, context, authToken } = raw as {
-    messages: Msg[];
-    context?: { lessonId?: string; problemId?: string; ventureId?: string; language?: string };
-    authToken?: string;
-  };
-  const brain = siteSystemBlock(readSiteContext(raw));
-
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return Response.json({ error: "messages required" }, { status: 400 });
-  }
+  const parsed = await parseBodyWithRaw(req, Body);
+  if (!parsed.ok) return parsed.response;
+  const { messages, context, authToken } = parsed.data;
+  const brain = siteSystemBlock(readSiteContext(parsed.raw));
 
   // RAG: pull the student's own most-relevant prior work as grounding.
   // Quietly skipped when cloud sync isn't configured or the user is anonymous.
