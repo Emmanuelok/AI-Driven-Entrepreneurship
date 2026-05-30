@@ -3,22 +3,42 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { LEGAL_DOCS } from "@/lib/legal-templates";
-import { Card, Badge, Input } from "@/components/ui";
-import { FileText, Search, Clock, ArrowRight, ShieldAlert } from "lucide-react";
+import { resolveDepartment } from "@/lib/recommendations";
+import { getDepartment } from "@/lib/disciplines";
+import { useStore } from "@/store";
+import { Card, Badge } from "@/components/ui";
+import { FileText, Search, Clock, ArrowRight, ShieldAlert, GraduationCap, Sparkles } from "lucide-react";
 
 const CATS = ["All", "Founders", "Hiring", "Customers", "Investors", "IP", "Governance"] as const;
 
 export default function DocumentsPage() {
+  const { user } = useStore();
+  const dept = useMemo(() => resolveDepartment(user?.field), [user?.field]);
+  // School id is what LegalDoc.disciplines[] points at — derive from the
+  // resolved department so we can match without a second lookup downstream.
+  const schoolId = useMemo(() => (dept ? getDepartment(dept.id)?.school.id : undefined), [dept]);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<(typeof CATS)[number]>("All");
+  const [forMyDiscipline, setForMyDiscipline] = useState<boolean>(!!dept);
 
   const docs = useMemo(() => {
-    return LEGAL_DOCS.filter((d) => {
+    const base = LEGAL_DOCS.filter((d) => {
       if (cat !== "All" && d.category !== cat) return false;
       if (q && !`${d.name} ${d.description} ${d.category}`.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
-  }, [q, cat]);
+    // When the discipline toggle is on, sort: universal first → discipline
+    // matches → everything else (stable).
+    if (forMyDiscipline && schoolId) {
+      const rank = (id: string, universal: boolean, disciplines: string[] | undefined) => {
+        if (universal) return 0;
+        if (disciplines?.includes(schoolId)) return 1;
+        return 2;
+      };
+      return [...base].sort((a, b) => rank(a.id, !!a.universal, a.disciplines) - rank(b.id, !!b.universal, b.disciplines));
+    }
+    return base;
+  }, [q, cat, forMyDiscipline, schoolId]);
 
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
@@ -52,6 +72,13 @@ export default function DocumentsPage() {
             </button>
           ))}
         </div>
+        {dept && (
+          <label className="flex items-center gap-2 text-sm cursor-pointer" title={`Surface docs commonly needed in ${dept.name}`}>
+            <input type="checkbox" checked={forMyDiscipline} onChange={(e) => setForMyDiscipline(e.target.checked)} className="accent-emerald" />
+            <GraduationCap className="size-3.5 text-emerald" />
+            For {dept.name.split(" ")[0]}
+          </label>
+        )}
       </Card>
 
       <Card className="p-4 mb-6 bg-amber/5 border-amber/30">
@@ -64,20 +91,35 @@ export default function DocumentsPage() {
       </Card>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {docs.map((d) => (
-          <Link key={d.id} href={`/studio/documents/${d.id}`} className="glass rounded-2xl p-5 hover:border-emerald/40 transition group">
-            <div className="flex items-start justify-between gap-3 mb-3">
-              <FileText className="size-5 text-emerald" />
-              <Badge color="muted">{d.category}</Badge>
-            </div>
-            <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold leading-tight group-hover:text-emerald transition">{d.name}</h3>
-            <p className="mt-2 text-sm text-muted line-clamp-3 leading-relaxed">{d.description}</p>
-            <div className="mt-4 flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1 text-muted"><Clock className="size-3" /> {d.estReadingMinutes} min read</span>
-              <span className="text-emerald flex items-center gap-1">Generate <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition" /></span>
-            </div>
-          </Link>
-        ))}
+        {docs.map((d) => {
+          const isUniversal = forMyDiscipline && !!d.universal;
+          const isDeptMatch = forMyDiscipline && !!schoolId && !d.universal && !!d.disciplines?.includes(schoolId);
+          const highlight = isUniversal || isDeptMatch;
+          return (
+            <Link key={d.id} href={`/studio/documents/${d.id}`} className={`glass rounded-2xl p-5 transition group ${highlight ? "border-emerald/40 ring-1 ring-emerald/20" : "hover:border-emerald/40"}`}>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <FileText className="size-5 text-emerald" />
+                <Badge color="muted">{d.category}</Badge>
+              </div>
+              {isUniversal && (
+                <div className="mb-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-emerald">
+                  <Sparkles className="size-2.5" /> Every founder needs this
+                </div>
+              )}
+              {isDeptMatch && (
+                <div className="mb-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-emerald">
+                  <GraduationCap className="size-2.5" /> For your discipline
+                </div>
+              )}
+              <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold leading-tight group-hover:text-emerald transition">{d.name}</h3>
+              <p className="mt-2 text-sm text-muted line-clamp-3 leading-relaxed">{d.description}</p>
+              <div className="mt-4 flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1 text-muted"><Clock className="size-3" /> {d.estReadingMinutes} min read</span>
+                <span className="text-emerald flex items-center gap-1">Generate <ArrowRight className="size-3.5 group-hover:translate-x-0.5 transition" /></span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

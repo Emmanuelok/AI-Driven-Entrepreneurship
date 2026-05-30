@@ -7,6 +7,16 @@ export type LegalDoc = {
   vars: { key: string; label: string; placeholder?: string }[];
   template: string; // {{var}} substitution
   estReadingMinutes: number;
+  // School ids (from src/lib/disciplines.ts) where this doc is
+  // typically among the first founders need. Used by the docs UI's
+  // "For [Department]" filter to surface relevant docs first. If a
+  // discipline isn't listed here, the doc is still browsable — just
+  // not highlighted.
+  disciplines?: string[];
+  // Universal docs are needed by ~every founder regardless of
+  // discipline (NDA, founders agreement). Sorted to the top of the
+  // "for your discipline" view alongside discipline matches.
+  universal?: boolean;
 };
 
 export const LEGAL_DOCS: LegalDoc[] = [
@@ -17,6 +27,7 @@ export const LEGAL_DOCS: LegalDoc[] = [
     description: "Two-page mutual non-disclosure agreement for early conversations with partners, vendors, or pilots.",
     jurisdictions: ["Nigeria", "Ghana", "Kenya", "South Africa", "Generic common-law"],
     estReadingMinutes: 6,
+    universal: true,
     vars: [
       { key: "company", label: "Your company legal name", placeholder: "Sankofa Studio Ltd" },
       { key: "counterparty", label: "Counterparty name", placeholder: "Yendi Tomato Cooperative" },
@@ -63,6 +74,7 @@ Authorized Signature              Authorized Signature
     description: "Equity split, vesting, IP assignment, decision-making — the conversation every team must have before things get complicated.",
     jurisdictions: ["Nigeria", "Ghana", "Kenya", "South Africa", "Delaware"],
     estReadingMinutes: 12,
+    universal: true,
     vars: [
       { key: "company", label: "Company name", placeholder: "KubaCold Ltd" },
       { key: "founder1", label: "Founder 1 name + email" },
@@ -125,6 +137,7 @@ Date:                             Date:                             Date:
     description: "Standard YC-style SAFE — post-money, valuation cap, no discount or MFN variants.",
     jurisdictions: ["Delaware", "Generic (consult counsel)"],
     estReadingMinutes: 8,
+    disciplines: ["engineering", "business", "sciences", "comm", "creative"],
     vars: [
       { key: "company", label: "Company name" },
       { key: "investor", label: "Investor legal name" },
@@ -179,6 +192,7 @@ Title: ___________________           Date: ___________________
     description: "Friendly, founder-style offer letter with options, base, role, and clear expectations.",
     jurisdictions: ["Generic — adapt to local labor law"],
     estReadingMinutes: 5,
+    disciplines: ["business", "engineering", "comm"],
     vars: [
       { key: "company", label: "Company name" },
       { key: "candidate", label: "Candidate full name" },
@@ -229,6 +243,7 @@ Warmly,
     description: "Standard agreement every employee, contractor, and advisor signs to assign inventions to the company.",
     jurisdictions: ["Generic common-law"],
     estReadingMinutes: 7,
+    disciplines: ["engineering", "sciences", "health", "creative"],
     vars: [
       { key: "company", label: "Company name" },
       { key: "individual", label: "Individual full name" },
@@ -272,6 +287,7 @@ Date:                               By:
     description: "Bring on an advisor with clear scope, equity, and confidentiality terms.",
     jurisdictions: ["Generic"],
     estReadingMinutes: 5,
+    universal: true,
     vars: [
       { key: "company", label: "Company name" },
       { key: "advisor", label: "Advisor name" },
@@ -312,6 +328,7 @@ Date:                                    Date:
     description: "Debt that converts to equity at next priced round. Common alternative to SAFE in non-US jurisdictions.",
     jurisdictions: ["UK", "Nigeria", "Kenya", "Generic"],
     estReadingMinutes: 9,
+    disciplines: ["engineering", "business", "sciences"],
     vars: [
       { key: "company", label: "Company name" },
       { key: "investor", label: "Investor / lender" },
