@@ -18,6 +18,8 @@ type Body = { kind?: string; meta?: Record<string, unknown> };
 // rejected so a typo or an injected client can't pollute the table.
 const KNOWN_KINDS = new Set<string>([
   "companion_starter_clicked",
+  "companion_proactive_shown",
+  "companion_proactive_clicked",
   "companion_opened",
   "mcp_search",
 ]);

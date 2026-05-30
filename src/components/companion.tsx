@@ -36,10 +36,18 @@ export function Companion() {
   // lazily once the companion first opens — the snapshot fetch hits a
   // 60s cache so subsequent opens are free.
   const [graphStarter, setGraphStarter] = useState<string | null>(null);
+  // Same starter, but pre-resolved on first mount when the user has
+  // recent graph activity (≥1 edge in the last 7 days) so we can
+  // surface it as the closed-fab proactive nudge — the only way users
+  // who never tap the companion ever see the insight chain.
+  const [graphProactive, setGraphProactive] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Hoisted: see proactiveImpression effect below, after `proactive`
+  // is computed.
+  const proactiveLoggedRef = useRef(false);
+
   useEffect(() => {
-    if (!open || graphStarter !== null) return;
     let cancelled = false;
     (async () => {
       try {
@@ -51,11 +59,22 @@ export function Companion() {
           orphanBuilds: snap.insights.orphanBuilds ?? [],
           byKind: [],
         } : null);
-        if (s) setGraphStarter(s);
+        if (!s) return;
+        setGraphStarter(s);
+
+        // Freshness gate for the proactive surface: only nudge when the
+        // user has touched their graph in the last 7 days. Otherwise
+        // the nudge feels like a ghost of past activity.
+        const { fetchUserConnectionsCached } = await import("@/lib/connections-client");
+        const rows = await fetchUserConnectionsCached();
+        if (cancelled) return;
+        const sevenDayMs = 7 * 86_400_000;
+        const fresh = rows.filter((r) => Date.now() - new Date(r.created_at).getTime() < sevenDayMs).length;
+        if (fresh >= 1) setGraphProactive(s);
       } catch { /* no starter, no problem */ }
     })();
     return () => { cancelled = true; };
-  }, [open, graphStarter]);
+  }, []);
 
   // Track route changes
   useEffect(() => {
@@ -89,6 +108,17 @@ export function Companion() {
   const proactive = makeProactive({
     user, due, ventures, dept, goals, brief: todaysBrief(), pathname,
   });
+
+  // Log the proactive impression once when it first becomes visible.
+  // Dedupe via the ref so re-renders don't multi-fire.
+  useEffect(() => {
+    if (open || proactiveDismissed) return;
+    if (proactiveLoggedRef.current) return;
+    const text = graphProactive ?? proactive;
+    if (!text) return;
+    proactiveLoggedRef.current = true;
+    logUxEvent("companion_proactive_shown", { source: graphProactive ? "graph" : "page" });
+  }, [open, proactiveDismissed, graphProactive, proactive]);
 
   async function send(text?: string) {
     const content = (text ?? input).trim();
@@ -169,17 +199,37 @@ export function Companion() {
         </button>
       )}
 
-      {/* Proactive nudge bubble */}
-      {!open && proactive && !proactiveDismissed && (
-        <div className="fixed bottom-24 right-5 z-[59] max-w-xs glass rounded-2xl p-4 shadow-2xl border border-amber/30 animate-fade-in">
-          <button onClick={() => setProactiveDismissed(true)} className="absolute top-2 right-2 text-muted hover:text-foreground"><X className="size-3.5" /></button>
-          <div className="flex items-start gap-3">
-            <Sparkles className="size-4 text-amber shrink-0 mt-0.5" />
-            <div className="text-sm">{proactive}</div>
+      {/* Proactive nudge bubble — prefers the graph-driven one when
+          available (closed-fab visibility for users who never open the
+          companion). */}
+      {!open && (graphProactive || proactive) && !proactiveDismissed && (() => {
+        const text = graphProactive ?? proactive;
+        const source = graphProactive ? "graph" : "page";
+        return (
+          <div className="fixed bottom-24 right-5 z-[59] max-w-xs glass rounded-2xl p-4 shadow-2xl border border-amber/30 animate-fade-in" data-source={source}>
+            <button onClick={() => setProactiveDismissed(true)} className="absolute top-2 right-2 text-muted hover:text-foreground"><X className="size-3.5" /></button>
+            <div className="flex items-start gap-3">
+              <Sparkles className="size-4 text-amber shrink-0 mt-0.5" />
+              <div className="text-sm">
+                {graphProactive && <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">From your graph</div>}
+                {text}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                logUxEvent("companion_proactive_clicked", { source });
+                setOpen(true);
+                setProactiveDismissed(true);
+                setMsgs([{ role: "user", content: text! }, { role: "assistant", content: "" }]);
+                send(text!);
+              }}
+              className="mt-3 text-xs text-emerald hover:underline"
+            >
+              Talk to Sage about this →
+            </button>
           </div>
-          <button onClick={() => { setOpen(true); setProactiveDismissed(true); setMsgs([{ role: "user", content: proactive }, { role: "assistant", content: "" }]); send(proactive); }} className="mt-3 text-xs text-emerald hover:underline">Talk to Sage about this →</button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Companion panel */}
       {open && (
