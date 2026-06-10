@@ -14,10 +14,14 @@ function mentor(name: string, expertise: string[], pricePerHour = 200): Mentor {
     country: "NG",
     bio: "",
     expertise,
+    languages: ["English"],
+    yearsExperience: 10,
+    availability: "high",
+    badges: [],
     rating: 4.8,
+    sessions: 0,
     responseHrs: 24,
     pricePerHour,
-    cohorts: [],
   };
 }
 

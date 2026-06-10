@@ -9,6 +9,8 @@ import type { SiteContextSnapshot } from "@/lib/site-brain";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import { resolveDepartment } from "@/lib/recommendations";
 import { getDepartment } from "@/lib/disciplines";
+import { computePulse } from "@/lib/pulse-engine";
+import { pulseInputFromStores } from "@/lib/use-pulse";
 
 // Build a Site Brain snapshot from the local zustand stores. Pure
 // synchronous read — call right before a fetch. Cheap; safe to call
@@ -121,6 +123,23 @@ export function buildSiteContextSnapshot(scope?: string): SiteContextSnapshot {
 
     callerScope: scope,
   };
+
+  // Live Pulse Engine signals — the dashboard and the AI read the
+  // same numbers, so Sage's advice and the UI's recommendations agree.
+  try {
+    const input = pulseInputFromStores(s, me, Date.now());
+    if (input) {
+      const pulse = computePulse(input);
+      const top = pulse.ventureHealth[0];
+      snap.pulse = {
+        momentum: pulse.momentum,
+        momentumTrend: pulse.momentumTrend,
+        learningVelocity: pulse.learningVelocity,
+        topVentureHealth: top ? { name: top.name, score: top.score, staleDays: top.staleDays } : undefined,
+        nextActions: pulse.actions.slice(0, 3).map((a) => ({ title: a.title, reason: a.reason })),
+      };
+    }
+  } catch { /* pulse is enrichment — never block an AI call on it */ }
 
   // Trim irrelevant sections for narrow scopes to keep the prompt focused.
   if (scope === "letter" || scope === "sketch") {

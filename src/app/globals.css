@@ -1,18 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0f0d;
-  --surface: #0f1614;
-  --surface-2: #141d1a;
-  --border: #1f2c28;
-  --foreground: #e7efe9;
-  --muted: #8aa39a;
+  --background: #090f0c;
+  --surface: #0e1613;
+  --surface-2: #131d19;
+  --border: #1e2c27;
+  --foreground: #e9f1ec;
+  --muted: #8ba49b;
   --emerald: #2cc295;
   --emerald-deep: #0c8f6a;
   --amber: #f4a949;
   --amber-deep: #c97a16;
   --rust: #d96444;
   --indigo: #6c8cff;
+  /* Per-user accent — PersonalTheme overwrites these from the user's
+     totem/preference. Defaults keep signed-out pages on brand. */
+  --accent: var(--emerald);
+  --accent-2: var(--amber);
 }
 
 @theme inline {
@@ -28,6 +32,8 @@
   --color-amber-deep: var(--amber-deep);
   --color-rust: var(--rust);
   --color-indigo: var(--indigo);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-display: var(--font-display), Georgia, serif;
@@ -35,12 +41,17 @@
 
 html, body { background: var(--background); color: var(--foreground); }
 
+html { scroll-behavior: smooth; }
+
 body {
   font-family: var(--font-sans);
   font-feature-settings: "ss01", "cv11";
+  /* Layered organic ambiance: the two brand glows plus a faint accent
+     bloom that follows the user's personal accent. */
   background-image:
-    radial-gradient(1100px 600px at 80% -10%, rgba(44, 194, 149, 0.10), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(244, 169, 73, 0.08), transparent 60%);
+    radial-gradient(1100px 600px at 80% -10%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, color-mix(in srgb, var(--accent-2) 9%, transparent), transparent 60%),
+    radial-gradient(700px 700px at 50% 50%, rgba(44, 194, 149, 0.03), transparent 70%);
   background-attachment: fixed;
 }
 
@@ -48,6 +59,15 @@ body {
   background: linear-gradient(180deg, rgba(20,29,26,0.85), rgba(15,22,20,0.70));
   border: 1px solid var(--border);
   backdrop-filter: blur(12px);
+}
+
+/* Cards that lift toward the reader on hover — used with .glass. */
+.lift {
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 240ms ease, border-color 240ms ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -16px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .kente {
@@ -85,7 +105,29 @@ body {
   animation: shimmer 1.6s linear infinite;
 }
 
-::selection { background: var(--emerald); color: #001; }
+/* Entrance: content settles up into place. Apply .rise plus an optional
+   .rise-1..6 stagger. fill-mode both keeps pre-animation state hidden. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 600ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise-1 { animation-delay: 60ms; }
+.rise-2 { animation-delay: 120ms; }
+.rise-3 { animation-delay: 180ms; }
+.rise-4 { animation-delay: 240ms; }
+.rise-5 { animation-delay: 320ms; }
+.rise-6 { animation-delay: 400ms; }
+
+/* Slow ambient drift for hero glows. */
+@keyframes aurora {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.8; }
+  33% { transform: translate(24px, -18px) scale(1.08); opacity: 1; }
+  66% { transform: translate(-18px, 14px) scale(0.96); opacity: 0.7; }
+}
+.aurora { animation: aurora 14s ease-in-out infinite; }
+
+::selection { background: var(--accent); color: #001; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -97,3 +139,10 @@ body {
 .prose-chat pre { background: #06100d; border: 1px solid var(--border); padding: 12px; border-radius: 8px; overflow-x: auto; }
 .prose-chat ul { list-style: disc; padding-left: 1.4em; margin: 0.4em 0; }
 .prose-chat ol { list-style: decimal; padding-left: 1.4em; margin: 0.4em 0; }
+
+/* Accessibility: kill decorative motion for users who asked for less. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .rise, .aurora, .float, .shimmer, .pulse-dot { animation: none; }
+  .lift, .lift:hover { transition: none; transform: none; }
+}

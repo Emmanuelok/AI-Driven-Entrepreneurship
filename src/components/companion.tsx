@@ -12,6 +12,7 @@ import { genomeVoiceInstruction, genomeSummary } from "@/lib/genome";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 import { insightStarter } from "@/lib/insights";
 import { logUxEvent } from "@/lib/ux-events";
+import { usePulse } from "@/lib/use-pulse";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -23,6 +24,7 @@ export function Companion() {
   const { user, ventures, xp, streak, dueCards } = useStore();
   const { prefs, toggleCompanion, trackRoute, recall, recentActivity, todaysBrief, logActivity, remember, pushInsight, goals, genome } = useMe();
   const { listening, transcript, supported, start, stop, speak } = useVoice();
+  const pulse = usePulse();
 
   const [open, setOpen] = useState(prefs.companionOpen);
   const [expanded, setExpanded] = useState(false);
@@ -108,17 +110,21 @@ export function Companion() {
   const proactive = makeProactive({
     user, due, ventures, dept, goals, brief: todaysBrief(), pathname,
   });
+  // The Pulse Engine's top action — surfaced as the proactive nudge on
+  // every page except the dashboard (which already renders the full
+  // queue). Graph-derived nudges still win when fresh.
+  const pulseAction = pathname !== "/studio" ? pulse?.actions[0] ?? null : null;
 
   // Log the proactive impression once when it first becomes visible.
   // Dedupe via the ref so re-renders don't multi-fire.
   useEffect(() => {
     if (open || proactiveDismissed) return;
     if (proactiveLoggedRef.current) return;
-    const text = graphProactive ?? proactive;
+    const text = graphProactive ?? pulseAction?.title ?? proactive;
     if (!text) return;
     proactiveLoggedRef.current = true;
-    logUxEvent("companion_proactive_shown", { source: graphProactive ? "graph" : "page" });
-  }, [open, proactiveDismissed, graphProactive, proactive]);
+    logUxEvent("companion_proactive_shown", { source: graphProactive ? "graph" : pulseAction ? "pulse" : "page" });
+  }, [open, proactiveDismissed, graphProactive, pulseAction, proactive]);
 
   async function send(text?: string) {
     const content = (text ?? input).trim();
@@ -199,34 +205,50 @@ export function Companion() {
         </button>
       )}
 
-      {/* Proactive nudge bubble — prefers the graph-driven one when
-          available (closed-fab visibility for users who never open the
-          companion). */}
-      {!open && (graphProactive || proactive) && !proactiveDismissed && (() => {
-        const text = graphProactive ?? proactive;
-        const source = graphProactive ? "graph" : "page";
+      {/* Proactive nudge bubble. Priority: fresh graph insight → Pulse
+          Engine's top next-best-action → page heuristic. The pulse
+          variant deep-links straight to the action instead of routing
+          through a chat turn. */}
+      {!open && (graphProactive || pulseAction || proactive) && !proactiveDismissed && (() => {
+        const text = graphProactive ?? pulseAction?.title ?? proactive;
+        const source = graphProactive ? "graph" : pulseAction ? "pulse" : "page";
         return (
           <div className="fixed bottom-24 right-5 z-[59] max-w-xs glass rounded-2xl p-4 shadow-2xl border border-amber/30 animate-fade-in" data-source={source}>
             <button onClick={() => setProactiveDismissed(true)} className="absolute top-2 right-2 text-muted hover:text-foreground"><X className="size-3.5" /></button>
             <div className="flex items-start gap-3">
               <Sparkles className="size-4 text-amber shrink-0 mt-0.5" />
               <div className="text-sm">
-                {graphProactive && <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">From your graph</div>}
+                {source === "graph" && <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">From your graph</div>}
+                {source === "pulse" && <div className="text-[10px] uppercase tracking-widest text-emerald mb-1 flex items-center gap-1"><span className="size-1 rounded-full bg-emerald pulse-dot" /> Live engine</div>}
                 {text}
+                {source === "pulse" && pulseAction && <p className="mt-1 text-xs text-muted">{pulseAction.reason}</p>}
               </div>
             </div>
-            <button
-              onClick={() => {
-                logUxEvent("companion_proactive_clicked", { source });
-                setOpen(true);
-                setProactiveDismissed(true);
-                setMsgs([{ role: "user", content: text! }, { role: "assistant", content: "" }]);
-                send(text!);
-              }}
-              className="mt-3 text-xs text-emerald hover:underline"
-            >
-              Talk to Sage about this →
-            </button>
+            {source === "pulse" && pulseAction ? (
+              <button
+                onClick={() => {
+                  logUxEvent("companion_proactive_clicked", { source });
+                  setProactiveDismissed(true);
+                  router.push(pulseAction.href);
+                }}
+                className="mt-3 text-xs text-emerald hover:underline"
+              >
+                Do it now (~{pulseAction.estMin}m) →
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  logUxEvent("companion_proactive_clicked", { source });
+                  setOpen(true);
+                  setProactiveDismissed(true);
+                  setMsgs([{ role: "user", content: text! }, { role: "assistant", content: "" }]);
+                  send(text!);
+                }}
+                className="mt-3 text-xs text-emerald hover:underline"
+              >
+                Talk to Sage about this →
+              </button>
+            )}
           </div>
         );
       })()}
@@ -262,7 +284,7 @@ export function Companion() {
           <div className="px-4 py-2 border-b border-border bg-surface-2/40 flex items-center gap-2 text-[10px] uppercase tracking-widest shrink-0">
             <span className="text-muted">Now:</span>
             <span className="text-emerald truncate">{ctx.label}</span>
-            <span className="ml-auto text-muted">Lv {lvl} · 🔥{streak}d</span>
+            <span className="ml-auto text-muted">Lv {lvl} · 🔥{streak}d{pulse ? ` · ⚡${pulse.momentum}` : ""}</span>
           </div>
 
           {/* Conversation */}

@@ -96,6 +96,17 @@ export type SiteContextSnapshot = {
     ventureFromSketch?: { id: string; name: string }[];
     orphanBuilds?: { id: string; name: string }[];
   };
+  // Live Pulse Engine signals (see lib/pulse-engine.ts) — the same
+  // numbers the dashboard shows. Lets every AI surface speak to the
+  // user's actual momentum and recommend the same next moves the
+  // platform does, instead of inventing parallel advice.
+  pulse?: {
+    momentum?: number;          // 0..100
+    momentumTrend?: string;     // rising | steady | cooling
+    learningVelocity?: number;  // 0..100
+    topVentureHealth?: { name: string; score: number; staleDays: number };
+    nextActions?: { title: string; reason: string }[];
+  };
   // What route this is — lets the brain bias toward relevant sections
   // (e.g. the brain trims `recentBuilds` for venture-tab calls).
   callerScope?: string;
@@ -229,6 +240,22 @@ export function formatSiteContext(snap: SiteContextSnapshot | null | undefined):
       bits.push(`- ${i.orphanBuilds.length} build${i.orphanBuilds.length === 1 ? "" : "s"} sitting with no connections: ${names}`);
     }
     if (bits.length > 0) lines.push(`[GRAPH INSIGHTS]\n${bits.join("\n")}`);
+  }
+
+  if (snap.pulse) {
+    const p = snap.pulse;
+    const bits: string[] = [];
+    if (p.momentum !== undefined) bits.push(`- momentum: ${p.momentum}/100${p.momentumTrend ? ` (${p.momentumTrend})` : ""}`);
+    if (p.learningVelocity !== undefined) bits.push(`- learning velocity (7d): ${p.learningVelocity}/100`);
+    if (p.topVentureHealth) {
+      const v = p.topVentureHealth;
+      bits.push(`- venture health: "${v.name}" ${v.score}/100${v.staleDays > 2 ? ` — quiet for ${v.staleDays} days` : ""}`);
+    }
+    if (p.nextActions?.length) {
+      bits.push("- the platform's live engine is already recommending these next moves (align with them; don't invent a parallel plan):");
+      for (const a of p.nextActions.slice(0, 3)) bits.push(`  · ${a.title} — ${a.reason}`);
+    }
+    if (bits.length > 0) lines.push(`[LIVE PULSE]\n${bits.join("\n")}`);
   }
 
   if (lines.length === 0) return "";

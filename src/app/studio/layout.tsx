@@ -25,6 +25,7 @@ import { ServiceWorker } from "@/components/service-worker";
 import { HelpOverlay } from "@/components/help-overlay";
 import { SearchIndexer } from "@/components/search-indexer";
 import { ErrorReporter } from "@/components/error-reporter";
+import { PersonalTheme } from "@/components/personal-theme";
 import { NotificationsBell } from "@/components/notifications-bell";
 import { UserMenu } from "@/components/user-menu";
 import { useT } from "@/lib/i18n";
@@ -175,6 +176,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[300] focus:bg-emerald focus:text-black focus:px-4 focus:py-2 focus:rounded-full focus:font-medium focus:shadow-lg">
         Skip to content
       </a>
+      <PersonalTheme />
       <CommandPalette />
       <Companion />
       <WelcomeCeremony />
