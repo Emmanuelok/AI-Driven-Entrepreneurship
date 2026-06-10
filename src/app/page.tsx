@@ -12,6 +12,7 @@ import {
 import { ConstellationAfrica } from "@/components/constellation-africa";
 import { HeroCanvas } from "@/components/hero-canvas";
 import { STORIES, HOOKS } from "@/lib/landing-stories";
+import { useStore } from "@/store";
 
 export default function Landing() {
   return (
@@ -81,19 +82,44 @@ function Scene1Hero() {
   const { scrollY } = useScroll();
   const opacity = useTransform(scrollY, [0, 400], [1, 0]);
   const y = useTransform(scrollY, [0, 400], [0, -80]);
+  // Recognize returning users (mount-gated so SSR HTML stays identical
+  // for visitors and the store only reads after hydration).
+  const { user, streak, ventures } = useStore();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const returning = mounted && user ? { name: user.name.split(" ")[0], streak, venture: ventures[0] } : null;
 
   return (
     <section className="relative h-screen flex items-center justify-center overflow-hidden">
       <ConstellationAfrica />
       <motion.div style={{ opacity, y }} className="relative max-w-5xl px-5 sm:px-8 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.5 }}
-          className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-emerald mb-7 border border-emerald/30 bg-emerald/5 px-3 py-1.5 rounded-full backdrop-blur"
-        >
-          <span className="size-1.5 rounded-full bg-emerald pulse-dot" /> For the next generation of African problem-solvers
-        </motion.div>
+        {returning ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+          >
+            <Link
+              href="/studio"
+              className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-emerald mb-7 border border-emerald/30 bg-emerald/5 px-3 py-1.5 rounded-full backdrop-blur hover:bg-emerald/10 transition"
+            >
+              <span className="size-1.5 rounded-full bg-emerald pulse-dot" />
+              Welcome back, {returning.name}
+              {returning.streak > 0 && <> · day {returning.streak}</>}
+              {returning.venture && <> · {returning.venture.name} is in {returning.venture.phase}</>}
+              <ArrowRight className="size-3" />
+            </Link>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+            className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-emerald mb-7 border border-emerald/30 bg-emerald/5 px-3 py-1.5 rounded-full backdrop-blur"
+          >
+            <span className="size-1.5 rounded-full bg-emerald pulse-dot" /> For the next generation of African problem-solvers
+          </motion.div>
+        )}
         <motion.h1
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
