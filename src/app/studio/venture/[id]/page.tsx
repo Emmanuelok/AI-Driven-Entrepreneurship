@@ -16,6 +16,7 @@ import { useCloudVenture } from "@/lib/cloud-venture";
 import { genomeVoiceInstruction } from "@/lib/genome";
 import { ConnectionsPanel } from "@/components/connections-panel";
 import { ConnectionsBanner } from "@/components/connections-banner";
+import { assessPhase, phaseInputFromVenture } from "@/lib/phase-engine";
 import {
   Target, Users, Wallet, Trophy, Lightbulb, Wrench, Megaphone, TrendingUp,
   CheckCircle2, Sparkles, MapPin, Calendar, ArrowRight, Brain,
@@ -59,6 +60,10 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
     const problemHere = venture.problemId ? PROBLEMS.find((p) => p.id === venture.problemId) : undefined;
     const days = Math.floor((Date.now() - venture.createdAt) / 86_400_000) || 0;
     const mvp = venture.mvpTasks.filter((t) => t.done).length;
+    const gates = assessPhase(phaseInputFromVenture(venture, Date.now()), Date.now());
+    const gatesLine = gates.blocking.length > 0
+      ? ` The platform's Phase Engine says readiness is ${gates.readiness}% with these gates still open: ${gates.blocking.map((b) => b.label).join("; ")}. Align your advice with closing those gates.`
+      : ` The platform's Phase Engine says every ${venture.phase} gate is green — advise on advancing well, not on busywork.`;
     (async () => {
       setAkiliBusy(true);
       setAkiliBrief("");
@@ -69,7 +74,7 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
           body: JSON.stringify({
             messages: [{
               role: "user",
-              content: `I'm working on my venture "${venture.name}" — "${venture.tagline}". Current phase: ${venture.phase}. Days in: ${days}. Interviews logged: ${venture.interviews.length}/${venture.metrics.interviewsTarget}. MVP tasks done: ${mvp}/${venture.mvpTasks.length}. MRR: $${venture.metrics.mrr}. ${problemHere ? `Problem we're solving: ${problemHere.title}.` : ""} What is the single most important move I should make in the next 48 hours, and why? Keep it to 3 short paragraphs. End with one concrete first step.`,
+              content: `I'm working on my venture "${venture.name}" — "${venture.tagline}". Current phase: ${venture.phase}. Days in: ${days}. Interviews logged: ${venture.interviews.length}/${venture.metrics.interviewsTarget}. MVP tasks done: ${mvp}/${venture.mvpTasks.length}. MRR: $${venture.metrics.mrr}. ${problemHere ? `Problem we're solving: ${problemHere.title}.` : ""}${gatesLine} What is the single most important move I should make in the next 48 hours, and why? Keep it to 3 short paragraphs. End with one concrete first step.`,
             }],
             context: {
               ventureName: venture.name,
@@ -105,6 +110,9 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
   const activePhase = PHASES[activePhaseIdx] ?? PHASES[0];
   const mvpDone = v.mvpTasks.filter((t) => t.done).length;
   const interviewPct = (v.interviews.length / Math.max(1, v.metrics.interviewsTarget)) * 100;
+  // Phase Engine: deterministic exit-criteria assessment for the
+  // current phase. Drives the gates panel and informs Akili's brief.
+  const assessment = assessPhase(phaseInputFromVenture(v, Date.now()), Date.now());
 
   function regenerateBrief() {
     // Trigger by clearing the brief — useEffect will refire via deps. But it also has akiliBrief guard.
@@ -114,6 +122,10 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
     const problemHere = venture.problemId ? PROBLEMS.find((p) => p.id === venture.problemId) : undefined;
     const days = Math.floor((Date.now() - venture.createdAt) / 86_400_000) || 0;
     const mvp = venture.mvpTasks.filter((t) => t.done).length;
+    const gates = assessPhase(phaseInputFromVenture(venture, Date.now()), Date.now());
+    const gatesLine = gates.blocking.length > 0
+      ? ` Phase Engine: readiness ${gates.readiness}%, open gates: ${gates.blocking.map((b) => b.label).join("; ")}. Align with closing those.`
+      : ` Phase Engine: every ${venture.phase} gate is green.`;
     (async () => {
       setAkiliBusy(true);
       setAkiliBrief("");
@@ -122,7 +134,7 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: [{ role: "user", content: `I'm working on my venture "${venture.name}" — "${venture.tagline}". Phase: ${venture.phase}. Day ${days}. Interviews: ${venture.interviews.length}/${venture.metrics.interviewsTarget}. MVP: ${mvp}/${venture.mvpTasks.length}. MRR: $${venture.metrics.mrr}. ${problemHere ? `Problem: ${problemHere.title}.` : ""} What's the single most important move I should make in the next 48 hours? Keep to 3 short paragraphs ending with one concrete first step.` }],
+            messages: [{ role: "user", content: `I'm working on my venture "${venture.name}" — "${venture.tagline}". Phase: ${venture.phase}. Day ${days}. Interviews: ${venture.interviews.length}/${venture.metrics.interviewsTarget}. MVP: ${mvp}/${venture.mvpTasks.length}. MRR: $${venture.metrics.mrr}. ${problemHere ? `Problem: ${problemHere.title}.` : ""}${gatesLine} What's the single most important move I should make in the next 48 hours? Keep to 3 short paragraphs ending with one concrete first step.` }],
             context: { ventureName: venture.name, phase: venture.phase, genomeVoice: genomeVoiceInstruction(genome) },
           }),
         });
@@ -248,13 +260,54 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
               );
             })}
           </div>
-          {activePhaseIdx < PHASES.length - 1 && (
-            <div className="mt-5 text-center">
-              <Button variant="secondary" size="sm" onClick={advancePhase}>
-                Move to {PHASES[activePhaseIdx + 1].label} <ChevronRight className="size-3.5" />
-              </Button>
+          {/* Phase Engine: exit criteria for the current phase */}
+          <Card className={`mt-6 p-5 sm:p-6 ${assessment.readyToAdvance ? "border-emerald/40 ring-1 ring-emerald/20" : ""}`}>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-emerald">
+                <Zap className="size-3.5" /> Phase Engine · {activePhase.label} gates
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted uppercase tracking-widest">Readiness</span>
+                <span className={`font-mono ${assessment.readiness >= 100 ? "text-emerald" : assessment.readiness >= 60 ? "text-amber" : "text-muted"}`}>{assessment.readiness}%</span>
+              </div>
             </div>
-          )}
+            <p className="text-sm text-muted mb-4">{assessment.verdict}</p>
+            <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden mb-5">
+              <div
+                className={`h-full rounded-full transition-all ${assessment.readiness >= 100 ? "bg-emerald" : "bg-gradient-to-r from-amber to-emerald"}`}
+                style={{ width: `${assessment.readiness}%` }}
+              />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-2.5">
+              {assessment.criteria.map((c) => (
+                <Link
+                  key={c.id}
+                  href={c.href}
+                  className={`flex items-start gap-3 p-3 rounded-xl border transition group ${c.met ? "border-emerald/30 bg-emerald/5" : "border-border bg-surface-2/40 hover:border-emerald/40"}`}
+                >
+                  <span className={`size-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${c.met ? "border-emerald bg-emerald text-black" : "border-border group-hover:border-emerald"}`}>
+                    {c.met ? <CheckCircle2 className="size-3" /> : <span className="text-[9px] font-mono text-muted">{Math.round(c.progress * 100)}</span>}
+                  </span>
+                  <div className="min-w-0">
+                    <div className={`text-sm leading-snug ${c.met ? "" : "group-hover:text-emerald transition"}`}>{c.label}</div>
+                    <div className="text-xs text-muted mt-0.5 leading-relaxed">{c.detail}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            {assessment.nextPhase && (
+              <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+                <Button variant={assessment.readyToAdvance ? "primary" : "secondary"} size="sm" onClick={advancePhase}>
+                  {assessment.readyToAdvance ? <>Advance to {PHASES[activePhaseIdx + 1].label} — you&apos;ve earned it</> : <>Advance anyway</>} <ChevronRight className="size-3.5" />
+                </Button>
+                {!assessment.readyToAdvance && (
+                  <span className="text-xs text-muted">
+                    {assessment.blocking.length} gate{assessment.blocking.length === 1 ? "" : "s"} still open — advancing early is allowed, but the gates exist for a reason.
+                  </span>
+                )}
+              </div>
+            )}
+          </Card>
         </div>
 
         {/* Akili's "right now" brief */}
