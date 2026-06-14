@@ -61,6 +61,7 @@ const NAV: NavItem[] = [
 
   { href: "/studio/mentors", label: "Mentors", icon: Users, group: "Network" },
   { href: "/studio/funding", label: "Funding", icon: Wallet, group: "Network" },
+  { href: "/studio/workspaces", label: "Workspaces", icon: Users, group: "Network" },
   { href: "/studio/community", label: "Community", icon: Users, group: "Network" },
   { href: "/studio/investor", label: "Investor Portal", icon: Briefcase, group: "Network" },
 
