@@ -127,6 +127,44 @@ body {
 }
 .aurora { animation: aurora 14s ease-in-out infinite; }
 
+/* Soft breathing scale — used to give CTAs a calm "alive" feel without
+   the harshness of pulse-dot. Smaller amplitude, longer cycle. */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+.breathe { animation: breathe 4.5s ease-in-out infinite; }
+
+/* Pointer-glow: the card uses --px / --py CSS vars (set by JS to the
+   pointer's local position) to spotlight under the cursor. Falls back
+   to a centered glow when JS hasn't touched it yet. */
+.spotlight {
+  --px: 50%;
+  --py: 50%;
+  position: relative;
+}
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(280px circle at var(--px) var(--py), color-mix(in srgb, var(--accent) 18%, transparent), transparent 65%);
+  opacity: 0;
+  transition: opacity 240ms ease;
+  pointer-events: none;
+}
+.spotlight:hover::before { opacity: 1; }
+
+/* Headline wrap that prefers visually-balanced lines. Progressive
+   enhancement — browsers without text-wrap: balance fall back to
+   normal wrapping. */
+.text-balance { text-wrap: balance; }
+
+@media (prefers-reduced-motion: reduce) {
+  .breathe { animation: none; }
+  .spotlight::before { display: none; }
+}
+
 ::selection { background: var(--accent); color: #001; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }

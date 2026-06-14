@@ -133,10 +133,10 @@ export default function Dashboard() {
       <div className="rise grid lg:grid-cols-[1fr_auto] gap-8 items-center">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-accent">{greeting}, {user.name.split(" ")[0]}</p>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl sm:text-[2.6rem] font-semibold mt-2 leading-tight max-w-2xl">
+          <h1 className="font-[family-name:var(--font-display)] text-3xl sm:text-[2.6rem] font-semibold mt-2 leading-tight max-w-2xl text-balance">
             {pulse?.headline ?? (streak > 0 ? `${streak}-day streak. Keep it alive.` : "Welcome back. Today is the day.")}
           </h1>
-          {pulse && <p className="mt-3 text-muted max-w-xl leading-relaxed">{pulse.subline}</p>}
+          {pulse && <p className="mt-3 text-muted max-w-xl leading-relaxed text-balance">{pulse.subline}</p>}
           <div className="flex items-center gap-3 flex-wrap mt-5">
             <StatBadge icon={Flame} label="Streak" value={`${streak}d`} color="text-rust" />
             <StatBadge icon={Trophy} label="Level" value={`Lv ${lvl}`} color="text-amber" />

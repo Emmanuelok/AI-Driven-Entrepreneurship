@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMyWorkspaces } from "@/lib/use-workspace";
 import { workspaceApi, type WorkspaceKind, type WorkspaceAccent, type WorkspaceListing } from "@/lib/workspace-api";
 import { Card, Button } from "@/components/ui";
+import { Spotlight } from "@/components/spotlight";
 import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -40,10 +41,10 @@ export default function WorkspacesHub() {
           <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
             <Users className="size-3.5" /> Workspaces
           </p>
-          <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
+          <h1 className="font-[family-name:var(--font-display)] text-4xl sm:text-[2.6rem] font-semibold leading-[1.05] text-balance">
             Build, learn, and ship — <span className="text-emerald italic">together</span>.
           </h1>
-          <p className="mt-3 text-muted max-w-2xl leading-relaxed">
+          <p className="mt-3 text-muted max-w-2xl leading-relaxed text-balance">
             Pick a topic, invite a friend, share the link. Whether it’s a study group across two continents
             or a research team at three universities, every workspace gets live presence, deadlines, and AI
             coaching out of the box.
@@ -110,33 +111,33 @@ function Grid({ items }: { items: WorkspaceListing[] }) {
         const kind = KIND_OPTIONS.find((k) => k.id === w.kind) ?? KIND_OPTIONS[5];
         const Icon = kind.icon;
         return (
-          <Link
-            key={w.id}
-            href={`/studio/workspaces/${w.id}`}
-            className="group glass lift rounded-2xl p-6 relative overflow-hidden"
-            style={{ animationDelay: `${60 + i * 60}ms` } as React.CSSProperties}
-          >
-            <div
-              className="absolute -top-16 -right-16 size-48 rounded-full blur-3xl opacity-20 group-hover:opacity-40 transition"
-              style={{ background: accent }}
-            />
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="size-9 rounded-xl flex items-center justify-center" style={{ background: `${accent}1F`, border: `1px solid ${accent}55` }}>
-                  <Icon className="size-4" style={{ color: accent }} />
+          <Spotlight key={w.id} style={{ "--accent": accent, animationDelay: `${60 + i * 60}ms` } as React.CSSProperties} className="rise">
+            <Link
+              href={`/studio/workspaces/${w.id}`}
+              className="group glass lift rounded-2xl p-6 relative overflow-hidden block"
+            >
+              <div
+                className="absolute -top-16 -right-16 size-48 rounded-full blur-3xl opacity-20 group-hover:opacity-40 transition"
+                style={{ background: accent }}
+              />
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="size-9 rounded-xl flex items-center justify-center" style={{ background: `${accent}1F`, border: `1px solid ${accent}55` }}>
+                    <Icon className="size-4" style={{ color: accent }} />
+                  </div>
+                  <span className="text-[10px] uppercase tracking-widest text-muted">{kind.label}</span>
                 </div>
-                <span className="text-[10px] uppercase tracking-widest text-muted">{kind.label}</span>
+                <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold leading-tight group-hover:text-emerald transition text-balance">{w.title}</h3>
+                {w.description && (
+                  <p className="mt-2 text-sm text-muted line-clamp-2 leading-relaxed">{w.description}</p>
+                )}
+                <div className="mt-4 flex items-center justify-between text-xs text-muted">
+                  <span>Updated {formatDistanceToNow(new Date(w.updated_at))} ago</span>
+                  <span className="text-emerald flex items-center gap-1">Open <ArrowRight className="size-3 group-hover:translate-x-0.5 transition" /></span>
+                </div>
               </div>
-              <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold leading-tight group-hover:text-emerald transition">{w.title}</h3>
-              {w.description && (
-                <p className="mt-2 text-sm text-muted line-clamp-2 leading-relaxed">{w.description}</p>
-              )}
-              <div className="mt-4 flex items-center justify-between text-xs text-muted">
-                <span>Updated {formatDistanceToNow(new Date(w.updated_at))} ago</span>
-                <span className="text-emerald flex items-center gap-1">Open <ArrowRight className="size-3 group-hover:translate-x-0.5 transition" /></span>
-              </div>
-            </div>
-          </Link>
+            </Link>
+          </Spotlight>
         );
       })}
     </div>

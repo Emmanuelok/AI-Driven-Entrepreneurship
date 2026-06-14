@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/store";
 import { workspaceApi } from "@/lib/workspace-api";
 import { Loader2, Users, Sparkles, ArrowRight, CheckCircle2, AlertTriangle, LinkIcon } from "lucide-react";
+import { Spotlight } from "@/components/spotlight";
 
 // Public invite-landing page. Anyone with the link sees a teaser:
 // the workspace title, kind, member count, and the role they'd join
@@ -116,12 +117,12 @@ export default function InviteLandingPage({ params }: { params: Promise<{ token:
           background: `radial-gradient(60% 50% at 50% 0%, ${accent}1F 0%, transparent 60%), radial-gradient(50% 40% at 50% 100%, ${accent}14 0%, transparent 60%)`,
         }}
       />
-      <div className="relative w-full max-w-lg">
+      <Spotlight className="relative w-full max-w-lg rise" style={{ "--accent": accent } as React.CSSProperties}>
         <div className="glass rounded-3xl p-8 sm:p-10 shadow-2xl">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.25em] text-emerald mb-6">
             <Sparkles className="size-3" /> You’ve been invited
           </div>
-          <h1 className="font-[family-name:var(--font-display)] text-3xl sm:text-[2rem] font-semibold leading-tight">
+          <h1 className="font-[family-name:var(--font-display)] text-3xl sm:text-[2rem] font-semibold leading-tight text-balance">
             Join <span style={{ color: accent }}>{ws.title}</span>
           </h1>
           {ws.description && (
@@ -177,7 +178,7 @@ export default function InviteLandingPage({ params }: { params: Promise<{ token:
             Powered by <Link href="/" className="text-emerald hover:underline">Sankofa Studio</Link> — the collaborative learning + venture platform for African builders.
           </div>
         </div>
-      </div>
+      </Spotlight>
     </div>
   );
 }
