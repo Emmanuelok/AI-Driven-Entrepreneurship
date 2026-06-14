@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer, Zap, Dna, Mail, Hammer,
+  User, Timer, Zap, Dna, Mail, Hammer, Workflow,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -50,9 +50,9 @@ const NAV: NavItem[] = [
   { href: "/studio/srs", label: "Daily Review", icon: BookMarked, group: "Learn" },
   { href: "/studio/ship-it", label: "Ship-it Lessons", icon: Rocket, group: "Learn" },
 
+  { href: "/studio/flows", label: "Flow Studio", icon: Workflow, group: "Build" },
   { href: "/studio/build", label: "AI Build Studio", icon: Hammer, group: "Build" },
 
-  { href: "/studio/brainstorm", label: "Brainstorm", icon: Lightbulb, group: "Build" },
   { href: "/studio/venture", label: "Ventures", icon: Rocket, group: "Build" },
   { href: "/studio/conglomerate", label: "Conglomerate", icon: Network, group: "Build" },
   { href: "/studio/arena", label: "Pitch Arena", icon: Trophy, group: "Build" },
@@ -64,7 +64,7 @@ const NAV: NavItem[] = [
   { href: "/studio/community", label: "Community", icon: Users, group: "Network" },
   { href: "/studio/investor", label: "Investor Portal", icon: Briefcase, group: "Network" },
 
-  { href: "/studio/flows", label: "Flow Studio", icon: Network, group: "Tools" },
+  { href: "/studio/brainstorm", label: "Sketch (classic)", icon: Lightbulb, group: "Tools" },
   { href: "/studio/documents", label: "Document Studio", icon: FileText, group: "Tools" },
   { href: "/studio/brand", label: "Brand Studio", icon: Paintbrush, group: "Tools" },
   { href: "/studio/okrs", label: "OKRs", icon: Target, group: "Tools" },

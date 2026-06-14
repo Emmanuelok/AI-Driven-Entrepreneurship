@@ -24,6 +24,7 @@ const ALL_TILES: { href: string; icon: typeof Brain; label: string; c: string }[
   { href: "/studio/tutor", icon: Brain, label: "Sage", c: "emerald" },
   { href: "/studio/me", icon: User, label: "Me", c: "emerald" },
   { href: "/studio/path", icon: GraduationCap, label: "My Path", c: "amber" },
+  { href: "/studio/flows", icon: Network, label: "Flows", c: "emerald" },
   { href: "/studio/brainstorm", icon: Lightbulb, label: "Sketch", c: "amber" },
   { href: "/studio/agents", icon: Bot, label: "Agents", c: "indigo" },
   { href: "/studio/atlas", icon: Map, label: "Atlas", c: "emerald" },

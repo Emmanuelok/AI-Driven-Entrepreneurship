@@ -500,7 +500,7 @@ function phaseActions(v: { id: string }, phase: "ideate" | "discover" | "mvp" | 
   if (phase === "ideate") return [
     { label: "Sharpen the lean canvas", desc: "Fill the 9 blocks with what you actually believe.", icon: Lightbulb, href: `/studio/venture/${id}/ideate` },
     { label: "Generate market research", desc: "TAM / SAM / SOM with citations in 20 seconds.", icon: Bot, href: `/studio/agents/market-sizing` },
-    { label: "Open a Sketch board", desc: "Get your problem out of your head and onto a canvas.", icon: Compass, href: `/studio/brainstorm` },
+    { label: "Open a Flow canvas", desc: "Map problem → persona → wedge → prototype as a graph.", icon: Compass, href: `/studio/flows` },
     { label: "Run Ship Hour for this", desc: "60 minutes from idea to shippable LOI.", icon: Zap, href: `/studio/ship` },
   ];
   if (phase === "discover") return [

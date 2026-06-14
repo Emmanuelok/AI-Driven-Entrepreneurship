@@ -9,9 +9,9 @@ import { Card, Button, EmptyState } from "@/components/ui";
 import { Network, Plus, Trash2, ChevronRight, Cloud } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-// Flow Studio index page. Lists every local flow + a "new flow" CTA.
-// Local-first via the zustand persist store; cloud sync arrives in
-// Phase 2 along with multi-user collaboration on flows.
+// Flow Studio index page — the default ideation surface. Lists every
+// flow + a "new flow" CTA. Local-first via the zustand persist store,
+// with live multi-peer co-edit (Yjs CRDT) and cloud sync already on.
 
 export default function FlowStudioIndex() {
   const router = useRouter();
@@ -134,7 +134,7 @@ export default function FlowStudioIndex() {
       )}
 
       <p className="mt-10 text-[10px] text-muted leading-relaxed">
-        Flows live in your browser. Multi-user collaboration + cloud sync arrives in Phase 2; the Brainstorm canvas is still available at <Link href="/studio/brainstorm" className="text-emerald hover:text-amber">/studio/brainstorm</Link> while flows graduates from beta.
+        Flows sync across your devices and support live multi-peer co-edit. Prefer a lighter free-form canvas? The classic Sketch board is still here at <Link href="/studio/brainstorm" className="text-emerald hover:text-amber">/studio/brainstorm</Link>.
       </p>
     </div>
   );
