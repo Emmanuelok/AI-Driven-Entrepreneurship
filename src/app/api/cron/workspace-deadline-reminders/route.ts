@@ -1,5 +1,6 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { shouldRemind, windowLabel, setByLabel, type DeadlineRow } from "@/lib/deadline-schedule";
+import { pushToUser } from "@/lib/push-to-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,6 +67,10 @@ export async function GET(req: Request) {
   const memberCache = new Map<string, string[]>(); // workspace_id → user_id[]
   const reminded: string[] = [];
   const notifs: NotificationInsert[] = [];
+  // Parallel push fan-out list. tag = deadline id so a later reminder
+  // for the same deadline replaces the earlier banner instead of
+  // stacking.
+  const pushes: { userId: string; title: string; body: string; url: string; tag: string }[] = [];
 
   for (const raw of deadlines) {
     const d = raw as DeadlineRow;
@@ -114,6 +119,7 @@ export async function GET(req: Request) {
         url: href,
         read: false,
       });
+      pushes.push({ userId, title: headline, body, url: href, tag: `wsdeadline:${d.id}` });
     }
     reminded.push(d.id);
   }
@@ -138,11 +144,26 @@ export async function GET(req: Request) {
     }
   }
 
+  // Fan out web-push to subscribed devices. Best-effort and capped so a
+  // huge run can't stall the cron; pushToUser respects the user's
+  // "system" notification preference and prunes dead subscriptions. We
+  // settle all in parallel and only tally successes.
+  let pushed = 0;
+  const settled = await Promise.allSettled(
+    pushes.slice(0, 500).map((p) =>
+      pushToUser(p.userId, { title: p.title, body: p.body, url: p.url, tag: p.tag }, { category: "system" }),
+    ),
+  );
+  for (const s of settled) {
+    if (s.status === "fulfilled" && s.value.ok) pushed += s.value.sent;
+  }
+
   return Response.json({
     ok: true,
     scanned: deadlines.length,
     deadlinesReminded: reminded.length,
     notificationsInserted: inserted,
+    pushesSent: pushed,
   });
 }
 

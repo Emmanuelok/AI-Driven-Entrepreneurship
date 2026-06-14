@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMyWorkspaces } from "@/lib/use-workspace";
 import { workspaceApi, type WorkspaceKind, type WorkspaceAccent, type WorkspaceListing } from "@/lib/workspace-api";
 import { Card, Button } from "@/components/ui";
 import { Spotlight } from "@/components/spotlight";
-import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2 } from "lucide-react";
+import { McpInstallSnippets } from "@/components/mcp-install-snippets";
+import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2, Bot, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const KIND_OPTIONS: { id: WorkspaceKind; label: string; tagline: string; icon: typeof Sparkles; accent: WorkspaceAccent }[] = [
@@ -84,6 +85,8 @@ export default function WorkspacesHub() {
         </>
       )}
 
+      {!loading && <McpConnectCard />}
+
       {creating && (
         <CreateDialog
           onClose={() => setCreating(false)}
@@ -91,6 +94,43 @@ export default function WorkspacesHub() {
         />
       )}
     </div>
+  );
+}
+
+// "Connect your AI agent" — surfaces the global Workspace MCP server so a
+// user can drive their workspaces (read deadlines, post messages, create
+// deadlines) from Claude Desktop / Cursor / any MCP client using their
+// existing smcp_ token.
+function McpConnectCard() {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("/api/mcp/workspaces");
+  useEffect(() => { setUrl(`${window.location.origin}/api/mcp/workspaces`); }, []);
+
+  return (
+    <section className="mt-12 rise rise-2">
+      <Card className="p-5 sm:p-6">
+        <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-xl bg-indigo/10 border border-indigo/30 flex items-center justify-center shrink-0">
+              <Bot className="size-4 text-indigo" />
+            </div>
+            <div>
+              <h3 className="font-medium">Connect your AI agent</h3>
+              <p className="text-xs text-muted">Drive these workspaces from Claude Desktop, Cursor, or any MCP client — list deadlines, post updates, create deadlines.</p>
+            </div>
+          </div>
+          <ChevronDown className={`size-4 text-muted shrink-0 transition ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && (
+          <div className="mt-5 pt-5 border-t border-border">
+            <p className="text-sm text-muted mb-3">
+              This is a Model Context Protocol server exposing 8 tools over your workspaces. Mint a token in <Link href="/studio/settings" className="text-emerald hover:underline">Settings → MCP tokens</Link>, then drop this into your client:
+            </p>
+            <McpInstallSnippets serverName="sankofa-workspaces" url={url} />
+          </div>
+        )}
+      </Card>
+    </section>
   );
 }
 
