@@ -17,6 +17,7 @@ import { genomeVoiceInstruction } from "@/lib/genome";
 import { ConnectionsPanel } from "@/components/connections-panel";
 import { ConnectionsBanner } from "@/components/connections-banner";
 import { assessPhase, phaseInputFromVenture } from "@/lib/phase-engine";
+import { usePhaseGateWatcher } from "@/lib/phase-watcher";
 import {
   Target, Users, Wallet, Trophy, Lightbulb, Wrench, Megaphone, TrendingUp,
   CheckCircle2, Sparkles, MapPin, Calendar, ArrowRight, Brain,
@@ -103,16 +104,19 @@ export default function VentureCockpit({ params }: { params: Promise<{ id: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v?.id, user?.id]);
 
-  if (!found || !v) { notFound(); return null; }
+  // Phase Engine: deterministic exit-criteria assessment for the current
+  // phase. Computed before the guard so the gate watcher (a hook) always
+  // runs in stable order; drives the gates panel + informs Akili's brief.
+  const assessment = v ? assessPhase(phaseInputFromVenture(v, Date.now()), Date.now()) : undefined;
+  usePhaseGateWatcher(v, assessment);
+
+  if (!found || !v || !assessment) { notFound(); return null; }
 
   const problem = v.problemId ? PROBLEMS.find((p) => p.id === v.problemId) : undefined;
   const activePhaseIdx = PHASES.findIndex((p) => p.id === v.phase);
   const activePhase = PHASES[activePhaseIdx] ?? PHASES[0];
   const mvpDone = v.mvpTasks.filter((t) => t.done).length;
   const interviewPct = (v.interviews.length / Math.max(1, v.metrics.interviewsTarget)) * 100;
-  // Phase Engine: deterministic exit-criteria assessment for the
-  // current phase. Drives the gates panel and informs Akili's brief.
-  const assessment = assessPhase(phaseInputFromVenture(v, Date.now()), Date.now());
 
   function regenerateBrief() {
     // Trigger by clearing the brief — useEffect will refire via deps. But it also has akiliBrief guard.

@@ -130,6 +130,11 @@ type State = {
   dailyBriefs: Record<string, DailyBrief>;
   momentumSamples: MomentumSample[];
   insights: Insight[];
+  // Phase Engine watcher memory: per `${ventureId}:${phase}`, which gate
+  // ids we've already seen as met (so we only celebrate transitions, not
+  // gates already met before we started watching) and whether the
+  // advancement letter for that phase has been sent.
+  phaseSeen: Record<string, { met: string[]; letterSent: boolean }>;
   prefs: AppPref;
   genome: Genome;
   artifacts: ShippedArtifact[];
@@ -175,6 +180,9 @@ type State = {
   // momentum trajectory
   sampleMomentum: (momentum: number, learningVelocity: number) => void;
 
+  // phase watcher
+  setPhaseSeen: (key: string, value: { met: string[]; letterSent: boolean }) => void;
+
   // insights
   pushInsight: (i: Omit<Insight, "id" | "ts">) => void;
 
@@ -202,6 +210,7 @@ export const useMe = create<State>()(
       dailyBriefs: {},
       momentumSamples: [],
       insights: [],
+      phaseSeen: {},
       prefs: {
         companionOpen: false,
         companionPosition: { x: 0, y: 0 },
@@ -328,6 +337,8 @@ export const useMe = create<State>()(
           set({ momentumSamples: [...samples, { date: t, momentum, learningVelocity }].slice(-120) });
         }
       },
+
+      setPhaseSeen: (key, value) => set({ phaseSeen: { ...get().phaseSeen, [key]: value } }),
 
       pushInsight: (i) => set({ insights: [{ id: nanoid(8), ts: Date.now(), ...i }, ...get().insights].slice(0, 40) }),
 
