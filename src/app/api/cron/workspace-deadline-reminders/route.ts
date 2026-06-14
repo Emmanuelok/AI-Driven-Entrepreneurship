@@ -107,7 +107,7 @@ export async function GET(req: Request) {
         user_id: userId,
         kind: "system",
         actor_name: "Deadline engine",
-        target_kind: "venture", // notifications.target_kind is constrained to existing values; this is the closest fit
+        target_kind: "workspace",
         target_slug: d.workspace_id,
         title: headline,
         body,

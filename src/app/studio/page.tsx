@@ -7,7 +7,7 @@ import {
   ArrowUpRight, Sparkles, Clock, Target, Wallet, BookMarked, Map, Lightbulb,
   Bot, Network, FileText, Notebook, Paintbrush, MessageSquare,
   GraduationCap, User, Timer, Sun, RefreshCcw, Hammer, Activity,
-  TrendingDown, Minus, ArrowRight, Zap,
+  TrendingDown, Minus, ArrowRight, Zap, Users,
 } from "lucide-react";
 import { useStore, level, xpInLevel, xpToNextLevel } from "@/store";
 import { useMe } from "@/store/me";
@@ -24,6 +24,7 @@ import type { PulseAction } from "@/lib/pulse-engine";
 const ALL_TILES: { href: string; icon: typeof Brain; label: string; c: string }[] = [
   { href: "/studio/tutor", icon: Brain, label: "Sage", c: "emerald" },
   { href: "/studio/me", icon: User, label: "Me", c: "emerald" },
+  { href: "/studio/workspaces", icon: Users, label: "Workspaces", c: "emerald" },
   { href: "/studio/path", icon: GraduationCap, label: "My Path", c: "amber" },
   { href: "/studio/flows", icon: Network, label: "Flows", c: "emerald" },
   { href: "/studio/brainstorm", icon: Lightbulb, label: "Sketch", c: "amber" },

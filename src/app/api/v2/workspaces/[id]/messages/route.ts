@@ -92,7 +92,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       user_id: uid,
       kind: "comment",
       actor_name: authorName,
-      target_kind: "venture",
+      target_kind: "workspace",
       target_slug: id,
       title: `${authorName} mentioned you in ${wsTitle}`,
       body: text.slice(0, 160),

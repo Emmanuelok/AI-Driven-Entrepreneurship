@@ -12,6 +12,7 @@ import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { WorkspaceDiscussionPanel } from "@/components/workspace-discussion-panel";
 import { WorkspaceNotesPanel } from "@/components/workspace-notes-panel";
+import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -129,6 +130,9 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         {tab === "overview" && (
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-6">
+            {/* Sage's read — AI synthesis of the whole workspace */}
+            <WorkspaceSynthesisCard workspaceId={id} accent={accent} />
+
             {/* Deadlines */}
             <section>
               <div className="flex items-center justify-between mb-3">

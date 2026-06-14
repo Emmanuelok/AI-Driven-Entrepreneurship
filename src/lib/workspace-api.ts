@@ -220,6 +220,13 @@ export const workspaceApi = {
   deleteDoc: (id: string, docId: string) =>
     call(`/api/v2/workspaces/${id}/docs/${docId}`, { method: "DELETE" }),
 
+  // ── AI synthesis ────────────────────────────────────────────────────
+  synthesize: (id: string, postToDiscussion: boolean, siteContext?: unknown) =>
+    call<{ brief: string; generatedAt: number; empty?: boolean; fallback?: boolean }>(`/api/v2/workspaces/${id}/synthesize`, {
+      method: "POST",
+      body: JSON.stringify({ postToDiscussion, siteContext }),
+    }),
+
   // ── Smart deadline ──────────────────────────────────────────────────
   // Bespoke (not the { ok } envelope): /api/generate/* routes return the
   // bare object. Resolves to null on any failure so the UI can fall back
