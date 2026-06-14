@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, Badge, Button, Input, Textarea, Dialog } from "@/components/ui";
 import { Users, MessageSquare, Hash, Plus, Heart, Reply, Calendar, MapPin, ArrowRight } from "lucide-react";
 import { useStore } from "@/store";
+import { LiveBuildersStrip } from "@/components/live-builders-strip";
 
 const CIRCLES = [
   { id: "agritech-wa", name: "Agritech West Africa", members: 487, sector: "Agriculture", region: "West Africa", desc: "Founders building for African farmers — cocoa, tomatoes, palm oil, livestock." },
@@ -67,6 +68,7 @@ export default function CommunityPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          <LiveBuildersStrip area="community" />
           <Card className="p-5">
             <h3 className="font-medium flex items-center gap-2 mb-4"><Users className="size-4 text-emerald" /> Your circles</h3>
             <div className="space-y-2">

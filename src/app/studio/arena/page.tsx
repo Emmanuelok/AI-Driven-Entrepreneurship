@@ -6,6 +6,7 @@ import { useStore } from "@/store";
 import { Card, Badge, Button, Input, Textarea, Dialog, EmptyState, Stat } from "@/components/ui";
 import { Trophy, Plus, Sparkles, Heart, ArrowRight, Flame, Crown, Star } from "lucide-react";
 import { Markdown } from "@/components/markdown";
+import { LiveBuildersStrip } from "@/components/live-builders-strip";
 
 const SEED_PITCHES = [
   { id: "s1", title: "KubaCold", ventureName: "KubaCold", founderName: "Ama Mensah", pitchText: "Solar microcold-storage for tomato co-ops in Northern Ghana. Pay-per-crate. 80% loss reduction at the Yendi pilot. $2.2k MRR after 6 weeks. 11 LOIs signed. Raising $250k pre-seed to deploy to 12 more co-ops.", votes: 487, judgeScore: { problem: 9, solution: 8, market: 9, team: 7, ask: 8, overall: 8.2, feedback: "Strong founder-problem fit. Distribution wedge is the killer differentiator." } },
@@ -42,6 +43,8 @@ export default function ArenaPage() {
           <Plus className="size-4" /> Submit pitch
         </Button>
       </div>
+
+      <LiveBuildersStrip area="arena" className="mb-6" />
 
       <div className="grid sm:grid-cols-4 gap-3 mb-8">
         <Stat label="Pitches submitted" value={all.length} color="emerald" />
