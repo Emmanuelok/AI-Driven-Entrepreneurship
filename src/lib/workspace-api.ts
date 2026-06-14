@@ -78,6 +78,39 @@ export type WorkspaceActivity = {
   created_at: string;
 };
 
+export type WorkspaceMessage = {
+  id: string;
+  workspace_id: string;
+  user_id: string | null;
+  author_name: string | null;
+  body: string;
+  is_agent: boolean;
+  mentions: string[];
+  created_at: string;
+};
+
+export type WorkspaceDocMeta = {
+  id: string;
+  workspace_id: string;
+  title: string;
+  updated_by_name: string | null;
+  version: number;
+  updated_at: string;
+  created_at: string;
+};
+
+export type WorkspaceDoc = WorkspaceDocMeta & {
+  body: string;
+  updated_by: string | null;
+};
+
+export type ParsedDeadline = {
+  title: string;
+  dueAt: string | null;
+  setByRole: DeadlineAuthority;
+  detail: string;
+};
+
 export type WorkspaceListing = {
   id: string;
   title: string;
@@ -163,6 +196,58 @@ export const workspaceApi = {
 
   acceptInvite: (token: string) =>
     call<{ workspaceId: string; role: WorkspaceRole; alreadyMember: boolean; emailMismatch?: boolean }>(`/api/v2/workspaces/accept-invite`, { method: "POST", body: JSON.stringify({ token }) }),
+
+  // ── Discussion ──────────────────────────────────────────────────────
+  listMessages: (id: string, before?: string) =>
+    call<{ results: WorkspaceMessage[] }>(`/api/v2/workspaces/${id}/messages${before ? `?before=${encodeURIComponent(before)}` : ""}`),
+
+  sendMessage: (id: string, body: string, siteContext?: unknown) =>
+    call<{ message: WorkspaceMessage; agentReply: WorkspaceMessage | null }>(`/api/v2/workspaces/${id}/messages`, { method: "POST", body: JSON.stringify({ body, siteContext }) }),
+
+  // ── Notes ───────────────────────────────────────────────────────────
+  listDocs: (id: string) =>
+    call<{ results: WorkspaceDocMeta[] }>(`/api/v2/workspaces/${id}/docs`),
+
+  createDoc: (id: string, title?: string) =>
+    call<{ doc: WorkspaceDoc }>(`/api/v2/workspaces/${id}/docs`, { method: "POST", body: JSON.stringify({ title }) }),
+
+  getDoc: (id: string, docId: string) =>
+    call<{ doc: WorkspaceDoc }>(`/api/v2/workspaces/${id}/docs/${docId}`),
+
+  saveDoc: (id: string, docId: string, payload: { title?: string; body?: string; version: number }) =>
+    call<{ doc: WorkspaceDoc }>(`/api/v2/workspaces/${id}/docs/${docId}`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+  deleteDoc: (id: string, docId: string) =>
+    call(`/api/v2/workspaces/${id}/docs/${docId}`, { method: "DELETE" }),
+
+  // ── Smart deadline ──────────────────────────────────────────────────
+  // Bespoke (not the { ok } envelope): /api/generate/* routes return the
+  // bare object. Resolves to null on any failure so the UI can fall back
+  // to manual entry.
+  parseDeadline: async (text: string, isAdmin: boolean): Promise<ParsedDeadline | null> => {
+    try {
+      const res = await fetch(`/api/generate/parse-deadline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
+        body: JSON.stringify({
+          text,
+          nowIso: new Date().toISOString(),
+          tzOffsetMinutes: -new Date().getTimezoneOffset(),
+          isAdmin,
+        }),
+      });
+      const json = (await res.json()) as Partial<ParsedDeadline> & { error?: string };
+      if (json.error || !json.title) return null;
+      return {
+        title: json.title,
+        dueAt: json.dueAt ?? null,
+        setByRole: (json.setByRole as DeadlineAuthority) ?? "self",
+        detail: json.detail ?? "",
+      };
+    } catch {
+      return null;
+    }
+  },
 };
 
 // The share URL we hand a user when they generate an invite. Built

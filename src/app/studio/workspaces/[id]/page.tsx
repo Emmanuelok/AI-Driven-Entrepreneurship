@@ -10,7 +10,9 @@ import { Card, Badge, Button } from "@/components/ui";
 import { CoPresence } from "@/components/co-presence";
 import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-schedule";
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
+import { WorkspaceDiscussionPanel } from "@/components/workspace-discussion-panel";
+import { WorkspaceNotesPanel } from "@/components/workspace-notes-panel";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -30,6 +32,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
+  const [tab, setTab] = useState<"overview" | "discussion" | "notes">("overview");
 
   // Automatic Workspace Agent: fires welcome on first sight (after the
   // baseline pass), action plans when a personal deadline enters the
@@ -96,6 +99,34 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
           </div>
         </div>
 
+        {/* Tab bar */}
+        <div className="flex items-center gap-1 border-b border-border mb-6 -mx-1 px-1 overflow-x-auto">
+          {([
+            { id: "overview", label: "Overview", icon: LayoutDashboard },
+            { id: "discussion", label: "Discussion", icon: MessageSquare },
+            { id: "notes", label: "Notes", icon: FileText },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition flex items-center gap-1.5 whitespace-nowrap ${
+                tab === t.id ? "border-emerald text-foreground" : "border-transparent text-muted hover:text-foreground"
+              }`}
+            >
+              <t.icon className="size-3.5" /> {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "discussion" && (
+          <WorkspaceDiscussionPanel workspaceId={id} members={ws.members} accent={accent} />
+        )}
+
+        {tab === "notes" && (
+          <WorkspaceNotesPanel workspaceId={id} canEdit={ws.myRole !== "viewer"} accent={accent} />
+        )}
+
+        {tab === "overview" && (
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-6">
             {/* Deadlines */}
@@ -195,6 +226,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
             )}
           </aside>
         </div>
+        )}
       </div>
 
       {inviteOpen && (
@@ -437,6 +469,36 @@ function DeadlineDialog({ workspaceId, isAdmin, members, myUserId, accent, onClo
   const [assignee, setAssignee] = useState<string>(""); // "" = self, "all" = workspace-wide
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Smart parse: describe the deadline in words, let the agent fill the form.
+  const [nlText, setNlText] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [parsedNote, setParsedNote] = useState<string | null>(null);
+
+  async function smartParse() {
+    const text = nlText.trim();
+    if (!text || parsing) return;
+    setParsing(true); setParsedNote(null); setErr(null);
+    const r = await workspaceApi.parseDeadline(text, isAdmin);
+    setParsing(false);
+    if (!r) { setParsedNote("Couldn't read a date from that — try adding a day or time."); return; }
+    if (r.title) setTitle(r.title);
+    if (r.detail) setDetail(r.detail);
+    if (isAdmin && r.setByRole) setSetByRole(r.setByRole);
+    if (r.dueAt) {
+      // Convert the ISO instant into the datetime-local input's format,
+      // in the user's local timezone.
+      const d = new Date(r.dueAt);
+      if (!isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, "0");
+        setDueAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+        setParsedNote("Filled the form below — adjust anything before saving.");
+      } else {
+        setParsedNote("Got the title; pick a date below.");
+      }
+    } else {
+      setParsedNote("Got the title; I couldn't pin a date — pick one below.");
+    }
+  }
 
   async function submit() {
     if (!title.trim()) { setErr("Give the deadline a title."); return; }
@@ -464,6 +526,27 @@ function DeadlineDialog({ workspaceId, isAdmin, members, myUserId, accent, onClo
           <p className="text-sm text-muted mb-5">
             Self-set deadlines hold YOU accountable. {isAdmin && "Admin-set deadlines can be stamped with a source (instructor, funder, investor, journal, mentor) so the team knows where they came from."}
           </p>
+
+          {/* Smart parse */}
+          <div className="mb-5 p-3 rounded-xl border border-emerald/25 bg-emerald/5">
+            <label className="block text-[10px] uppercase tracking-widest text-emerald mb-2 flex items-center gap-1.5">
+              <Wand2 className="size-3" /> Describe it in words
+            </label>
+            <div className="flex gap-2">
+              <input
+                value={nlText}
+                onChange={(e) => setNlText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void smartParse(); } }}
+                placeholder='e.g. "send revisions to the journal by next Friday 5pm"'
+                className="flex-1 bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald"
+              />
+              <Button size="sm" onClick={smartParse} disabled={parsing || !nlText.trim()}>
+                {parsing ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                Parse
+              </Button>
+            </div>
+            {parsedNote && <p className="mt-2 text-[11px] text-muted">{parsedNote}</p>}
+          </div>
 
           <label className="block text-[10px] uppercase tracking-widest text-muted mb-2">What's due?</label>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Submit revised manuscript" autoFocus className="w-full bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald mb-4" />
