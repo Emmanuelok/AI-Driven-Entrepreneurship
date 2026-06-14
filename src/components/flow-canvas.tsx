@@ -30,7 +30,18 @@ export type FlowCanvasPeer = {
   selectedNodeId: string | null;
 };
 
-export function FlowCanvas({ flow, peers = [], onSelectedChange }: { flow: Flow; peers?: FlowCanvasPeer[]; onSelectedChange?: (id: string | null) => void }) {
+// Live peer cursor in canvas-plane coordinates. Supplied by the page
+// via useFlowCursors; rendered as an overlay inside the scrolling plane
+// so cursors track the same space as nodes.
+export type FlowCanvasCursor = {
+  userId: string;
+  name: string;
+  color: string;
+  x: number;
+  y: number;
+};
+
+export function FlowCanvas({ flow, peers = [], onSelectedChange, cursors = [], onCursorMove }: { flow: Flow; peers?: FlowCanvasPeer[]; onSelectedChange?: (id: string | null) => void; cursors?: FlowCanvasCursor[]; onCursorMove?: (x: number, y: number) => void }) {
   const { addNode, removeNode, moveNode, patchNodeConfig, setNodeLabel, setNodeStatus, setNodeOutput, addEdge, removeEdge } = useFlow();
   const router = useRouter();
   const { createVenture } = useStore();
@@ -57,6 +68,10 @@ export function FlowCanvas({ flow, peers = [], onSelectedChange }: { flow: Flow;
   const [paletteOpen, setPaletteOpen] = useState(true);
 
   const canvasRef = useRef<HTMLDivElement>(null);
+  // The fixed-size plane that nodes are positioned within. Peer cursor
+  // coordinates are computed relative to its bounding rect so they map
+  // 1:1 to node coordinates and scroll with the content.
+  const planeRef = useRef<HTMLDivElement>(null);
 
   const selected = flow.nodes.find((n) => n.id === selectedId) ?? null;
 
@@ -235,7 +250,17 @@ export function FlowCanvas({ flow, peers = [], onSelectedChange }: { flow: Flow;
 
         {/* Canvas */}
         <div ref={canvasRef} className="flex-1 relative overflow-auto bg-[#06100d]">
-          <div className="relative" style={{ width: CANVAS_W, height: CANVAS_H, backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
+          <div
+            ref={planeRef}
+            className="relative"
+            style={{ width: CANVAS_W, height: CANVAS_H, backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)", backgroundSize: "24px 24px" }}
+            onMouseMove={(e) => {
+              if (!onCursorMove) return;
+              const r = planeRef.current?.getBoundingClientRect();
+              if (!r) return;
+              onCursorMove(e.clientX - r.left, e.clientY - r.top);
+            }}
+          >
             {/* Edges */}
             <svg width={CANVAS_W} height={CANVAS_H} className="absolute inset-0 pointer-events-none">
               {flow.edges.map((e) => {
@@ -285,6 +310,22 @@ export function FlowCanvas({ flow, peers = [], onSelectedChange }: { flow: Flow;
                 </p>
               </div>
             )}
+
+            {/* Live peer cursors (Phase 3c) */}
+            {cursors.map((c) => (
+              <div
+                key={c.userId}
+                className="absolute z-30 pointer-events-none transition-[left,top] duration-75 ease-linear"
+                style={{ left: c.x, top: c.y }}
+              >
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" className="drop-shadow">
+                  <path d="M1 1 L1 12 L4.4 9 L6.8 14 L9 13 L6.6 8 L11 8 Z" fill={c.color} stroke="#06100d" strokeWidth="1" strokeLinejoin="round" />
+                </svg>
+                <span className="ml-3 -mt-1 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded text-black whitespace-nowrap" style={{ background: c.color }}>
+                  {c.name}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 

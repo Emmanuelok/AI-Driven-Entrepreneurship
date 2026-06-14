@@ -9,6 +9,7 @@ import { FlowCanvas } from "@/components/flow-canvas";
 import { schedulePush } from "@/lib/flow-sync";
 import { useFlowCrdt } from "@/lib/flow-yjs-sync";
 import { useFlowPresence } from "@/lib/flow-presence";
+import { useFlowCursors } from "@/lib/flow-cursors";
 import { ArrowLeft, Pencil, Check, Cloud, CloudOff, Undo2, Redo2 } from "lucide-react";
 
 export default function FlowDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,7 +24,10 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
   // onSelectedChange and tracked into the presence payload so peers
   // see lock chips on the same nodes.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const peers = useFlowPresence(id, user ? { userId: user.id, displayName: user.name || "Member" } : null, selectedId);
+  const me = user ? { userId: user.id, displayName: user.name || "Member" } : null;
+  const peers = useFlowPresence(id, me, selectedId);
+  // Phase 3c: live peer cursors over a dedicated broadcast channel.
+  const { cursors, sendCursor } = useFlowCursors(id, me);
 
   // Track the last updatedAt we shipped to the cloud so we can render
   // an honest "synced N seconds ago" pill instead of guessing.
@@ -164,6 +168,8 @@ export default function FlowDetailPage({ params }: { params: Promise<{ id: strin
         flow={flow}
         peers={peers.map((p) => ({ userId: p.userId, displayName: p.displayName, color: p.color, selectedNodeId: p.selectedNodeId }))}
         onSelectedChange={setSelectedId}
+        cursors={cursors}
+        onCursorMove={sendCursor}
       />
     </div>
   );
