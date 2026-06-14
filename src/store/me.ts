@@ -73,6 +73,15 @@ export type DailyBrief = {
   generatedAt: number;
 };
 
+// A once-per-day snapshot of the Pulse Engine's headline numbers, so
+// the Me page can chart trajectory over weeks instead of only showing
+// "now". Sampled from the dashboard; same-day writes overwrite.
+export type MomentumSample = {
+  date: string; // YYYY-MM-DD
+  momentum: number; // 0..100
+  learningVelocity: number; // 0..100
+};
+
 export type Insight = {
   id: string;
   ts: number;
@@ -119,6 +128,7 @@ type State = {
   focusSessions: FocusSession[];
   voiceNotes: VoiceNote[];
   dailyBriefs: Record<string, DailyBrief>;
+  momentumSamples: MomentumSample[];
   insights: Insight[];
   prefs: AppPref;
   genome: Genome;
@@ -162,6 +172,9 @@ type State = {
   todaysBrief: () => DailyBrief | undefined;
   markPriorityDone: (id: string) => void;
 
+  // momentum trajectory
+  sampleMomentum: (momentum: number, learningVelocity: number) => void;
+
   // insights
   pushInsight: (i: Omit<Insight, "id" | "ts">) => void;
 
@@ -187,6 +200,7 @@ export const useMe = create<State>()(
       focusSessions: [],
       voiceNotes: [],
       dailyBriefs: {},
+      momentumSamples: [],
       insights: [],
       prefs: {
         companionOpen: false,
@@ -299,6 +313,20 @@ export const useMe = create<State>()(
         const brief = get().dailyBriefs[t];
         if (!brief) return;
         set({ dailyBriefs: { ...get().dailyBriefs, [t]: { ...brief, priorities: brief.priorities.map((p) => p.id === id ? { ...p, done: true } : p) } } });
+      },
+
+      sampleMomentum: (momentum, learningVelocity) => {
+        const t = today();
+        const samples = get().momentumSamples;
+        const last = samples[samples.length - 1];
+        // Same-day write overwrites; otherwise append. Cap at ~4 months
+        // so the chart stays readable and storage bounded.
+        if (last && last.date === t) {
+          if (last.momentum === momentum && last.learningVelocity === learningVelocity) return;
+          set({ momentumSamples: [...samples.slice(0, -1), { date: t, momentum, learningVelocity }] });
+        } else {
+          set({ momentumSamples: [...samples, { date: t, momentum, learningVelocity }].slice(-120) });
+        }
       },
 
       pushInsight: (i) => set({ insights: [{ id: nanoid(8), ts: Date.now(), ...i }, ...get().insights].slice(0, 40) }),

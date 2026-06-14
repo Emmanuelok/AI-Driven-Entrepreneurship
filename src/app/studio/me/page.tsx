@@ -6,13 +6,14 @@ import { useStore, level, xpInLevel, xpToNextLevel } from "@/store";
 import { useMe } from "@/store/me";
 import { Card, Button, Badge, Input, Dialog, Stat, EmptyState, Textarea } from "@/components/ui";
 import { KnowledgeGraph } from "@/components/knowledge-graph";
+import { Sparkline } from "@/components/sparkline";
 import { getRecommendations } from "@/lib/recommendations";
-import { User, Target, Brain, Sparkles, Trash2, Plus, Flame, Trophy, Activity, Clock, BookOpen, GraduationCap, ArrowRight, Compass, Network, CheckCircle2, Mic, Sun, Calendar } from "lucide-react";
+import { User, Target, Brain, Sparkles, Trash2, Plus, Flame, Trophy, Activity, Clock, BookOpen, GraduationCap, ArrowRight, Compass, Network, CheckCircle2, Mic, Sun, Calendar, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function MePage() {
   const { user, xp, streak, ventures, dueCards } = useStore();
-  const { memories, goals, recentActivity, concepts, focusSessions, voiceNotes, todaysBrief, forget, completeGoal, setGoal, checkinGoal, remember, addVoiceNote } = useMe();
+  const { memories, goals, recentActivity, concepts, focusSessions, voiceNotes, todaysBrief, momentumSamples, forget, completeGoal, setGoal, checkinGoal, remember, addVoiceNote } = useMe();
   const [goalDialog, setGoalDialog] = useState(false);
   const [memDialog, setMemDialog] = useState(false);
   if (!user) return null;
@@ -25,6 +26,16 @@ export default function MePage() {
 
   const totalMastery = concepts.reduce((s, c) => s + c.mastery, 0);
   const focusMinutes = focusSessions.filter((f) => f.completed).reduce((s, f) => s + f.durationMin, 0);
+
+  // Momentum trajectory — last 30 samples. Delta compares the latest
+  // reading to a week ago (or the earliest sample we have).
+  const samples = momentumSamples.slice(-30);
+  const momentumSeries = samples.map((s) => s.momentum);
+  const velocitySeries = samples.map((s) => s.learningVelocity);
+  const sampleLabels = samples.map((s) => s.date.slice(5));
+  const latestMomentum = samples[samples.length - 1]?.momentum ?? 0;
+  const weekAgoIdx = Math.max(0, samples.length - 8);
+  const momentumDelta = samples.length > 1 ? latestMomentum - samples[weekAgoIdx].momentum : 0;
 
   return (
     <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
@@ -68,6 +79,42 @@ export default function MePage() {
         <div className="h-2.5 bg-surface-2 rounded-full overflow-hidden">
           <div className="h-full bg-gradient-to-r from-emerald to-amber rounded-full transition-all" style={{ width: `${(xpInLevel(xp) / xpToNextLevel()) * 100}%` }} />
         </div>
+      </Card>
+
+      {/* Momentum trajectory */}
+      <Card className="p-6 mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold flex items-center gap-2">
+            <Activity className="size-4 text-emerald" /> Your trajectory
+          </h2>
+          {samples.length > 1 && (
+            <div className="flex items-center gap-1.5 text-sm">
+              {momentumDelta > 2 ? <TrendingUp className="size-4 text-emerald" /> : momentumDelta < -2 ? <TrendingDown className="size-4 text-rust" /> : <Minus className="size-4 text-muted" />}
+              <span className={momentumDelta > 2 ? "text-emerald" : momentumDelta < -2 ? "text-rust" : "text-muted"}>
+                {momentumDelta > 0 ? "+" : ""}{Math.round(momentumDelta)} vs last week
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="grid sm:grid-cols-2 gap-6">
+          <div>
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="text-[10px] uppercase tracking-widest text-muted">Momentum</span>
+              <span className="font-mono text-emerald">{latestMomentum}/100</span>
+            </div>
+            <Sparkline data={momentumSeries} labels={sampleLabels} color="#2cc295" />
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="text-[10px] uppercase tracking-widest text-muted">Learning velocity</span>
+              <span className="font-mono text-amber">{samples[samples.length - 1]?.learningVelocity ?? 0}/100</span>
+            </div>
+            <Sparkline data={velocitySeries} labels={sampleLabels} color="#f4a949" />
+          </div>
+        </div>
+        {samples.length <= 1 && (
+          <p className="mt-4 text-xs text-muted">One point so far. Visit your dashboard daily and this chart fills in — momentum is sampled once per day.</p>
+        )}
       </Card>
 
       <div className="grid sm:grid-cols-5 gap-3 mb-8">

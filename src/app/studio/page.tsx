@@ -56,10 +56,16 @@ const ACTION_ICONS: Record<PulseAction["kind"], typeof Brain> = {
 
 export default function Dashboard() {
   const { user, xp, streak, ventures, progress, dueCards } = useStore();
-  const { goals, recentActivity, memories, prefs, todaysBrief, setBrief, markPriorityDone } = useMe();
+  const { goals, recentActivity, memories, prefs, todaysBrief, setBrief, markPriorityDone, sampleMomentum } = useMe();
   const pulse = usePulse();
   const [briefing, setBriefing] = useState(false);
   const [greeting, setGreeting] = useState("Welcome back");
+
+  // Record today's momentum trajectory point whenever the pulse settles.
+  // The store dedupes same-day no-ops, so this is cheap on every recompute.
+  useEffect(() => {
+    if (pulse) sampleMomentum(pulse.momentum, pulse.learningVelocity);
+  }, [pulse?.momentum, pulse?.learningVelocity, sampleMomentum]);
 
   // Auto-fires a discipline check-in letter (once per session, cooled
   // down 14 days) when the user's connection-graph signal is strong.
