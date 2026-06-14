@@ -15,6 +15,7 @@ import { usePulse } from "@/lib/use-pulse";
 import { useDisciplineCheckinTrigger } from "@/lib/auto-checkin";
 import { Card, Badge, Stat } from "@/components/ui";
 import { CohortAssignmentsWidget } from "@/components/cohort-assignments-widget";
+import { DeadlinesWidget } from "@/components/deadlines-widget";
 import { getRecommendations } from "@/lib/recommendations";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 import type { PulseAction } from "@/lib/pulse-engine";
@@ -321,6 +322,11 @@ export default function Dashboard() {
       {/* Cohort assignments (only renders if the user is in cohorts with assignments) */}
       <div className="mt-8">
         <CohortAssignmentsWidget />
+      </div>
+
+      {/* Cross-workspace deadlines (renders only if the user has any). */}
+      <div className="mt-6">
+        <DeadlinesWidget />
       </div>
 
       {/* Activity stats */}

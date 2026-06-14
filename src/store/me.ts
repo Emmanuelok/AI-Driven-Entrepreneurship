@@ -135,6 +135,10 @@ type State = {
   // gates already met before we started watching) and whether the
   // advancement letter for that phase has been sent.
   phaseSeen: Record<string, { met: string[]; letterSent: boolean }>;
+  // Workspace Agent watcher memory: per workspace id, which trigger
+  // events have already fired (welcome/deadline_focus:<id>/stage:<id>)
+  // so the watcher doesn't re-fire on rehydration or re-renders.
+  workspaceSeen: Record<string, { fired: string[]; baselinedAt: number }>;
   prefs: AppPref;
   genome: Genome;
   artifacts: ShippedArtifact[];
@@ -183,6 +187,9 @@ type State = {
   // phase watcher
   setPhaseSeen: (key: string, value: { met: string[]; letterSent: boolean }) => void;
 
+  // workspace agent watcher
+  setWorkspaceSeen: (workspaceId: string, value: { fired: string[]; baselinedAt: number }) => void;
+
   // insights
   pushInsight: (i: Omit<Insight, "id" | "ts">) => void;
 
@@ -211,6 +218,7 @@ export const useMe = create<State>()(
       momentumSamples: [],
       insights: [],
       phaseSeen: {},
+      workspaceSeen: {},
       prefs: {
         companionOpen: false,
         companionPosition: { x: 0, y: 0 },
@@ -339,6 +347,7 @@ export const useMe = create<State>()(
       },
 
       setPhaseSeen: (key, value) => set({ phaseSeen: { ...get().phaseSeen, [key]: value } }),
+      setWorkspaceSeen: (workspaceId, value) => set({ workspaceSeen: { ...get().workspaceSeen, [workspaceId]: value } }),
 
       pushInsight: (i) => set({ insights: [{ id: nanoid(8), ts: Date.now(), ...i }, ...get().insights].slice(0, 40) }),
 

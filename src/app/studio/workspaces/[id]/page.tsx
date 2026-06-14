@@ -9,6 +9,7 @@ import { useStore } from "@/store";
 import { Card, Badge, Button } from "@/components/ui";
 import { CoPresence } from "@/components/co-presence";
 import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-schedule";
+import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -29,6 +30,16 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
+
+  // Automatic Workspace Agent: fires welcome on first sight (after the
+  // baseline pass), action plans when a personal deadline enters the
+  // urgent window, and acknowledgement notes when a deadline closes.
+  usePersonalWorkspaceAgent({
+    workspace: ws.workspace,
+    members: ws.members,
+    deadlines: ws.deadlines,
+    myRole: ws.myRole,
+  });
 
   if (ws.loading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="size-6 text-emerald animate-spin" /></div>;
