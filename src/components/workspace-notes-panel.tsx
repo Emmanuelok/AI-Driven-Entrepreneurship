@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useWorkspaceDoc, useWorkspaceDocList } from "@/lib/use-workspace-content";
+import { useDocPresence } from "@/lib/use-doc-presence";
 import { workspaceApi } from "@/lib/workspace-api";
+import { useStore } from "@/store";
 import { Markdown } from "@/components/markdown";
 import { FileText, Plus, Loader2, Check, AlertTriangle, Eye, Pencil, Trash2, Cloud } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -80,10 +82,29 @@ export function WorkspaceNotesPanel({ workspaceId, canEdit, accent }: { workspac
 
 function NoteEditor({ workspaceId, docId, canEdit, accent, onDeleted }: { workspaceId: string; docId: string; canEdit: boolean; accent: string; onDeleted: () => void }) {
   const { doc, loading, saveState, queueSave, reload } = useWorkspaceDoc(workspaceId, docId);
+  const { user } = useStore();
+  const { peers, signalTyping } = useDocPresence(docId, user ? { userId: user.id, name: user.name || "Member" } : null);
   const [mode, setMode] = useState<"write" | "preview">("write");
+  const [iAmTyping, setIAmTyping] = useState(false);
+
+  // Throttle the "I'm typing" local flag the same way the presence
+  // signal debounces, so the coordinate-warning logic agrees with peers.
+  useEffect(() => {
+    if (!iAmTyping) return;
+    const t = setTimeout(() => setIAmTyping(false), 1800);
+    return () => clearTimeout(t);
+  }, [iAmTyping, doc?.body]);
+
+  const peersTyping = peers.filter((p) => p.typing);
 
   if (loading || !doc) {
     return <div className="glass rounded-2xl flex items-center justify-center"><Loader2 className="size-5 text-emerald animate-spin" /></div>;
+  }
+
+  function onEdit(patch: { title?: string; body?: string }) {
+    queueSave(patch);
+    signalTyping();
+    setIAmTyping(true);
   }
 
   return (
@@ -91,11 +112,25 @@ function NoteEditor({ workspaceId, docId, canEdit, accent, onDeleted }: { worksp
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
         <input
           value={doc.title}
-          onChange={(e) => queueSave({ title: e.target.value })}
+          onChange={(e) => onEdit({ title: e.target.value })}
           disabled={!canEdit}
           className="flex-1 bg-transparent outline-none font-medium text-sm disabled:opacity-70"
           placeholder="Note title"
         />
+        {peers.length > 0 && (
+          <div className="flex items-center -space-x-1.5 mr-1" title={`${peers.length} other${peers.length === 1 ? "" : "s"} in this note`}>
+            {peers.slice(0, 4).map((p) => (
+              <span
+                key={p.userId}
+                className={`size-5 rounded-full border-2 border-surface text-[9px] font-bold flex items-center justify-center text-black ${p.typing ? "ring-2 ring-emerald/60" : ""}`}
+                style={{ background: p.color }}
+                title={`${p.name}${p.typing ? " (typing…)" : ""}`}
+              >
+                {p.name[0]?.toUpperCase() ?? "?"}
+              </span>
+            ))}
+          </div>
+        )}
         <SaveIndicator state={saveState} updatedByName={doc.updated_by_name} version={doc.version} />
         <div className="flex items-center gap-1 ml-2">
           <button onClick={() => setMode("write")} className={`size-7 rounded-lg flex items-center justify-center transition ${mode === "write" ? "bg-emerald/15 text-emerald" : "text-muted hover:bg-surface-2"}`} title="Write"><Pencil className="size-3.5" /></button>
@@ -119,11 +154,24 @@ function NoteEditor({ workspaceId, docId, canEdit, accent, onDeleted }: { worksp
         </div>
       )}
 
+      {/* Coordinate warning: a peer is typing while you are. Notes use
+          last-write-wins, so this nudges people to take turns. */}
+      {peersTyping.length > 0 && iAmTyping && saveState !== "conflict" && (
+        <div className="px-4 py-2 bg-amber/5 border-b border-amber/20 text-xs text-amber flex items-center gap-1.5">
+          <Pencil className="size-3" /> {peersTyping.map((p) => p.name).join(", ")} {peersTyping.length === 1 ? "is" : "are"} also typing — saves are last-write-wins, so coordinate to avoid overwriting each other.
+        </div>
+      )}
+      {peersTyping.length > 0 && !iAmTyping && (
+        <div className="px-4 py-1.5 text-[11px] text-emerald flex items-center gap-1.5">
+          <span className="size-1.5 rounded-full bg-emerald animate-pulse" /> {peersTyping.map((p) => p.name).join(", ")} {peersTyping.length === 1 ? "is" : "are"} typing…
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto">
         {mode === "write" ? (
           <textarea
             value={doc.body}
-            onChange={(e) => queueSave({ body: e.target.value })}
+            onChange={(e) => onEdit({ body: e.target.value })}
             disabled={!canEdit}
             placeholder={canEdit ? "Write together in markdown. Autosaves as you type." : "Read-only — you don't have edit access."}
             className="w-full h-full min-h-[460px] bg-transparent outline-none resize-none p-5 text-sm leading-relaxed font-mono disabled:opacity-70"
