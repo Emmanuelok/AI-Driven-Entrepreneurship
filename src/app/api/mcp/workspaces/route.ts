@@ -197,6 +197,96 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "list_tasks",
+    description: "List the Kanban tasks in a workspace, grouped by status (todo/doing/done/blocked).",
+    inputSchema: {
+      type: "object",
+      properties: { workspace_id: { type: "string" } },
+      required: ["workspace_id"],
+      additionalProperties: false,
+    },
+    handler: async (sb, callerId, args) => {
+      const id = str(args, "workspace_id");
+      if (!id) return { ok: false, message: "workspace_id is required." };
+      if (!(await roleOf(sb, id, callerId))) return { ok: false, message: "You're not a member of that workspace." };
+      const { data } = await sb.from("workspace_tasks").select("id, title, detail, status, assignee_name, position").eq("workspace_id", id).order("position", { ascending: true });
+      const grouped: Record<string, unknown[]> = { todo: [], doing: [], done: [], blocked: [] };
+      for (const t of data ?? []) (grouped[(t as { status: string }).status] ?? grouped.todo).push(t);
+      return { ok: true, data: { tasks: grouped } };
+    },
+  },
+  {
+    name: "create_task",
+    description: "Add a task to a workspace board. Defaults to the 'todo' column. Optionally assign it to a member by their user id (from get_workspace).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspace_id: { type: "string" },
+        title: { type: "string" },
+        detail: { type: "string" },
+        status: { type: "string", enum: ["todo", "doing", "done", "blocked"] },
+        assignee_user_id: { type: "string" },
+      },
+      required: ["workspace_id", "title"],
+      additionalProperties: false,
+    },
+    handler: async (sb, callerId, args) => {
+      const id = str(args, "workspace_id");
+      const title = str(args, "title");
+      if (!id || !title) return { ok: false, message: "workspace_id and title are required." };
+      const role = await roleOf(sb, id, callerId);
+      if (!role) return { ok: false, message: "You're not a member of that workspace." };
+      if (role === "viewer") return { ok: false, message: "Viewers can't create tasks." };
+      const status = str(args, "status") ?? "todo";
+      if (!["todo", "doing", "done", "blocked"].includes(status)) return { ok: false, message: "status must be todo, doing, done, or blocked." };
+      const assigneeId = str(args, "assignee_user_id");
+      let assigneeName: string | null = null;
+      if (assigneeId) {
+        const { data: m } = await sb.from("workspace_members").select("display_name, email").eq("workspace_id", id).eq("user_id", assigneeId).maybeSingle();
+        assigneeName = (m?.display_name as string | null) ?? (m?.email as string | null) ?? null;
+      }
+      const { data: top } = await sb.from("workspace_tasks").select("position").eq("workspace_id", id).eq("status", status).order("position", { ascending: false }).limit(1).maybeSingle();
+      const { data, error } = await sb.from("workspace_tasks").insert({ workspace_id: id, title, detail: str(args, "detail") ?? "", status, assignee_user_id: assigneeId, assignee_name: assigneeName, position: ((top?.position as number | undefined) ?? 0) + 1, created_by: callerId }).select("id, title, status").single();
+      if (error) return { ok: false, message: error.message };
+      return { ok: true, data: { created: data } };
+    },
+  },
+  {
+    name: "update_task",
+    description: "Move a task to a different status column, or change its title/detail. Pass the task id and the fields to change.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspace_id: { type: "string" },
+        task_id: { type: "string" },
+        status: { type: "string", enum: ["todo", "doing", "done", "blocked"] },
+        title: { type: "string" },
+        detail: { type: "string" },
+      },
+      required: ["workspace_id", "task_id"],
+      additionalProperties: false,
+    },
+    handler: async (sb, callerId, args) => {
+      const id = str(args, "workspace_id");
+      const taskId = str(args, "task_id");
+      if (!id || !taskId) return { ok: false, message: "workspace_id and task_id are required." };
+      const role = await roleOf(sb, id, callerId);
+      if (!role || role === "viewer") return { ok: false, message: "You need editor access to change tasks." };
+      const update: Record<string, unknown> = {};
+      const status = str(args, "status");
+      if (status) { if (!["todo", "doing", "done", "blocked"].includes(status)) return { ok: false, message: "invalid status." }; update.status = status; }
+      const title = str(args, "title");
+      if (title) update.title = title;
+      const detail = args.detail;
+      if (typeof detail === "string") update.detail = detail;
+      if (Object.keys(update).length === 0) return { ok: false, message: "Nothing to update." };
+      const { data, error } = await sb.from("workspace_tasks").update(update).eq("id", taskId).eq("workspace_id", id).select("id, title, status").maybeSingle();
+      if (error) return { ok: false, message: error.message };
+      if (!data) return { ok: false, message: "Task not found." };
+      return { ok: true, data: { updated: data } };
+    },
+  },
+  {
     name: "list_notes",
     description: "List the shared notes in a workspace (titles + metadata, not bodies).",
     inputSchema: {

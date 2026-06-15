@@ -39,11 +39,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Gather the three content streams in parallel.
   const now = Date.now();
-  const [wsRes, msgRes, docRes, deadlineRes] = await Promise.all([
+  const [wsRes, msgRes, docRes, deadlineRes, taskRes] = await Promise.all([
     sb.from("workspaces").select("title, kind, description").eq("id", id).maybeSingle(),
     sb.from("workspace_messages").select("author_name, is_agent, body").eq("workspace_id", id).order("created_at", { ascending: false }).limit(25),
     sb.from("workspace_docs").select("title, body").eq("workspace_id", id).order("updated_at", { ascending: false }).limit(8),
     sb.from("workspace_deadlines").select("id, workspace_id, assignee_user_id, title, due_at, status, set_by_role, last_reminded_at").eq("workspace_id", id).eq("status", "open").order("due_at", { ascending: true }).limit(40),
+    sb.from("workspace_tasks").select("title, status, assignee_name").eq("workspace_id", id).order("position", { ascending: true }).limit(80),
   ]);
 
   const ws = wsRes.data;
@@ -60,9 +61,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return `- ${d.title} (due ${new Date(d.due_at as string).toUTCString()}; set by ${d.set_by_role}${w ? `; ${w}` : ""})`;
     })
     .join("\n");
+  const taskRows = taskRes.data ?? [];
+  const taskBlock = taskRows.length === 0
+    ? ""
+    : (["todo", "doing", "blocked", "done"] as const)
+        .map((s) => {
+          const items = taskRows.filter((t) => (t as { status: string }).status === s);
+          if (items.length === 0) return "";
+          return `${s.toUpperCase()} (${items.length}): ${items.slice(0, 12).map((t) => `${(t as { title: string }).title}${(t as { assignee_name: string | null }).assignee_name ? ` [${(t as { assignee_name: string }).assignee_name}]` : ""}`).join("; ")}`;
+        })
+        .filter(Boolean)
+        .join("\n");
 
   // No content at all → return a friendly nudge rather than an empty brief.
-  if (!transcript && !notesBlock && !deadlineBlock) {
+  if (!transcript && !notesBlock && !deadlineBlock && !taskBlock) {
     const brief = `**${ws.title}** is just getting started.\n\nThere's no discussion, no notes, and no deadlines yet — so there's nothing for me to synthesize. The fastest way to give this workspace a heartbeat: set one deadline you can hit this week, drop a note with what you're trying to do, and say hello in the discussion. I'll have plenty to work with next time.`;
     return Response.json({ ok: true, brief, generatedAt: now, empty: true });
   }
@@ -108,7 +120,10 @@ SHARED NOTES:
 ${notesBlock || "(none)"}
 
 OPEN DEADLINES:
-${deadlineBlock || "(none)"}`,
+${deadlineBlock || "(none)"}
+
+TASK BOARD:
+${taskBlock || "(none)"}`,
         },
       ],
     });

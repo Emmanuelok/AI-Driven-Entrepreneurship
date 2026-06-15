@@ -111,6 +111,22 @@ export type ParsedDeadline = {
   detail: string;
 };
 
+export type TaskStatus = "todo" | "doing" | "done" | "blocked";
+
+export type WorkspaceTask = {
+  id: string;
+  workspace_id: string;
+  title: string;
+  detail: string;
+  status: TaskStatus;
+  assignee_user_id: string | null;
+  assignee_name: string | null;
+  position: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type WorkspaceListing = {
   id: string;
   title: string;
@@ -219,6 +235,19 @@ export const workspaceApi = {
 
   deleteDoc: (id: string, docId: string) =>
     call(`/api/v2/workspaces/${id}/docs/${docId}`, { method: "DELETE" }),
+
+  // ── Tasks ───────────────────────────────────────────────────────────
+  listTasks: (id: string) =>
+    call<{ results: WorkspaceTask[] }>(`/api/v2/workspaces/${id}/tasks`),
+
+  addTask: (id: string, payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null }) =>
+    call<{ task: WorkspaceTask }>(`/api/v2/workspaces/${id}/tasks`, { method: "POST", body: JSON.stringify(payload) }),
+
+  patchTask: (id: string, payload: { id: string; title?: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; position?: number }) =>
+    call<{ task: WorkspaceTask }>(`/api/v2/workspaces/${id}/tasks`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+  deleteTask: (id: string, taskId: string) =>
+    call(`/api/v2/workspaces/${id}/tasks?taskId=${encodeURIComponent(taskId)}`, { method: "DELETE" }),
 
   // ── AI synthesis ────────────────────────────────────────────────────
   synthesize: (id: string, postToDiscussion: boolean, siteContext?: unknown) =>

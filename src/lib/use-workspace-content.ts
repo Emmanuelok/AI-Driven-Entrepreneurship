@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useStore } from "@/store";
-import { workspaceApi, type WorkspaceMessage, type WorkspaceDoc, type WorkspaceDocMeta } from "@/lib/workspace-api";
+import { workspaceApi, type WorkspaceMessage, type WorkspaceDoc, type WorkspaceDocMeta, type WorkspaceTask, type TaskStatus } from "@/lib/workspace-api";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -171,6 +171,66 @@ export function useWorkspaceDoc(workspaceId: string | null, docId: string | null
   }, [workspaceId, docId]);
 
   return { doc, loading, saveState, queueSave, reload };
+}
+
+// ── Tasks (Kanban) ────────────────────────────────────────────────────
+// useWorkspaceTasks(id) — live board. Loads all tasks, subscribes to
+// realtime changes, and exposes optimistic mutators so dragging/moving a
+// card feels instant (the realtime echo reconciles to server truth).
+export function useWorkspaceTasks(id: string | null) {
+  const { user } = useStore();
+  const [tasks, setTasks] = useState<WorkspaceTask[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!id) return;
+    const res = await workspaceApi.listTasks(id);
+    if (res.ok) setTasks(res.results);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => { setLoading(true); void refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!id || !user) return;
+    const sb = supabaseBrowser();
+    if (!sb) return;
+    const ch = sb.channel(`workspace-tasks:${id}`);
+    ch.on("postgres_changes" as never, { event: "*", schema: "public", table: "workspace_tasks", filter: `workspace_id=eq.${id}` }, () => { void refresh(); });
+    ch.subscribe();
+    return () => { void sb.removeChannel(ch); };
+  }, [id, user?.id, refresh]);
+
+  const move = useCallback(async (taskId: string, status: TaskStatus) => {
+    if (!id) return;
+    // Optimistic: flip status locally, then persist.
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status } : t)));
+    const res = await workspaceApi.patchTask(id, { id: taskId, status });
+    if (res.ok) setTasks((prev) => prev.map((t) => (t.id === res.task.id ? res.task : t)));
+    else void refresh();
+  }, [id, refresh]);
+
+  const add = useCallback(async (payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null }) => {
+    if (!id) return false;
+    const res = await workspaceApi.addTask(id, payload);
+    if (res.ok) setTasks((prev) => [...prev, res.task]);
+    return res.ok;
+  }, [id]);
+
+  const patch = useCallback(async (payload: { id: string; title?: string; detail?: string; assigneeUserId?: string | null }) => {
+    if (!id) return;
+    const res = await workspaceApi.patchTask(id, payload);
+    if (res.ok) setTasks((prev) => prev.map((t) => (t.id === res.task.id ? res.task : t)));
+    else void refresh();
+  }, [id, refresh]);
+
+  const remove = useCallback(async (taskId: string) => {
+    if (!id) return;
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    await workspaceApi.deleteTask(id, taskId);
+  }, [id]);
+
+  return { tasks, loading, move, add, patch, remove };
 }
 
 export function useWorkspaceDocList(id: string | null) {

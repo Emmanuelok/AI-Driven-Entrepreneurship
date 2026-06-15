@@ -13,7 +13,8 @@ import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { WorkspaceDiscussionPanel } from "@/components/workspace-discussion-panel";
 import { WorkspaceNotesPanel } from "@/components/workspace-notes-panel";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2 } from "lucide-react";
+import { WorkspaceTasksPanel } from "@/components/workspace-tasks-panel";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -33,7 +34,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
-  const [tab, setTab] = useState<"overview" | "discussion" | "notes">("overview");
+  const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes">("overview");
 
   // Automatic Workspace Agent: fires welcome on first sight (after the
   // baseline pass), action plans when a personal deadline enters the
@@ -104,6 +105,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         <div className="flex items-center gap-1 border-b border-border mb-6 -mx-1 px-1 overflow-x-auto">
           {([
             { id: "overview", label: "Overview", icon: LayoutDashboard },
+            { id: "tasks", label: "Tasks", icon: KanbanSquare },
             { id: "discussion", label: "Discussion", icon: MessageSquare },
             { id: "notes", label: "Notes", icon: FileText },
           ] as const).map((t) => (
@@ -118,6 +120,10 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
             </button>
           ))}
         </div>
+
+        {tab === "tasks" && (
+          <WorkspaceTasksPanel workspaceId={id} canEdit={ws.myRole !== "viewer"} members={ws.members} accent={accent} />
+        )}
 
         {tab === "discussion" && (
           <WorkspaceDiscussionPanel workspaceId={id} members={ws.members} accent={accent} />
