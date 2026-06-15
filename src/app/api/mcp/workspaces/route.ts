@@ -217,7 +217,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "create_task",
-    description: "Add a task to a workspace board. Defaults to the 'todo' column. Optionally assign it to a member by their user id (from get_workspace).",
+    description: "Add a task to a workspace board. Defaults to the 'todo' column. Optionally assign it to a member by their user id (from get_workspace) and give it a due date (ISO-8601).",
     inputSchema: {
       type: "object",
       properties: {
@@ -226,6 +226,7 @@ const TOOLS: ToolDef[] = [
         detail: { type: "string" },
         status: { type: "string", enum: ["todo", "doing", "done", "blocked"] },
         assignee_user_id: { type: "string" },
+        due_at: { type: "string", description: "Optional ISO-8601 due date, e.g. 2026-06-22T17:00:00Z." },
       },
       required: ["workspace_id", "title"],
       additionalProperties: false,
@@ -245,15 +246,18 @@ const TOOLS: ToolDef[] = [
         const { data: m } = await sb.from("workspace_members").select("display_name, email").eq("workspace_id", id).eq("user_id", assigneeId).maybeSingle();
         assigneeName = (m?.display_name as string | null) ?? (m?.email as string | null) ?? null;
       }
+      let dueAt: string | null = null;
+      const dueRaw = str(args, "due_at");
+      if (dueRaw) { const d = new Date(dueRaw); if (isNaN(d.getTime())) return { ok: false, message: "due_at is not a valid date." }; dueAt = d.toISOString(); }
       const { data: top } = await sb.from("workspace_tasks").select("position").eq("workspace_id", id).eq("status", status).order("position", { ascending: false }).limit(1).maybeSingle();
-      const { data, error } = await sb.from("workspace_tasks").insert({ workspace_id: id, title, detail: str(args, "detail") ?? "", status, assignee_user_id: assigneeId, assignee_name: assigneeName, position: ((top?.position as number | undefined) ?? 0) + 1, created_by: callerId }).select("id, title, status").single();
+      const { data, error } = await sb.from("workspace_tasks").insert({ workspace_id: id, title, detail: str(args, "detail") ?? "", status, assignee_user_id: assigneeId, assignee_name: assigneeName, position: ((top?.position as number | undefined) ?? 0) + 1, created_by: callerId, due_at: dueAt }).select("id, title, status, due_at").single();
       if (error) return { ok: false, message: error.message };
       return { ok: true, data: { created: data } };
     },
   },
   {
     name: "update_task",
-    description: "Move a task to a different status column, or change its title/detail. Pass the task id and the fields to change.",
+    description: "Move a task to a different status column, change its title/detail, or set a due date. Pass the task id and the fields to change.",
     inputSchema: {
       type: "object",
       properties: {
@@ -262,6 +266,7 @@ const TOOLS: ToolDef[] = [
         status: { type: "string", enum: ["todo", "doing", "done", "blocked"] },
         title: { type: "string" },
         detail: { type: "string" },
+        due_at: { type: "string", description: "ISO-8601 due date, or empty string to clear it." },
       },
       required: ["workspace_id", "task_id"],
       additionalProperties: false,
@@ -279,8 +284,12 @@ const TOOLS: ToolDef[] = [
       if (title) update.title = title;
       const detail = args.detail;
       if (typeof detail === "string") update.detail = detail;
+      if (typeof args.due_at === "string") {
+        if (args.due_at.trim() === "") update.due_at = null;
+        else { const d = new Date(args.due_at); if (isNaN(d.getTime())) return { ok: false, message: "due_at is not a valid date." }; update.due_at = d.toISOString(); }
+      }
       if (Object.keys(update).length === 0) return { ok: false, message: "Nothing to update." };
-      const { data, error } = await sb.from("workspace_tasks").update(update).eq("id", taskId).eq("workspace_id", id).select("id, title, status").maybeSingle();
+      const { data, error } = await sb.from("workspace_tasks").update(update).eq("id", taskId).eq("workspace_id", id).select("id, title, status, due_at").maybeSingle();
       if (error) return { ok: false, message: error.message };
       if (!data) return { ok: false, message: "Task not found." };
       return { ok: true, data: { updated: data } };
