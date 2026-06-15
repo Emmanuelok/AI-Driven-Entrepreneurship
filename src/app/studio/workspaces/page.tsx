@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMyWorkspaces } from "@/lib/use-workspace";
 import { workspaceApi, type WorkspaceKind, type WorkspaceAccent, type WorkspaceListing } from "@/lib/workspace-api";
+import { WORKSPACE_TEMPLATES, getTemplate, seedFromTemplate } from "@/lib/workspace-templates";
 import { Card, Button } from "@/components/ui";
 import { Spotlight } from "@/components/spotlight";
 import { McpInstallSnippets } from "@/components/mcp-install-snippets";
@@ -202,21 +203,42 @@ function EmptyHub({ onCreate }: { onCreate: () => void }) {
 }
 
 function CreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const [templateId, setTemplateId] = useState<string>("study-group");
   const [kind, setKind] = useState<WorkspaceKind>("study_group");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [accent, setAccent] = useState<WorkspaceAccent>("emerald");
   const [busy, setBusy] = useState(false);
+  const [busyNote, setBusyNote] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const selectedKind = KIND_OPTIONS.find((k) => k.id === kind)!;
+
+  // Applying a template pre-fills kind/accent/description (and the title
+  // placeholder) but leaves the title for the user to make their own.
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    const t = getTemplate(id);
+    if (!t) return;
+    setKind(t.kind);
+    setAccent(t.accent);
+    setDescription(t.description);
+  }
 
   async function submit() {
     if (!title.trim()) { setErr("Give your workspace a title."); return; }
     setBusy(true); setErr(null);
     const r = await workspaceApi.create({ title: title.trim(), description: description.trim(), kind, accent });
-    setBusy(false);
-    if (!r.ok) { setErr(r.error); return; }
+    if (!r.ok) { setBusy(false); setErr(r.error); return; }
+
+    // Seed from the chosen template (skips the blank one). Best-effort —
+    // we still navigate into the workspace even if a seed item fails.
+    const tmpl = getTemplate(templateId);
+    if (tmpl && tmpl.id !== "blank") {
+      setBusyNote("Setting up your board, notes, and deadlines…");
+      try { await seedFromTemplate(r.id, tmpl); } catch { /* best-effort */ }
+    }
+    setBusy(false); setBusyNote(null);
     onCreated(r.id);
   }
 
@@ -230,9 +252,33 @@ function CreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: 
           className="absolute -top-20 -right-20 size-56 rounded-full blur-3xl opacity-25"
           style={{ background: ACCENT_HEX[accent] }}
         />
-        <div className="relative">
+        <div className="relative max-h-[80vh] overflow-y-auto pr-1">
           <h2 className="font-[family-name:var(--font-display)] text-2xl font-semibold mb-1">Start a new workspace</h2>
-          <p className="text-sm text-muted mb-6">{selectedKind.tagline}.</p>
+          <p className="text-sm text-muted mb-6">Pick a template to start with a ready-made board, notes, and deadlines — or start blank.</p>
+
+          <label className="block text-[10px] uppercase tracking-widest text-muted mb-2">Template</label>
+          <div className="space-y-1.5 mb-5">
+            {WORKSPACE_TEMPLATES.map((t) => {
+              const active = t.id === templateId;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => applyTemplate(t.id)}
+                  className={`w-full text-left p-3 rounded-xl border transition flex items-center justify-between gap-3 ${active ? "border-emerald/50 bg-emerald/5" : "border-border hover:border-emerald/30"}`}
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{t.label}</div>
+                    <div className="text-[11px] text-muted truncate">{t.blurb}</div>
+                  </div>
+                  {t.id !== "blank" && (
+                    <span className="text-[10px] text-muted shrink-0">
+                      {t.tasks.length > 0 && `${t.tasks.length} tasks`}{t.note ? " · note" : ""}{t.deadlines.length > 0 ? " · deadline" : ""}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
           <label className="block text-[10px] uppercase tracking-widest text-muted mb-2">Workspace type</label>
           <div className="grid grid-cols-3 gap-2 mb-5">
@@ -256,7 +302,7 @@ function CreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: 
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={selectedKind.label === "Study group" ? "e.g. Linear Algebra weekly jam" : "What are you building?"}
+            placeholder={getTemplate(templateId)?.titleSuggestion || (selectedKind.label === "Study group" ? "e.g. Linear Algebra weekly jam" : "What are you building?")}
             className="w-full bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald mb-4"
             autoFocus
           />
@@ -284,6 +330,7 @@ function CreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: 
           </div>
 
           {err && <p className="text-xs text-rust mb-3">{err}</p>}
+          {busyNote && <p className="text-xs text-emerald mb-3 flex items-center gap-1.5"><Loader2 className="size-3 animate-spin" /> {busyNote}</p>}
 
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
