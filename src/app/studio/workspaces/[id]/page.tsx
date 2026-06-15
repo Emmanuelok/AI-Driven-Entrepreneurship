@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { useWorkspace } from "@/lib/use-workspace";
@@ -10,11 +11,16 @@ import { Card, Badge, Button } from "@/components/ui";
 import { CoPresence } from "@/components/co-presence";
 import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-schedule";
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
-import { WorkspaceDiscussionPanel } from "@/components/workspace-discussion-panel";
-import { WorkspaceNotesPanel } from "@/components/workspace-notes-panel";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
-import { WorkspaceTasksPanel } from "@/components/workspace-tasks-panel";
-import { WorkspaceAttachments } from "@/components/workspace-attachments";
+
+// Lazy-load the heavy tab panels: they only mount when their tab is
+// active, so don't pay for them on the Overview tab. Loader stays simple
+// — a small spinner placeholder — to keep CLS quiet.
+const TabLoader = () => <div className="flex items-center justify-center py-12 text-muted">…</div>;
+const WorkspaceDiscussionPanel = dynamic(() => import("@/components/workspace-discussion-panel").then((m) => m.WorkspaceDiscussionPanel), { ssr: false, loading: TabLoader });
+const WorkspaceNotesPanel = dynamic(() => import("@/components/workspace-notes-panel").then((m) => m.WorkspaceNotesPanel), { ssr: false, loading: TabLoader });
+const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-panel").then((m) => m.WorkspaceTasksPanel), { ssr: false, loading: TabLoader });
+const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
 import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 

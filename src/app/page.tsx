@@ -7,7 +7,7 @@ import {
   ArrowRight, Brain, Compass, FlaskConical, Rocket, Sparkles, Globe2, Users,
   Trophy, CheckCircle2, Languages, Wifi, HeartHandshake, Bot, Lightbulb, Map,
   FileText, Notebook, Target, Paintbrush, Wallet, Network, MessageSquare, Zap,
-  Quote, Play, Hammer,
+  Quote, Play, Hammer, LinkIcon, Calendar, KanbanSquare, Paperclip,
 } from "lucide-react";
 import { ConstellationAfrica } from "@/components/constellation-africa";
 import { HeroCanvas } from "@/components/hero-canvas";
@@ -23,6 +23,7 @@ export default function Landing() {
       <Scene3LivingExamples />
       <Scene4ShipHour />
       <Scene5Pillars />
+      <SceneTogether />
       <Scene6Voices />
       <Scene7Stakes />
       <Scene8Call />
@@ -59,8 +60,8 @@ function Nav() {
           </div>
         </Link>
         <nav className="hidden md:flex items-center gap-7 text-sm text-muted">
-          <a href="#stakes" className="hover:text-foreground transition">The stakes</a>
           <a href="#ship" className="hover:text-foreground transition">Ship Hour</a>
+          <Link href="/studio/workspaces" className="hover:text-foreground transition">Workspaces</Link>
           <a href="#voices" className="hover:text-foreground transition">Voices</a>
           <Link href="/studio/atlas" className="hover:text-foreground transition">Atlas</Link>
           <Link href="/sign-in" className="hover:text-foreground transition">Sign in</Link>
@@ -436,6 +437,12 @@ const PILLARS = [
     body: "20+ booked mentors — Iyinoluwa Aboyeji, Ham Serunjogi, Rebecca Enonchong, Kola Aina, Shola Akinlade. Many pro-bono.",
     color: "from-amber to-emerald",
   },
+  {
+    icon: Network,
+    title: "Workspaces that move",
+    body: "Real collaboration: link-share invites, shared task board, co-edited notes, live discussion (Sage joins on @mention), deadlines from anyone — instructor, funder, journal. Cross-continent by default.",
+    color: "from-emerald to-indigo",
+  },
 ];
 
 function Scene5Pillars() {
@@ -445,7 +452,7 @@ function Scene5Pillars() {
     <section ref={ref} className="border-y border-border bg-surface/40 py-24 sm:py-32 px-5 sm:px-8">
       <div className="max-w-7xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.8 }} className="mb-12 max-w-3xl">
-          <p className="text-xs uppercase tracking-[0.25em] text-emerald mb-4">Six pillars · one studio</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald mb-4">{PILLARS.length} pillars · one studio</p>
           <h2 className="font-[family-name:var(--font-display)] text-3xl sm:text-5xl font-semibold leading-[1.05]">
             Built like nothing you&apos;ve used.
           </h2>
@@ -471,6 +478,118 @@ function Scene5Pillars() {
             </motion.div>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   SCENE 5.5 — TOGETHER (Workspaces: cross-continent collaboration showcase)
+   ────────────────────────────────────────────────────────────────────────────── */
+
+function SceneTogether() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-100px" });
+  return (
+    <section ref={ref} className="relative py-24 sm:py-32 px-5 sm:px-8 overflow-hidden">
+      {/* Ambient kente-toned bloom */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 size-[640px] rounded-full bg-emerald/10 blur-[120px]" />
+        <div className="absolute bottom-0 right-1/3 size-[480px] rounded-full bg-indigo/10 blur-[100px]" />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.8 }}
+          className="mb-14 max-w-3xl"
+        >
+          <p className="text-xs uppercase tracking-[0.25em] text-emerald mb-4 flex items-center gap-2">
+            <Network className="size-3.5" /> Workspaces
+          </p>
+          <h2 className="font-[family-name:var(--font-display)] text-3xl sm:text-5xl font-semibold leading-[1.05] text-balance">
+            Different cities. Different organizations. <span className="text-emerald italic">One project.</span>
+          </h2>
+          <p className="mt-5 text-muted text-lg leading-relaxed text-balance">
+            A workspace is the shared room where teams that span continents actually work. A study group
+            across Accra, Nairobi, and Lagos. A research team at three universities. A founder and her
+            two advisors in different time zones. Invite anyone with a link. Sage joins when you ask.
+          </p>
+        </motion.div>
+
+        {/* Feature triptych */}
+        <div className="grid lg:grid-cols-3 gap-4">
+          {[
+            {
+              icon: LinkIcon,
+              title: "Invite with a link",
+              body: "A real shareable URL — email-optional. Multi-use. Roles up to admin. The friend you message lands on a beautiful page in their workspace's accent and joins with one click.",
+              tone: "from-emerald to-emerald-deep",
+            },
+            {
+              icon: KanbanSquare,
+              title: "Tasks, notes, files, discussion",
+              body: "A live Kanban board, co-edited markdown notes with typing presence, file attachments up to 25 MB, and a chat where @sage joins the conversation as a participant.",
+              tone: "from-amber to-amber-deep",
+            },
+            {
+              icon: Calendar,
+              title: "Deadlines from anyone",
+              body: "Self, instructor, funder, investor, journal, mentor — every deadline carries its source. Bell + push to phone + weekly email digest so nothing slips, anywhere.",
+              tone: "from-indigo to-emerald",
+            },
+          ].map((f, i) => (
+            <motion.div
+              key={f.title}
+              initial={{ opacity: 0, y: 30 }}
+              animate={inView ? { opacity: 1, y: 0 } : {}}
+              transition={{ duration: 0.6, delay: 0.15 + i * 0.1 }}
+              className="glass rounded-3xl p-7 relative overflow-hidden group hover:border-emerald/40 transition"
+            >
+              <div className={`absolute -top-12 -right-12 size-36 rounded-full bg-gradient-to-br ${f.tone} opacity-20 blur-3xl group-hover:opacity-40 transition`} />
+              <f.icon className="size-7 mb-5 text-emerald relative" />
+              <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold relative text-balance">{f.title}</h3>
+              <p className="mt-3 text-muted leading-relaxed text-sm relative">{f.body}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Sage as participant — pull-quote */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : {}}
+          transition={{ duration: 0.7, delay: 0.55 }}
+          className="mt-14 grid lg:grid-cols-2 gap-6 items-stretch"
+        >
+          <div className="glass rounded-3xl p-7 sm:p-9 relative overflow-hidden">
+            <div className="absolute -bottom-12 -left-12 size-40 rounded-full bg-emerald/20 blur-3xl" />
+            <div className="relative">
+              <div className="text-[10px] uppercase tracking-[0.25em] text-emerald mb-3 flex items-center gap-2">
+                <Brain className="size-3" /> Sage in the conversation
+              </div>
+              <p className="font-[family-name:var(--font-display)] text-2xl leading-snug">
+                Type <span className="text-emerald">@sage</span> in any workspace discussion and the AI mentor reads the recent thread and replies as a participant — not a chatbot. Concise, specific, on-topic.
+              </p>
+              <p className="mt-4 text-sm text-muted">One-click <span className="text-foreground">workspace synthesis</span> reads every surface — discussion, notes, deadlines, tasks — and writes the team a status brief: where it stands, what&apos;s at risk, the three next moves.</p>
+            </div>
+          </div>
+          <div className="glass rounded-3xl p-7 sm:p-9 relative overflow-hidden bg-gradient-to-br from-indigo/10 via-transparent to-emerald/10">
+            <div className="absolute -top-12 -right-12 size-44 rounded-full bg-indigo/20 blur-3xl" />
+            <div className="relative h-full flex flex-col">
+              <div className="text-[10px] uppercase tracking-[0.25em] text-indigo mb-3 flex items-center gap-2">
+                <Bot className="size-3" /> Drive it from your own agent
+              </div>
+              <p className="font-[family-name:var(--font-display)] text-2xl leading-snug">
+                A built-in <span className="text-indigo">MCP server</span> exposes your workspaces to Claude Desktop, Cursor, or any MCP-aware client — 12 tools to list, read, post, and update.
+              </p>
+              <p className="mt-4 text-sm text-muted flex-1">List deadlines from your editor. Create tasks from a script. Post status updates from a CI job. The collaboration engine speaks the protocol agents use.</p>
+              <Link href="/studio/workspaces" className="mt-5 self-start inline-flex items-center gap-2 text-sm text-emerald hover:underline">
+                See it in the studio <ArrowRight className="size-3.5" />
+              </Link>
+            </div>
+          </div>
+        </motion.div>
       </div>
     </section>
   );
