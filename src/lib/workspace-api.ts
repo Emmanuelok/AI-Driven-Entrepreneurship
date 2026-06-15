@@ -113,6 +113,35 @@ export type ParsedDeadline = {
 
 export type TaskStatus = "todo" | "doing" | "done" | "blocked";
 
+export type AttachmentKind = "task" | "doc" | "message";
+
+export type WorkspaceFile = {
+  id: string;
+  workspace_id: string;
+  uploaded_by: string | null;
+  uploaded_by_name: string | null;
+  name: string;
+  path: string;
+  size_bytes: number;
+  content_type: string;
+  attached_to_kind: AttachmentKind | null;
+  attached_to_id: string | null;
+  created_at: string;
+  downloadUrl: string | null;
+};
+
+export type UploadGrant = {
+  signedUrl: string;
+  token: string;
+  path: string;
+  name: string;
+  contentType: string;
+  sizeBytes: number;
+  attachedToKind: AttachmentKind | null;
+  attachedToId: string | null;
+  bucket: string;
+};
+
 export type WorkspaceTask = {
   id: string;
   workspace_id: string;
@@ -248,6 +277,27 @@ export const workspaceApi = {
 
   deleteTask: (id: string, taskId: string) =>
     call(`/api/v2/workspaces/${id}/tasks?taskId=${encodeURIComponent(taskId)}`, { method: "DELETE" }),
+
+  // ── Files ───────────────────────────────────────────────────────────
+  listFiles: (id: string, filter?: { attachedToKind?: AttachmentKind | "null"; attachedToId?: string }) => {
+    const params = new URLSearchParams();
+    if (filter?.attachedToKind) params.set("attachedToKind", filter.attachedToKind);
+    if (filter?.attachedToId) params.set("attachedToId", filter.attachedToId);
+    const qs = params.toString();
+    return call<{ results: WorkspaceFile[] }>(`/api/v2/workspaces/${id}/files${qs ? `?${qs}` : ""}`);
+  },
+
+  // Two-step upload. We don't proxy bytes through our backend — the
+  // client PUTs directly to Supabase Storage via the signed URL, then
+  // confirms with registerFile() so the metadata row exists.
+  signFileUpload: (id: string, payload: { filename: string; contentType: string; sizeBytes: number; attachedToKind?: AttachmentKind; attachedToId?: string }) =>
+    call<{ upload: UploadGrant }>(`/api/v2/workspaces/${id}/files/upload-url`, { method: "POST", body: JSON.stringify(payload) }),
+
+  registerFile: (id: string, payload: { path: string; name: string; sizeBytes: number; contentType: string; attachedToKind?: AttachmentKind; attachedToId?: string }) =>
+    call<{ file: WorkspaceFile }>(`/api/v2/workspaces/${id}/files`, { method: "POST", body: JSON.stringify(payload) }),
+
+  deleteFile: (id: string, fileId: string) =>
+    call(`/api/v2/workspaces/${id}/files?fileId=${encodeURIComponent(fileId)}`, { method: "DELETE" }),
 
   // ── AI synthesis ────────────────────────────────────────────────────
   synthesize: (id: string, postToDiscussion: boolean, siteContext?: unknown) =>

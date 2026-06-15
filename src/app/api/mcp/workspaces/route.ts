@@ -304,6 +304,41 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "list_files",
+    description: "List files uploaded to a workspace. Returns metadata + a fresh 10-minute signed download URL for each.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspace_id: { type: "string" },
+        attached_to_kind: { type: "string", enum: ["task", "doc", "message"], description: "Optional: filter to files attached to a specific kind of object." },
+        attached_to_id: { type: "string", description: "Optional: filter to files attached to a specific object id." },
+      },
+      required: ["workspace_id"],
+      additionalProperties: false,
+    },
+    handler: async (sb, callerId, args) => {
+      const id = str(args, "workspace_id");
+      if (!id) return { ok: false, message: "workspace_id is required." };
+      if (!(await roleOf(sb, id, callerId))) return { ok: false, message: "You're not a member of that workspace." };
+      let q = sb.from("workspace_files").select("id, name, path, size_bytes, content_type, uploaded_by_name, attached_to_kind, attached_to_id, created_at").eq("workspace_id", id).order("created_at", { ascending: false });
+      const kind = str(args, "attached_to_kind");
+      const attId = str(args, "attached_to_id");
+      if (kind && attId) q = q.eq("attached_to_kind", kind).eq("attached_to_id", attId);
+      const { data } = await q;
+      const rows = data ?? [];
+      const paths = rows.map((r) => (r as { path: string }).path);
+      const urlByPath = new Map<string, string>();
+      if (paths.length > 0) {
+        const { data: signed } = await sb.storage.from("workspace-files").createSignedUrls(paths, 600);
+        for (const s of signed ?? []) {
+          const row = s as { path: string; signedUrl: string };
+          if (row.signedUrl) urlByPath.set(row.path, row.signedUrl);
+        }
+      }
+      return { ok: true, data: { files: rows.map((r) => { const row = r as { path: string }; return { ...row, downloadUrl: urlByPath.get(row.path) ?? null }; }) } };
+    },
+  },
+  {
     name: "read_note",
     description: "Read the full body of one shared note.",
     inputSchema: {

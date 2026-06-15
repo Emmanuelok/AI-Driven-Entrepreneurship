@@ -14,7 +14,8 @@ import { WorkspaceDiscussionPanel } from "@/components/workspace-discussion-pane
 import { WorkspaceNotesPanel } from "@/components/workspace-notes-panel";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 import { WorkspaceTasksPanel } from "@/components/workspace-tasks-panel";
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare } from "lucide-react";
+import { WorkspaceAttachments } from "@/components/workspace-attachments";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -34,7 +35,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
-  const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes">("overview");
+  const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files">("overview");
 
   // Automatic Workspace Agent: fires welcome on first sight (after the
   // baseline pass), action plans when a personal deadline enters the
@@ -108,6 +109,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
             { id: "tasks", label: "Tasks", icon: KanbanSquare },
             { id: "discussion", label: "Discussion", icon: MessageSquare },
             { id: "notes", label: "Notes", icon: FileText },
+            { id: "files", label: "Files", icon: Paperclip },
           ] as const).map((t) => (
             <button
               key={t.id}
@@ -131,6 +133,18 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
         {tab === "notes" && (
           <WorkspaceNotesPanel workspaceId={id} canEdit={ws.myRole !== "viewer"} accent={accent} />
+        )}
+
+        {tab === "files" && (
+          <div className="glass rounded-2xl p-6">
+            <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold flex items-center gap-2 mb-1">
+              <Paperclip className="size-5 text-emerald" /> Shared files
+            </h2>
+            <p className="text-sm text-muted mb-5 max-w-2xl">
+              Drag-and-drop, paste, or click to upload. Up to 25 MB per file. Files attached to specific tasks or notes appear inline there — these are the floating ones.
+            </p>
+            <WorkspaceAttachments workspaceId={id} canEdit={ws.myRole !== "viewer"} attach={undefined} />
+          </div>
         )}
 
         {tab === "overview" && (

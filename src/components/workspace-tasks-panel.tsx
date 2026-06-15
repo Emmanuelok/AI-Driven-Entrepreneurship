@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useWorkspaceTasks } from "@/lib/use-workspace-content";
 import type { WorkspaceTask, TaskStatus, WorkspaceMember } from "@/lib/workspace-api";
 import { Button } from "@/components/ui";
+import { WorkspaceAttachments } from "@/components/workspace-attachments";
 import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban } from "lucide-react";
 
 // A shared Kanban board for a workspace. Four columns: To do / Doing /
@@ -86,6 +87,7 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
       {editing && (
         <TaskDialog
           task={editing}
+          workspaceId={workspaceId}
           members={members}
           canEdit={canEdit}
           accent={accent}
@@ -148,8 +150,8 @@ function QuickAdd({ onAdd, onCancel }: { onAdd: (title: string) => void; onCance
   );
 }
 
-function TaskDialog({ task, members, canEdit, accent, onClose, onSave, onDelete }: {
-  task: WorkspaceTask; members: WorkspaceMember[]; canEdit: boolean; accent: string;
+function TaskDialog({ task, workspaceId, members, canEdit, accent, onClose, onSave, onDelete }: {
+  task: WorkspaceTask; workspaceId: string; members: WorkspaceMember[]; canEdit: boolean; accent: string;
   onClose: () => void; onSave: (p: { title?: string; detail?: string; assigneeUserId?: string | null }) => void; onDelete: () => void;
 }) {
   const [title, setTitle] = useState(task.title);
@@ -158,7 +160,7 @@ function TaskDialog({ task, members, canEdit, accent, onClose, onSave, onDelete 
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="glass rounded-3xl max-w-md w-full p-7 relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="glass rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto p-7 relative" onClick={(e) => e.stopPropagation()}>
         <div className="absolute -top-20 -right-20 size-44 rounded-full blur-3xl opacity-20" style={{ background: accent }} />
         <div className="relative">
           <div className="flex items-center justify-between mb-4">
@@ -177,6 +179,10 @@ function TaskDialog({ task, members, canEdit, accent, onClose, onSave, onDelete 
             <option value="">Unassigned</option>
             {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.display_name || m.email || "Member"}</option>)}
           </select>
+
+          <div className="mb-5 p-3 rounded-xl border border-border bg-surface-2/30">
+            <WorkspaceAttachments workspaceId={workspaceId} canEdit={canEdit} attach={{ kind: "task", id: task.id }} label="Files for this task" />
+          </div>
 
           {canEdit && (
             <div className="flex items-center justify-between gap-2">

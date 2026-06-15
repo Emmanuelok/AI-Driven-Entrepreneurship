@@ -6,6 +6,7 @@ import { useDocPresence } from "@/lib/use-doc-presence";
 import { workspaceApi } from "@/lib/workspace-api";
 import { useStore } from "@/store";
 import { Markdown } from "@/components/markdown";
+import { WorkspaceAttachments } from "@/components/workspace-attachments";
 import { FileText, Plus, Loader2, Check, AlertTriangle, Eye, Pencil, Trash2, Cloud } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -182,6 +183,10 @@ function NoteEditor({ workspaceId, docId, canEdit, accent, onDeleted }: { worksp
             {doc.body.trim() ? <Markdown src={doc.body} className="prose-chat" /> : <p className="text-sm text-muted italic">Nothing to preview yet.</p>}
           </div>
         )}
+      </div>
+
+      <div className="border-t border-border p-4 bg-surface-2/20">
+        <WorkspaceAttachments workspaceId={workspaceId} canEdit={canEdit} attach={{ kind: "doc", id: docId }} label="Files attached to this note" />
       </div>
     </div>
   );
