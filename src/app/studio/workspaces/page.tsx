@@ -9,7 +9,7 @@ import { WORKSPACE_TEMPLATES, getTemplate, seedFromTemplate } from "@/lib/worksp
 import { Card, Button } from "@/components/ui";
 import { Spotlight } from "@/components/spotlight";
 import { McpInstallSnippets } from "@/components/mcp-install-snippets";
-import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2, Bot, ChevronDown, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2, Bot, ChevronDown, Calendar as CalendarIcon, TrendingUp } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const KIND_OPTIONS: { id: WorkspaceKind; label: string; tagline: string; icon: typeof Sparkles; accent: WorkspaceAccent }[] = [
@@ -53,6 +53,11 @@ export default function WorkspacesHub() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {owned.length > 0 && (
+            <Link href="/studio/workspaces/analytics" className="inline-flex items-center gap-2 border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 px-4 py-2.5 rounded-full text-sm transition">
+              <TrendingUp className="size-4" /> Roll-up
+            </Link>
+          )}
           <Link href="/studio/workspaces/calendar" className="inline-flex items-center gap-2 border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 px-4 py-2.5 rounded-full text-sm transition">
             <CalendarIcon className="size-4" /> Calendar
           </Link>
