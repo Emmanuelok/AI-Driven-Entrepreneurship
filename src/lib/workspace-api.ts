@@ -114,6 +114,15 @@ export type WorkspaceDoc = WorkspaceDocMeta & {
   updated_by: string | null;
 };
 
+export type SearchHit = {
+  kind: "message" | "note" | "task" | "deadline" | "file";
+  id: string;
+  title: string;
+  snippet: string;
+  meta: string;
+  ts: string;
+};
+
 export type ParsedDeadline = {
   title: string;
   dueAt: string | null;
@@ -309,6 +318,10 @@ export const workspaceApi = {
 
   deleteFile: (id: string, fileId: string) =>
     call(`/api/v2/workspaces/${id}/files?fileId=${encodeURIComponent(fileId)}`, { method: "DELETE" }),
+
+  // ── Search ──────────────────────────────────────────────────────────
+  search: (id: string, q: string) =>
+    call<{ q: string; results: SearchHit[] }>(`/api/v2/workspaces/${id}/search?q=${encodeURIComponent(q)}`),
 
   // ── AI synthesis ────────────────────────────────────────────────────
   synthesize: (id: string, postToDiscussion: boolean, siteContext?: unknown) =>

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
@@ -13,6 +13,7 @@ import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-
 import { describeRule, type RecurrenceRule, type WeekdayCode } from "@/lib/recurrence";
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
+import { WorkspaceSearchDialog } from "@/components/workspace-search-dialog";
 
 // Lazy-load the heavy tab panels: they only mount when their tab is
 // active, so don't pay for them on the Overview tab. Loader stays simple
@@ -22,7 +23,7 @@ const WorkspaceDiscussionPanel = dynamic(() => import("@/components/workspace-di
 const WorkspaceNotesPanel = dynamic(() => import("@/components/workspace-notes-panel").then((m) => m.WorkspaceNotesPanel), { ssr: false, loading: TabLoader });
 const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-panel").then((m) => m.WorkspaceTasksPanel), { ssr: false, loading: TabLoader });
 const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat } from "lucide-react";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -42,7 +43,25 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files">("overview");
+
+  // Cmd/Ctrl+K opens the in-workspace search. Bypasses when the user is
+  // already typing into an input/textarea/contentEditable so it doesn't
+  // hijack the Build Studio's editor shortcut etc.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Automatic Workspace Agent: fires welcome on first sight (after the
   // baseline pass), action plans when a personal deadline enters the
@@ -101,6 +120,15 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <CoPresence presence={presenceForCoPresence} myUserId={user?.id} />
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border hover:border-emerald/40 hover:bg-emerald/5 transition text-sm text-muted hover:text-foreground"
+              title="Search this workspace (⌘K)"
+            >
+              <Search className="size-3.5" />
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="hidden sm:inline text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 border border-border rounded">⌘K</kbd>
+            </button>
             {isAdmin && (
               <Button onClick={() => setInviteOpen(true)}>
                 <LinkIcon className="size-4" /> Invite
@@ -259,6 +287,13 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         </div>
         )}
       </div>
+
+      <WorkspaceSearchDialog
+        workspaceId={id}
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onJump={(t) => setTab(t)}
+      />
 
       {inviteOpen && (
         <InviteDialog
