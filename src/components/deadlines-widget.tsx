@@ -79,7 +79,7 @@ export function DeadlinesWidget() {
         <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold flex items-center gap-2">
           <Calendar className="size-4 text-emerald" /> Deadlines coming up
         </h2>
-        <Link href="/studio/workspaces" className="text-xs text-emerald hover:underline">All workspaces →</Link>
+        <Link href="/studio/workspaces/calendar" className="text-xs text-emerald hover:underline">Calendar →</Link>
       </div>
       <ul className="space-y-2">
         {top.map((d) => {
