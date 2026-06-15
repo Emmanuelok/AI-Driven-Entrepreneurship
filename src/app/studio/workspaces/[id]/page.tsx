@@ -10,6 +10,7 @@ import { useStore } from "@/store";
 import { Card, Badge, Button } from "@/components/ui";
 import { CoPresence } from "@/components/co-presence";
 import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-schedule";
+import { describeRule, type RecurrenceRule, type WeekdayCode } from "@/lib/recurrence";
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 
@@ -21,7 +22,7 @@ const WorkspaceDiscussionPanel = dynamic(() => import("@/components/workspace-di
 const WorkspaceNotesPanel = dynamic(() => import("@/components/workspace-notes-panel").then((m) => m.WorkspaceNotesPanel), { ssr: false, loading: TabLoader });
 const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-panel").then((m) => m.WorkspaceTasksPanel), { ssr: false, loading: TabLoader });
 const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip } from "lucide-react";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -313,6 +314,11 @@ function DeadlineRow({ d, canEdit, workspaceId, onChange }: { d: WorkspaceDeadli
           <span className={`font-medium ${d.status === "done" ? "line-through" : ""}`}>{d.title}</span>
           <Badge color={source.tone as Parameters<typeof Badge>[0]["color"]}>{source.label}</Badge>
           {window && <Badge color={window === "overdue" ? "rust" : window === "1d" || window === "6h" ? "amber" : "muted"}>{windowLabel(window)}</Badge>}
+          {d.recurrence_rule && (
+            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-emerald" title={describeRule(d.recurrence_rule)}>
+              <Repeat className="size-2.5" /> {describeRule(d.recurrence_rule)}
+            </span>
+          )}
         </div>
         {d.detail && <p className="mt-1 text-sm text-muted leading-relaxed">{d.detail}</p>}
         <div className="mt-1.5 text-xs text-muted flex items-center gap-3">
@@ -499,10 +505,28 @@ function DeadlineDialog({ workspaceId, isAdmin, members, myUserId, accent, onClo
   const [assignee, setAssignee] = useState<string>(""); // "" = self, "all" = workspace-wide
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Recurrence — empty = one-shot. The picker compresses into one of:
+  // none | daily | weekly:byDay[] | monthly. INTERVAL covers each.
+  const [repeat, setRepeat] = useState<"none" | "daily" | "weekly" | "monthly">("none");
+  const [interval, setIntervalState] = useState(1);
+  const [byDay, setByDay] = useState<WeekdayCode[]>([]);
+  const [endKind, setEndKind] = useState<"never" | "count" | "until">("never");
+  const [endCount, setEndCount] = useState(10);
+  const [endUntil, setEndUntil] = useState("");
   // Smart parse: describe the deadline in words, let the agent fill the form.
   const [nlText, setNlText] = useState("");
   const [parsing, setParsing] = useState(false);
   const [parsedNote, setParsedNote] = useState<string | null>(null);
+
+  function buildRule(): RecurrenceRule | null {
+    if (repeat === "none") return null;
+    const rule: RecurrenceRule = { freq: repeat };
+    if (interval > 1) rule.interval = interval;
+    if (repeat === "weekly" && byDay.length > 0) rule.byDay = byDay;
+    if (endKind === "count" && endCount > 0) rule.count = endCount;
+    if (endKind === "until" && endUntil) rule.until = new Date(endUntil).toISOString();
+    return rule;
+  }
 
   async function smartParse() {
     const text = nlText.trim();
@@ -540,6 +564,7 @@ function DeadlineDialog({ workspaceId, isAdmin, members, myUserId, accent, onClo
       dueAt: new Date(dueAt).toISOString(),
       assigneeUserId,
       setByRole,
+      recurrenceRule: buildRule(),
     });
     setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
@@ -586,6 +611,61 @@ function DeadlineDialog({ workspaceId, isAdmin, members, myUserId, accent, onClo
 
           <label className="block text-[10px] uppercase tracking-widest text-muted mb-2">When?</label>
           <input type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} className="w-full bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald mb-4" />
+
+          <label className="block text-[10px] uppercase tracking-widest text-muted mb-2 flex items-center gap-1.5"><Repeat className="size-3" /> Repeat</label>
+          <div className="flex gap-1.5 mb-3 flex-wrap">
+            {(["none", "daily", "weekly", "monthly"] as const).map((r) => (
+              <button key={r} onClick={() => setRepeat(r)} className={`px-3 py-1.5 rounded-full text-xs border transition ${repeat === r ? "border-emerald/60 bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}>
+                {r === "none" ? "One-shot" : r === "daily" ? "Daily" : r === "weekly" ? "Weekly" : "Monthly"}
+              </button>
+            ))}
+          </div>
+          {repeat !== "none" && (
+            <div className="mb-4 p-3 rounded-xl border border-border bg-surface-2/30 space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted">Every</span>
+                <input type="number" min={1} max={365} value={interval} onChange={(e) => setIntervalState(Math.max(1, Math.min(365, Number(e.target.value) || 1)))} className="w-16 bg-surface-2 border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-emerald" />
+                <span className="text-muted">{repeat === "daily" ? (interval === 1 ? "day" : "days") : repeat === "weekly" ? (interval === 1 ? "week" : "weeks") : (interval === 1 ? "month" : "months")}</span>
+              </div>
+              {repeat === "weekly" && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">On</div>
+                  <div className="flex gap-1">
+                    {(["MO", "TU", "WE", "TH", "FR", "SA", "SU"] as WeekdayCode[]).map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setByDay((cur) => cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d])}
+                        className={`size-8 rounded-lg text-[11px] font-medium border transition ${byDay.includes(d) ? "border-emerald/60 bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}
+                        title={d}
+                      >
+                        {d[0]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">Ends</div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {(["never", "count", "until"] as const).map((k) => (
+                    <button key={k} onClick={() => setEndKind(k)} className={`px-3 py-1 rounded-full text-[11px] border transition ${endKind === k ? "border-emerald/60 bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}>
+                      {k === "never" ? "Never" : k === "count" ? "After…" : "On…"}
+                    </button>
+                  ))}
+                </div>
+                {endKind === "count" && (
+                  <div className="mt-2 flex items-center gap-2 text-sm">
+                    <input type="number" min={1} max={999} value={endCount} onChange={(e) => setEndCount(Math.max(1, Math.min(999, Number(e.target.value) || 1)))} className="w-20 bg-surface-2 border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-emerald" />
+                    <span className="text-muted">occurrences</span>
+                  </div>
+                )}
+                {endKind === "until" && (
+                  <input type="date" value={endUntil} onChange={(e) => setEndUntil(e.target.value)} className="mt-2 bg-surface-2 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-emerald" />
+                )}
+              </div>
+              <p className="text-[11px] text-emerald">{buildRule() ? describeRule(buildRule()!) : ""}</p>
+            </div>
+          )}
 
           {isAdmin && (
             <>

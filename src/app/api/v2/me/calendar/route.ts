@@ -22,6 +22,7 @@ export type CalendarItemRow = {
   due_at: string;
   set_by_role: string | null;
   status: string;
+  recurrence_rule: unknown | null;
 };
 
 // Shared collector so the .ics route and this JSON route agree exactly.
@@ -38,21 +39,21 @@ export async function collectCalendarItems(sb: NonNullable<ReturnType<typeof sup
   }
 
   const [mineDeadlines, wideDeadlines, tasks] = await Promise.all([
-    sb.from("workspace_deadlines").select("id, workspace_id, title, detail, due_at, status, set_by_role").in("workspace_id", wsIds).eq("assignee_user_id", userId).eq("status", "open").limit(500),
-    sb.from("workspace_deadlines").select("id, workspace_id, title, detail, due_at, status, set_by_role").in("workspace_id", wsIds).is("assignee_user_id", null).eq("status", "open").limit(500),
+    sb.from("workspace_deadlines").select("id, workspace_id, title, detail, due_at, status, set_by_role, recurrence_rule").in("workspace_id", wsIds).eq("assignee_user_id", userId).eq("status", "open").limit(500),
+    sb.from("workspace_deadlines").select("id, workspace_id, title, detail, due_at, status, set_by_role, recurrence_rule").in("workspace_id", wsIds).is("assignee_user_id", null).eq("status", "open").limit(500),
     sb.from("workspace_tasks").select("id, workspace_id, title, detail, due_at, status").in("workspace_id", wsIds).eq("assignee_user_id", userId).neq("status", "done").not("due_at", "is", null).limit(500),
   ]);
 
   const items: CalendarItemRow[] = [];
   for (const d of [...(mineDeadlines.data ?? []), ...(wideDeadlines.data ?? [])]) {
-    const row = d as { id: string; workspace_id: string; title: string; detail: string; due_at: string; status: string; set_by_role: string };
+    const row = d as { id: string; workspace_id: string; title: string; detail: string; due_at: string; status: string; set_by_role: string; recurrence_rule: unknown };
     const m = meta.get(row.workspace_id);
-    items.push({ kind: "deadline", id: row.id, workspace_id: row.workspace_id, workspace_title: m?.title ?? "Workspace", workspace_accent: m?.accent ?? "emerald", title: row.title, detail: row.detail ?? "", due_at: row.due_at, set_by_role: row.set_by_role, status: row.status });
+    items.push({ kind: "deadline", id: row.id, workspace_id: row.workspace_id, workspace_title: m?.title ?? "Workspace", workspace_accent: m?.accent ?? "emerald", title: row.title, detail: row.detail ?? "", due_at: row.due_at, set_by_role: row.set_by_role, status: row.status, recurrence_rule: row.recurrence_rule ?? null });
   }
   for (const t of tasks.data ?? []) {
     const row = t as { id: string; workspace_id: string; title: string; detail: string; due_at: string; status: string };
     const m = meta.get(row.workspace_id);
-    items.push({ kind: "task", id: row.id, workspace_id: row.workspace_id, workspace_title: m?.title ?? "Workspace", workspace_accent: m?.accent ?? "emerald", title: row.title, detail: row.detail ?? "", due_at: row.due_at, set_by_role: null, status: row.status });
+    items.push({ kind: "task", id: row.id, workspace_id: row.workspace_id, workspace_title: m?.title ?? "Workspace", workspace_accent: m?.accent ?? "emerald", title: row.title, detail: row.detail ?? "", due_at: row.due_at, set_by_role: null, status: row.status, recurrence_rule: null });
   }
 
   items.sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());

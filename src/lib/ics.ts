@@ -26,6 +26,8 @@ export type IcsEvent = {
   // ISO-ish category label shown by some clients; we use it for the
   // deadline source (instructor/journal/…) or "Task".
   categories?: string[];
+  // RFC 5545 RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO,WE,FR"). Optional.
+  rrule?: string;
 };
 
 export type IcsCalendar = {
@@ -100,6 +102,7 @@ export function buildIcs(cal: IcsCalendar, now: Date = new Date()): string {
     if (ev.description) out.push(line("DESCRIPTION", escapeIcsText(ev.description)));
     if (ev.url) out.push(line("URL", escapeIcsText(ev.url)));
     if (ev.categories && ev.categories.length > 0) out.push(line("CATEGORIES", ev.categories.map(escapeIcsText).join(",")));
+    if (ev.rrule) out.push(line("RRULE", ev.rrule));
     out.push("END:VEVENT");
   }
 

@@ -2,6 +2,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { buildIcs, type IcsEvent } from "@/lib/ics";
 import { collectCalendarItems } from "@/app/api/v2/me/calendar/route";
 import { setByLabel } from "@/lib/deadline-schedule";
+import { toRRule, validateRule } from "@/lib/recurrence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +41,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     const start = new Date(it.due_at);
     const categories = it.kind === "task" ? ["Task"] : [setByLabel(it.set_by_role ?? "self").label];
     const sourceLine = it.kind === "task" ? "Task" : `Deadline · set by ${setByLabel(it.set_by_role ?? "self").label}`;
+    // If this is a recurring deadline, attach an RRULE so the
+    // subscriber's calendar expands the series locally (instead of us
+    // materializing N occurrences in the feed).
+    let rrule: string | undefined;
+    if (it.recurrence_rule) {
+      const v = validateRule(it.recurrence_rule);
+      if (v.ok) rrule = toRRule(v.rule);
+    }
     return {
       uid: `${it.kind}-${it.id}@sankofa.studio`,
       start,
@@ -47,6 +56,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
       description: [it.detail, sourceLine].filter(Boolean).join("\n"),
       url: `https://sankofa.studio/studio/workspaces/${it.workspace_id}`,
       categories,
+      rrule,
     };
   });
 

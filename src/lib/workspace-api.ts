@@ -53,6 +53,14 @@ export type WorkspaceInvite = {
   created_at: string;
 };
 
+export type RecurrenceRule = {
+  freq: "daily" | "weekly" | "monthly";
+  interval?: number;
+  byDay?: ("SU" | "MO" | "TU" | "WE" | "TH" | "FR" | "SA")[];
+  until?: string;
+  count?: number;
+};
+
 export type WorkspaceDeadline = {
   id: string;
   workspace_id: string;
@@ -64,6 +72,8 @@ export type WorkspaceDeadline = {
   set_by_role: DeadlineAuthority;
   status: DeadlineStatus;
   last_reminded_at: string | null;
+  recurrence_rule: RecurrenceRule | null;
+  occurrences_completed: number;
   created_at: string;
   updated_at: string;
 };
@@ -225,7 +235,7 @@ export const workspaceApi = {
   removeMember: (id: string, userId: string) =>
     call(`/api/v2/workspaces/${id}/members?userId=${encodeURIComponent(userId)}`, { method: "DELETE" }),
 
-  addDeadline: (id: string, payload: { title: string; detail?: string; dueAt: string; assigneeUserId?: string | null; setByRole?: DeadlineAuthority }) =>
+  addDeadline: (id: string, payload: { title: string; detail?: string; dueAt: string; assigneeUserId?: string | null; setByRole?: DeadlineAuthority; recurrenceRule?: RecurrenceRule | null }) =>
     call<{ deadline: WorkspaceDeadline }>(`/api/v2/workspaces/${id}/deadlines`, { method: "POST", body: JSON.stringify(payload) }),
 
   patchDeadline: (id: string, payload: { id: string; title?: string; detail?: string; dueAt?: string; status?: DeadlineStatus }) =>
