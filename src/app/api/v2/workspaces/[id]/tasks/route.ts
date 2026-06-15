@@ -2,6 +2,7 @@ import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authWorkspace, requireWorkspaceRole, bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
+import { pushToUser } from "@/lib/push-to-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ const CreateBody = z.object({
   detail: z.string().max(2000).optional(),
   status: z.enum(STATUSES as unknown as readonly [string, ...string[]]).optional(),
   assigneeUserId: z.string().max(64).optional().nullable(),
+  dueAt: z.string().min(10).max(40).optional().nullable(),
 });
 
 const PatchBody = z.object({
@@ -28,6 +30,7 @@ const PatchBody = z.object({
   status: z.enum(STATUSES as unknown as readonly [string, ...string[]]).optional(),
   assigneeUserId: z.string().max(64).optional().nullable(),
   position: z.number().optional(),
+  dueAt: z.string().min(10).max(40).optional().nullable(),
 });
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -66,6 +69,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const status = body.status ?? "todo";
   const position = await nextPosition(sb, id, status);
   const assigneeName = body.assigneeUserId ? await memberName(sb, id, body.assigneeUserId) : null;
+  const dueAt = parseDue(body.dueAt);
+  if (body.dueAt && dueAt === undefined) return Response.json({ ok: false, error: "invalid_due_at" }, { status: 400 });
 
   const { data, error } = await sb
     .from("workspace_tasks")
@@ -78,6 +83,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       assignee_name: assigneeName,
       position,
       created_by: me!.userId,
+      due_at: dueAt ?? null,
     })
     .select("*")
     .single();
@@ -90,6 +96,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     title: `Task: ${body.title}`,
     body: null,
   });
+
+  // Notify the assignee if it's someone other than the creator.
+  if (body.assigneeUserId && body.assigneeUserId !== me!.userId) {
+    await notifyAssignment(sb, id, body.assigneeUserId, body.title, dueAt ?? null);
+  }
 
   return Response.json({ ok: true, task: data });
 }
@@ -137,12 +148,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     update.assignee_user_id = patch.assigneeUserId;
     update.assignee_name = patch.assigneeUserId ? await memberName(sb, id, patch.assigneeUserId) : null;
   }
+  if (patch.dueAt !== undefined) {
+    if (patch.dueAt === null) update.due_at = null;
+    else {
+      const d = parseDue(patch.dueAt);
+      if (d === undefined) return Response.json({ ok: false, error: "invalid_due_at" }, { status: 400 });
+      update.due_at = d;
+    }
+  }
 
   const { data, error } = await sb.from("workspace_tasks").update(update).eq("id", taskId).select("*").single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   if (patch.status === "done" && existing.status !== "done") {
     await sb.from("workspace_activity").insert({ workspace_id: id, user_id: me.userId, kind: "task_done", title: `Completed: ${data!.title}`, body: null });
+  }
+
+  // Notify on a NEW assignment to someone other than the editor making it.
+  if (patch.assigneeUserId !== undefined && patch.assigneeUserId && patch.assigneeUserId !== existing.assignee_user_id && patch.assigneeUserId !== me.userId) {
+    await notifyAssignment(sb, id, patch.assigneeUserId, data!.title as string, (data!.due_at as string | null) ?? null);
   }
 
   return Response.json({ ok: true, task: data });
@@ -188,4 +212,43 @@ async function memberName(sb: NonNullable<ReturnType<typeof supabaseAdmin>>, wor
     .eq("user_id", userId)
     .maybeSingle();
   return (data?.display_name as string | null) ?? (data?.email as string | null) ?? null;
+}
+
+// Returns an ISO string for a valid date, undefined for an unparseable
+// one (so the caller can 400), or null when explicitly clearing.
+function parseDue(v: string | null | undefined): string | null | undefined {
+  if (v === null || v === undefined) return null;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return undefined;
+  return d.toISOString();
+}
+
+// In-app + push notification when a task is assigned to someone.
+async function notifyAssignment(
+  sb: NonNullable<ReturnType<typeof supabaseAdmin>>,
+  workspaceId: string,
+  assigneeId: string,
+  taskTitle: string,
+  dueAt: string | null,
+) {
+  const { data: ws } = await sb.from("workspaces").select("title").eq("id", workspaceId).maybeSingle();
+  const wsTitle = (ws?.title as string | undefined) ?? "a workspace";
+  const dueLine = dueAt ? ` · due ${new Date(dueAt).toUTCString().replace(":00 GMT", " UTC")}` : "";
+  const href = `/studio/workspaces/${workspaceId}`;
+  const title = `You were assigned a task`;
+  const body = `${taskTitle} — in ${wsTitle}${dueLine}`;
+
+  await sb.from("notifications").insert({
+    user_id: assigneeId,
+    kind: "system",
+    actor_name: "Task board",
+    target_kind: "workspace",
+    target_slug: workspaceId,
+    title,
+    body,
+    url: href,
+    read: false,
+  });
+  // Best-effort push (respects the user's "system" preference).
+  await pushToUser(assigneeId, { title, body, url: href, tag: `wstask:${workspaceId}` }, { category: "system" }).catch(() => {});
 }

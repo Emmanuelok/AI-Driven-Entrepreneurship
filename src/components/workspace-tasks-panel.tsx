@@ -5,7 +5,8 @@ import { useWorkspaceTasks } from "@/lib/use-workspace-content";
 import type { WorkspaceTask, TaskStatus, WorkspaceMember } from "@/lib/workspace-api";
 import { Button } from "@/components/ui";
 import { WorkspaceAttachments } from "@/components/workspace-attachments";
-import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban } from "lucide-react";
+import { relativeDue } from "@/lib/deadline-schedule";
+import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban, Clock } from "lucide-react";
 
 // A shared Kanban board for a workspace. Four columns: To do / Doing /
 // Done / Blocked. Cards carry an assignee. Moving a card uses arrow
@@ -108,12 +109,22 @@ function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMove
       <button onClick={onOpen} className="w-full text-left p-3">
         <div className={`text-sm font-medium leading-snug ${task.status === "done" ? "line-through text-muted" : ""}`}>{task.title}</div>
         {task.detail && <p className="text-[11px] text-muted mt-1 line-clamp-2">{task.detail}</p>}
-        {task.assignee_name && (
-          <div className="mt-2 flex items-center gap-1.5">
-            <span className="size-4 rounded-full bg-gradient-to-br from-emerald to-amber flex items-center justify-center text-black text-[8px] font-bold">{task.assignee_name[0]?.toUpperCase()}</span>
-            <span className="text-[10px] text-muted">{task.assignee_name}</span>
-          </div>
-        )}
+        <div className="mt-2 flex items-center gap-2 flex-wrap">
+          {task.assignee_name && (
+            <span className="flex items-center gap-1.5">
+              <span className="size-4 rounded-full bg-gradient-to-br from-emerald to-amber flex items-center justify-center text-black text-[8px] font-bold">{task.assignee_name[0]?.toUpperCase()}</span>
+              <span className="text-[10px] text-muted">{task.assignee_name}</span>
+            </span>
+          )}
+          {task.due_at && (() => {
+            const overdue = task.status !== "done" && new Date(task.due_at).getTime() < Date.now();
+            return (
+              <span className={`text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${overdue ? "bg-rust/15 text-rust" : "bg-surface text-muted"}`} title={new Date(task.due_at).toLocaleString()}>
+                <Clock className="size-2.5" /> {relativeDue(task.due_at, Date.now())}
+              </span>
+            );
+          })()}
+        </div>
       </button>
       {canEdit && (
         <div className="flex items-center justify-between px-2 pb-1.5 opacity-0 group-hover:opacity-100 transition">
@@ -152,11 +163,12 @@ function QuickAdd({ onAdd, onCancel }: { onAdd: (title: string) => void; onCance
 
 function TaskDialog({ task, workspaceId, members, canEdit, accent, onClose, onSave, onDelete }: {
   task: WorkspaceTask; workspaceId: string; members: WorkspaceMember[]; canEdit: boolean; accent: string;
-  onClose: () => void; onSave: (p: { title?: string; detail?: string; assigneeUserId?: string | null }) => void; onDelete: () => void;
+  onClose: () => void; onSave: (p: { title?: string; detail?: string; assigneeUserId?: string | null; dueAt?: string | null }) => void; onDelete: () => void;
 }) {
   const [title, setTitle] = useState(task.title);
   const [detail, setDetail] = useState(task.detail);
   const [assignee, setAssignee] = useState<string>(task.assignee_user_id ?? "");
+  const [due, setDue] = useState<string>(isoToLocalInput(task.due_at));
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -175,10 +187,16 @@ function TaskDialog({ task, workspaceId, members, canEdit, accent, onClose, onSa
           <textarea value={detail} onChange={(e) => setDetail(e.target.value)} disabled={!canEdit} rows={4} className="w-full bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald mb-4 resize-none disabled:opacity-70" />
 
           <label className="block text-[10px] uppercase tracking-widest text-muted mb-2 flex items-center gap-1.5"><User2 className="size-3" /> Assigned to</label>
-          <select value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={!canEdit} className="w-full bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald mb-5 disabled:opacity-70">
+          <select value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={!canEdit} className="w-full bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald mb-4 disabled:opacity-70">
             <option value="">Unassigned</option>
             {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.display_name || m.email || "Member"}</option>)}
           </select>
+
+          <label className="block text-[10px] uppercase tracking-widest text-muted mb-2 flex items-center gap-1.5"><Clock className="size-3" /> Due date (optional)</label>
+          <div className="flex items-center gap-2 mb-5">
+            <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} disabled={!canEdit} className="flex-1 bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald disabled:opacity-70" />
+            {due && canEdit && <button onClick={() => setDue("")} className="text-xs text-muted hover:text-rust px-2" title="Clear due date">Clear</button>}
+          </div>
 
           <div className="mb-5 p-3 rounded-xl border border-border bg-surface-2/30">
             <WorkspaceAttachments workspaceId={workspaceId} canEdit={canEdit} attach={{ kind: "task", id: task.id }} label="Files for this task" />
@@ -189,7 +207,7 @@ function TaskDialog({ task, workspaceId, members, canEdit, accent, onClose, onSa
               <button onClick={onDelete} className="text-xs text-rust hover:underline flex items-center gap-1"><Trash2 className="size-3.5" /> Delete</button>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                <Button onClick={() => onSave({ title: title.trim(), detail: detail.trim(), assigneeUserId: assignee || null })}>Save</Button>
+                <Button onClick={() => onSave({ title: title.trim(), detail: detail.trim(), assigneeUserId: assignee || null, dueAt: due ? new Date(due).toISOString() : null })}>Save</Button>
               </div>
             </div>
           )}
@@ -197,4 +215,14 @@ function TaskDialog({ task, workspaceId, members, canEdit, accent, onClose, onSa
       </div>
     </div>
   );
+}
+
+// ISO → value for <input type="datetime-local"> in the user's local
+// timezone (empty string when there's no due date).
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

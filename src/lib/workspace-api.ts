@@ -151,6 +151,7 @@ export type WorkspaceTask = {
   assignee_user_id: string | null;
   assignee_name: string | null;
   position: number;
+  due_at: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -269,10 +270,10 @@ export const workspaceApi = {
   listTasks: (id: string) =>
     call<{ results: WorkspaceTask[] }>(`/api/v2/workspaces/${id}/tasks`),
 
-  addTask: (id: string, payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null }) =>
+  addTask: (id: string, payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; dueAt?: string | null }) =>
     call<{ task: WorkspaceTask }>(`/api/v2/workspaces/${id}/tasks`, { method: "POST", body: JSON.stringify(payload) }),
 
-  patchTask: (id: string, payload: { id: string; title?: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; position?: number }) =>
+  patchTask: (id: string, payload: { id: string; title?: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; position?: number; dueAt?: string | null }) =>
     call<{ task: WorkspaceTask }>(`/api/v2/workspaces/${id}/tasks`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   deleteTask: (id: string, taskId: string) =>

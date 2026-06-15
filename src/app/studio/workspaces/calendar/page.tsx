@@ -6,8 +6,8 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { useStore } from "@/store";
 import { buildMonthGrid, MONTH_NAMES, shiftMonth } from "@/lib/calendar-grid";
 import { setByLabel } from "@/lib/deadline-schedule";
-import { Card } from "@/components/ui";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ArrowLeft, Loader2 } from "lucide-react";
+import { Card, Button } from "@/components/ui";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ArrowLeft, Loader2, Rss, Copy, Check, RefreshCcw } from "lucide-react";
 
 // Cross-workspace deadlines calendar — a real monthly grid showing every
 // deadline (assigned to you OR workspace-wide) across every workspace
@@ -15,7 +15,8 @@ import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, ArrowLeft, Loader2
 // highlighted; past months read dimmer; the source-of-authority chip
 // gives instructor/funder/journal deadlines visual weight.
 
-type Deadline = {
+type Item = {
+  kind: "deadline" | "task";
   id: string;
   workspace_id: string;
   workspace_title: string;
@@ -24,11 +25,10 @@ type Deadline = {
   detail: string;
   due_at: string;
   status: string;
-  set_by_role: string;
-  assignee_user_id: string | null;
+  set_by_role: string | null;
 };
 
-type CalendarItem = { iso: string; deadline: Deadline };
+type CalendarItem = { iso: string; item: Item };
 
 const ACCENT_HEX: Record<string, string> = {
   emerald: "#2cc295",
@@ -39,7 +39,7 @@ const ACCENT_HEX: Record<string, string> = {
 
 export default function CalendarPage() {
   const { user, hydrated } = useStore();
-  const [items, setItems] = useState<Deadline[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const now = useMemo(() => new Date(), []);
   const [year, setYear] = useState(now.getFullYear());
@@ -56,8 +56,8 @@ export default function CalendarPage() {
       const token = sess.session?.access_token;
       if (!token) { setLoading(false); return; }
       try {
-        const res = await fetch("/api/v2/me/deadlines", { headers: { Authorization: `Bearer ${token}` } });
-        const data = (await res.json()) as { ok: boolean; results?: Deadline[] };
+        const res = await fetch("/api/v2/me/calendar", { headers: { Authorization: `Bearer ${token}` } });
+        const data = (await res.json()) as { ok: boolean; results?: Item[] };
         if (cancelled) return;
         setItems(data.ok && data.results ? data.results : []);
       } finally {
@@ -67,7 +67,7 @@ export default function CalendarPage() {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  const calendarItems = useMemo<CalendarItem[]>(() => items.map((d) => ({ iso: d.due_at, deadline: d })), [items]);
+  const calendarItems = useMemo<CalendarItem[]>(() => items.map((d) => ({ iso: d.due_at, item: d })), [items]);
   const grid = useMemo(() => buildMonthGrid(year, month, calendarItems, { weekStart: 1, now: now.getTime() }), [year, month, calendarItems, now]);
 
   const selectedCell = selectedKey ? grid.cells.find((c) => `${c.date.getFullYear()}-${c.date.getMonth()}-${c.date.getDate()}` === selectedKey) ?? null : null;
@@ -135,11 +135,11 @@ export default function CalendarPage() {
                   {cell.date.getDate()}
                 </div>
                 <div className="flex-1 space-y-0.5 overflow-hidden">
-                  {visible.map(({ deadline: d }) => {
+                  {visible.map(({ item: d }) => {
                     const accent = ACCENT_HEX[d.workspace_accent] ?? ACCENT_HEX.emerald;
                     return (
-                      <div key={d.id} className="text-[10px] leading-tight truncate flex items-center gap-1">
-                        <span className="size-1.5 rounded-full shrink-0" style={{ background: accent }} />
+                      <div key={`${d.kind}-${d.id}`} className="text-[10px] leading-tight truncate flex items-center gap-1">
+                        <span className={`size-1.5 shrink-0 ${d.kind === "task" ? "rounded-sm" : "rounded-full"}`} style={{ background: accent }} title={d.kind === "task" ? "Task" : "Deadline"} />
                         <span className="truncate">{d.title}</span>
                       </div>
                     );
@@ -161,15 +161,15 @@ export default function CalendarPage() {
           <p className="text-xs text-muted mb-4">{selectedCell.items.length === 0 ? "Nothing due." : `${selectedCell.items.length} deadline${selectedCell.items.length === 1 ? "" : "s"}.`}</p>
           {selectedCell.items.length > 0 && (
             <ul className="space-y-2">
-              {selectedCell.items.map(({ deadline: d }) => {
+              {selectedCell.items.map(({ item: d }) => {
                 const accent = ACCENT_HEX[d.workspace_accent] ?? ACCENT_HEX.emerald;
-                const src = setByLabel(d.set_by_role);
+                const label = d.kind === "task" ? "Task" : setByLabel(d.set_by_role ?? "self").label;
                 const due = new Date(d.due_at);
                 return (
-                  <li key={d.id}>
+                  <li key={`${d.kind}-${d.id}`}>
                     <Link href={`/studio/workspaces/${d.workspace_id}`} className="block p-3 rounded-xl border border-border bg-surface-2/30 hover:border-emerald/40 transition group">
                       <div className="flex items-center gap-3">
-                        <span className="size-2 rounded-full shrink-0" style={{ background: accent }} />
+                        <span className={`size-2 shrink-0 ${d.kind === "task" ? "rounded-sm" : "rounded-full"}`} style={{ background: accent }} />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{d.title}</div>
                           <div className="text-[11px] text-muted mt-0.5 flex items-center gap-2 flex-wrap">
@@ -177,7 +177,7 @@ export default function CalendarPage() {
                             <span>·</span>
                             <span>{due.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</span>
                             <span>·</span>
-                            <span>{src.label}</span>
+                            <span>{label}</span>
                           </div>
                         </div>
                       </div>
@@ -190,11 +190,99 @@ export default function CalendarPage() {
         </Card>
       )}
 
+      {/* Subscribe feed */}
+      <SubscribeCard />
+
       {items.length === 0 && (
         <Card className="mt-8 p-8 text-center text-sm text-muted">
           You have no open deadlines yet. <Link href="/studio/workspaces" className="text-emerald hover:underline">Open a workspace</Link> to add one.
         </Card>
       )}
     </div>
+  );
+}
+
+// Lets the user subscribe to their workspace deadlines + task due dates
+// from any calendar app via a tokenized .ics feed. The token can be
+// rotated to instantly invalidate every existing subscription.
+function SubscribeCard() {
+  const [open, setOpen] = useState(false);
+  const [feedUrl, setFeedUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function token(action: "get" | "rotate") {
+    const sb = supabaseBrowser();
+    if (!sb) return null;
+    const { data: sess } = await sb.auth.getSession();
+    const t = sess.session?.access_token;
+    if (!t) return null;
+    const res = await fetch("/api/v2/me/calendar-token", {
+      method: action === "rotate" ? "POST" : "GET",
+      headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
+      body: action === "rotate" ? "{}" : undefined,
+    });
+    const data = (await res.json()) as { ok: boolean; token?: string };
+    return data.ok && data.token ? `${window.location.origin}/api/calendar/${data.token}.ics` : null;
+  }
+
+  async function reveal() {
+    setBusy(true);
+    const url = await token("get");
+    setFeedUrl(url);
+    setBusy(false);
+    setOpen(true);
+  }
+
+  async function rotate() {
+    if (!confirm("Rotate the feed URL? Any calendar app currently subscribed will stop updating until you re-add the new link.")) return;
+    setBusy(true);
+    const url = await token("rotate");
+    setFeedUrl(url);
+    setBusy(false);
+  }
+
+  return (
+    <Card className="mt-6 p-5 sm:p-6">
+      {!open ? (
+        <button onClick={reveal} className="w-full flex items-center justify-between gap-3 text-left" disabled={busy}>
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-xl bg-amber/10 border border-amber/30 flex items-center justify-center shrink-0">
+              {busy ? <Loader2 className="size-4 text-amber animate-spin" /> : <Rss className="size-4 text-amber" />}
+            </div>
+            <div>
+              <h3 className="font-medium">Subscribe in your calendar app</h3>
+              <p className="text-xs text-muted">Get these deadlines in Google Calendar, Apple Calendar, or Outlook — they stay in sync automatically.</p>
+            </div>
+          </div>
+          <span className="text-xs text-emerald shrink-0">Show link</span>
+        </button>
+      ) : (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Rss className="size-4 text-amber" />
+            <h3 className="font-medium">Your calendar feed</h3>
+          </div>
+          <div className="flex items-center gap-1 mb-3">
+            <input value={feedUrl ?? "—"} readOnly className="flex-1 bg-surface-2 border border-border rounded-lg px-3 py-2 text-xs outline-none truncate font-[family-name:var(--font-mono)]" />
+            <button
+              onClick={() => { if (feedUrl) { navigator.clipboard.writeText(feedUrl); setCopied(true); setTimeout(() => setCopied(false), 1800); } }}
+              className="px-3 py-2 rounded-lg border border-border hover:border-emerald/40 hover:bg-emerald/5 transition flex items-center gap-1.5 text-sm shrink-0"
+            >
+              {copied ? <><Check className="size-3.5 text-emerald" /> Copied</> : <><Copy className="size-3.5" /> Copy</>}
+            </button>
+          </div>
+          <p className="text-xs text-muted leading-relaxed">
+            In Google Calendar: <span className="text-foreground">Other calendars → From URL</span> → paste. In Apple Calendar: <span className="text-foreground">File → New Calendar Subscription</span> → paste. It refreshes on your app&apos;s schedule.
+          </p>
+          <div className="mt-4 flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={rotate} disabled={busy}>
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCcw className="size-3.5" />} Rotate link
+            </Button>
+            <span className="text-[10px] text-muted">Rotating invalidates the old URL everywhere.</span>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
