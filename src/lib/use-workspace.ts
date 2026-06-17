@@ -136,7 +136,7 @@ export function useWorkspace(id: string | null | undefined): WorkspaceState {
 
 // useMyWorkspaces — the list view's data hook. Pure REST; the live
 // updates come from re-mounting after a create/join.
-export function useMyWorkspaces(): {
+export function useMyWorkspaces(opts?: { includeArchived?: boolean }): {
   loading: boolean;
   results: WorkspaceListing[];
   error: string | null;
@@ -148,15 +148,16 @@ export function useMyWorkspaces(): {
     error: null,
   });
 
+  const includeArchived = !!opts?.includeArchived;
   const refresh = useCallback(async () => {
     setState((s) => ({ ...s, loading: true }));
-    const res = await workspaceApi.list();
+    const res = await workspaceApi.list({ includeArchived });
     if (!res.ok) {
       setState({ loading: false, results: [], error: res.error });
       return;
     }
     setState({ loading: false, results: res.results, error: null });
-  }, []);
+  }, [includeArchived]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 

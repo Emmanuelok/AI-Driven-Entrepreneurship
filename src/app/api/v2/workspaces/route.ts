@@ -47,11 +47,15 @@ export async function GET(req: Request) {
   const ids = (memberships ?? []).map((m) => (m as { workspace_id: string }).workspace_id);
   if (ids.length === 0) return Response.json({ ok: true, results: [] });
 
-  const { data: rows, error: e2 } = await sb
+  // ?archived=1 includes archived; default hides them.
+  const showArchived = new URL(req.url).searchParams.get("archived") === "1";
+  let q = sb
     .from("workspaces")
-    .select("id, owner_id, kind, title, description, accent, visibility, updated_at, created_at")
+    .select("id, owner_id, kind, title, description, accent, visibility, archived_at, updated_at, created_at")
     .in("id", ids)
     .order("updated_at", { ascending: false });
+  if (!showArchived) q = q.is("archived_at", null);
+  const { data: rows, error: e2 } = await q;
   if (e2) return Response.json({ ok: false, error: e2.message }, { status: 500 });
 
   const roleByWs = new Map<string, string>(

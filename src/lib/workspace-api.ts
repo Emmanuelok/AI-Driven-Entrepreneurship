@@ -27,6 +27,7 @@ export type Workspace = {
   accent: WorkspaceAccent;
   visibility: WorkspaceVisibility;
   data: Record<string, unknown>;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -184,6 +185,7 @@ export type WorkspaceListing = {
   kind: WorkspaceKind;
   accent: WorkspaceAccent;
   visibility: WorkspaceVisibility;
+  archived_at: string | null;
   updated_at: string;
   created_at: string;
   owner_id: string;
@@ -219,7 +221,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<Ok<T> | Err> {
 }
 
 export const workspaceApi = {
-  list: () => call<{ results: WorkspaceListing[] }>("/api/v2/workspaces"),
+  list: (opts?: { includeArchived?: boolean }) => call<{ results: WorkspaceListing[] }>(`/api/v2/workspaces${opts?.includeArchived ? "?archived=1" : ""}`),
 
   create: (payload: { id?: string; title: string; description?: string; kind?: WorkspaceKind; accent?: WorkspaceAccent; visibility?: WorkspaceVisibility; data?: Record<string, unknown> }) =>
     call<{ id: string }>("/api/v2/workspaces", { method: "POST", body: JSON.stringify(payload) }),
@@ -227,7 +229,7 @@ export const workspaceApi = {
   get: (id: string) =>
     call<{ workspace: Workspace; members: WorkspaceMember[]; deadlines: WorkspaceDeadline[]; activity: WorkspaceActivity[]; invites: WorkspaceInvite[]; myRole: WorkspaceRole }>(`/api/v2/workspaces/${id}`),
 
-  patch: (id: string, patch: { title?: string; description?: string; accent?: WorkspaceAccent; visibility?: WorkspaceVisibility; data?: Record<string, unknown> }) =>
+  patch: (id: string, patch: { title?: string; description?: string; accent?: WorkspaceAccent; visibility?: WorkspaceVisibility; data?: Record<string, unknown>; archived?: boolean }) =>
     call(`/api/v2/workspaces/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
 
   remove: (id: string) =>

@@ -44,6 +44,7 @@ export async function GET(req: Request) {
     .from("workspaces")
     .select("id, title, accent, kind")
     .eq("owner_id", ownerId)
+    .is("archived_at", null)
     .order("created_at", { ascending: false })
     .limit(200);
 

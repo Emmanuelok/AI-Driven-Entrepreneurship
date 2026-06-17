@@ -9,7 +9,7 @@ import { WORKSPACE_TEMPLATES, getTemplate, seedFromTemplate } from "@/lib/worksp
 import { Card, Button } from "@/components/ui";
 import { Spotlight } from "@/components/spotlight";
 import { McpInstallSnippets } from "@/components/mcp-install-snippets";
-import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2, Bot, ChevronDown, Calendar as CalendarIcon, TrendingUp } from "lucide-react";
+import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2, Bot, ChevronDown, Calendar as CalendarIcon, TrendingUp, Archive } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const KIND_OPTIONS: { id: WorkspaceKind; label: string; tagline: string; icon: typeof Sparkles; accent: WorkspaceAccent }[] = [
@@ -30,11 +30,14 @@ const ACCENT_HEX: Record<WorkspaceAccent, string> = {
 
 export default function WorkspacesHub() {
   const router = useRouter();
-  const { loading, results, error, refresh } = useMyWorkspaces();
+  const [showArchived, setShowArchived] = useState(false);
+  const { loading, results, error, refresh } = useMyWorkspaces({ includeArchived: showArchived });
   const [creating, setCreating] = useState(false);
 
-  const owned = useMemo(() => (results ?? []).filter((w) => w.role === "owner"), [results]);
-  const joined = useMemo(() => (results ?? []).filter((w) => w.role !== "owner"), [results]);
+  const active = useMemo(() => (results ?? []).filter((w) => !w.archived_at), [results]);
+  const archived = useMemo(() => (results ?? []).filter((w) => !!w.archived_at), [results]);
+  const owned = useMemo(() => active.filter((w) => w.role === "owner"), [active]);
+  const joined = useMemo(() => active.filter((w) => w.role !== "owner"), [active]);
 
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
@@ -61,6 +64,13 @@ export default function WorkspacesHub() {
           <Link href="/studio/workspaces/calendar" className="inline-flex items-center gap-2 border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 px-4 py-2.5 rounded-full text-sm transition">
             <CalendarIcon className="size-4" /> Calendar
           </Link>
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm transition border ${showArchived ? "border-emerald/40 bg-emerald/10 text-emerald" : "border-border bg-surface hover:bg-surface-2"}`}
+            title="Toggle archived workspaces"
+          >
+            <Archive className="size-4" /> {showArchived ? "Hide archived" : "Show archived"}
+          </button>
           <Button onClick={() => setCreating(true)} size="lg">
             <Plus className="size-4" /> New workspace
           </Button>
@@ -91,6 +101,11 @@ export default function WorkspacesHub() {
           {joined.length > 0 && (
             <Section title="Workspaces you’ve joined">
               <Grid items={joined} />
+            </Section>
+          )}
+          {showArchived && archived.length > 0 && (
+            <Section title="Archived">
+              <Grid items={archived} />
             </Section>
           )}
         </>
@@ -176,7 +191,10 @@ function Grid({ items }: { items: WorkspaceListing[] }) {
                   <div className="size-9 rounded-xl flex items-center justify-center" style={{ background: `${accent}1F`, border: `1px solid ${accent}55` }}>
                     <Icon className="size-4" style={{ color: accent }} />
                   </div>
-                  <span className="text-[10px] uppercase tracking-widest text-muted">{kind.label}</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5">
+                    {kind.label}
+                    {w.archived_at && <span className="px-1.5 py-0.5 rounded-full bg-surface-2 text-foreground/80 normal-case tracking-normal text-[9px]">Archived</span>}
+                  </span>
                 </div>
                 <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold leading-tight group-hover:text-emerald transition text-balance">{w.title}</h3>
                 {w.description && (

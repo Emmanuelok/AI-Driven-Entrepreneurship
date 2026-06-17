@@ -57,29 +57,39 @@ export async function GET(req: Request) {
 
   const allWsIds = Array.from(wsToMembers.keys());
 
-  // 2. Workspace titles.
+  // 2. Workspace titles — and filter out archived workspaces from the
+  // digest entirely (the user's "snooze" signal). We narrow allWsIds
+  // to active ones for the remaining queries.
   const wsTitle = new Map<string, string>();
+  const activeIds = new Set<string>();
   for (let i = 0; i < allWsIds.length; i += 300) {
     const slice = allWsIds.slice(i, i + 300);
-    const { data } = await sb.from("workspaces").select("id, title").in("id", slice);
-    for (const r of data ?? []) wsTitle.set((r as { id: string }).id, (r as { title: string }).title);
+    const { data } = await sb.from("workspaces").select("id, title, archived_at").in("id", slice);
+    for (const r of data ?? []) {
+      const row = r as { id: string; title: string; archived_at: string | null };
+      if (row.archived_at) continue;
+      wsTitle.set(row.id, row.title);
+      activeIds.add(row.id);
+    }
   }
+  const filteredIds = allWsIds.filter((id) => activeIds.has(id));
+  if (filteredIds.length === 0) return Response.json({ ok: true, sentCount: 0, scanned: 0 });
 
   // 3. Upcoming deadlines across all those workspaces.
   const { data: deadlines } = await sb
     .from("workspace_deadlines")
     .select("workspace_id, assignee_user_id, title, due_at, set_by_role")
-    .in("workspace_id", allWsIds.slice(0, 2000))
+    .in("workspace_id", filteredIds.slice(0, 2000))
     .eq("status", "open")
     .gte("due_at", new Date(now).toISOString())
     .lte("due_at", horizonIso)
     .limit(5000);
 
-  // 4. Open tasks assigned to people.
+  // 4. Open tasks assigned to people (active workspaces only).
   const { data: tasks } = await sb
     .from("workspace_tasks")
     .select("workspace_id, assignee_user_id, status")
-    .in("workspace_id", allWsIds.slice(0, 2000))
+    .in("workspace_id", filteredIds.slice(0, 2000))
     .neq("status", "done")
     .not("assignee_user_id", "is", null)
     .limit(8000);

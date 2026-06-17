@@ -23,7 +23,7 @@ const WorkspaceDiscussionPanel = dynamic(() => import("@/components/workspace-di
 const WorkspaceNotesPanel = dynamic(() => import("@/components/workspace-notes-panel").then((m) => m.WorkspaceNotesPanel), { ssr: false, loading: TabLoader });
 const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-panel").then((m) => m.WorkspaceTasksPanel), { ssr: false, loading: TabLoader });
 const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search } from "lucide-react";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -80,7 +80,16 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
   const accent = ACCENT_HEX[ws.workspace.accent] ?? ACCENT_HEX.emerald;
   const isAdmin = ws.myRole === "owner" || ws.myRole === "admin";
+  const isOwner = ws.myRole === "owner";
+  const isArchived = !!ws.workspace.archived_at;
   const presenceForCoPresence = ws.presence.map((p) => ({ userId: p.userId, name: p.name }));
+
+  async function toggleArchive() {
+    const verb = isArchived ? "Restore" : "Archive";
+    if (!confirm(`${verb} "${ws.workspace!.title}"?${isArchived ? "" : " It will be hidden from your hub and excluded from digests until you restore it."}`)) return;
+    await workspaceApi.patch(id, { archived: !isArchived });
+    ws.refetch();
+  }
 
   // Sort deadlines: open first (closest first), then done/missed/cancelled.
   const orderedDeadlines = [...ws.deadlines].sort((a, b) => {
@@ -129,13 +138,30 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
               <span className="hidden sm:inline">Search</span>
               <kbd className="hidden sm:inline text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 border border-border rounded">⌘K</kbd>
             </button>
-            {isAdmin && (
+            {isAdmin && !isArchived && (
               <Button onClick={() => setInviteOpen(true)}>
                 <LinkIcon className="size-4" /> Invite
               </Button>
             )}
+            {isOwner && (
+              <button
+                onClick={toggleArchive}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border hover:border-emerald/40 hover:bg-emerald/5 transition text-sm text-muted hover:text-foreground"
+                title={isArchived ? "Restore this workspace" : "Archive this workspace"}
+              >
+                <Archive className="size-3.5" />
+                <span className="hidden sm:inline">{isArchived ? "Restore" : "Archive"}</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {isArchived && (
+          <div className="mb-6 p-4 rounded-2xl border border-amber/30 bg-amber/5 text-sm flex items-center justify-between gap-3 flex-wrap">
+            <span className="flex items-center gap-2 text-amber"><Archive className="size-4" /> This workspace is archived — hidden from your hub, excluded from digests and the calendar.</span>
+            {isOwner && <button onClick={toggleArchive} className="text-xs text-emerald hover:underline">Restore it</button>}
+          </div>
+        )}
 
         {/* Tab bar */}
         <div className="flex items-center gap-1 border-b border-border mb-6 -mx-1 px-1 overflow-x-auto">

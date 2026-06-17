@@ -97,10 +97,17 @@ export async function GET(req: Request) {
 
     let ws = wsCache.get(d.workspace_id);
     if (!ws) {
-      const { data } = await sb.from("workspaces").select("title").eq("id", d.workspace_id).maybeSingle();
+      const { data } = await sb.from("workspaces").select("title, archived_at").eq("id", d.workspace_id).maybeSingle();
+      // Skip archived workspaces entirely — the user has opted out of
+      // their cadence. We stamp a placeholder so we don't re-fetch.
+      if (data && (data.archived_at as string | null)) {
+        wsCache.set(d.workspace_id, { title: "_archived_" });
+        continue;
+      }
       ws = { title: (data?.title as string | undefined) || "your workspace" };
       wsCache.set(d.workspace_id, ws);
     }
+    if (ws.title === "_archived_") continue;
 
     const sourceTag = setByLabel(d.set_by_role).label;
     const headline = headlineFor(decision.window, d.title, ws.title);

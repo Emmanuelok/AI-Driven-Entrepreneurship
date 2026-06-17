@@ -16,6 +16,7 @@ const PatchBody = z.object({
   accent: z.enum(["emerald", "amber", "indigo", "rust"] as unknown as readonly [string, ...string[]]).optional(),
   visibility: z.enum(["private", "link", "public"] as unknown as readonly [string, ...string[]]).optional(),
   data: z.record(z.string(), z.unknown()).optional(),
+  archived: z.boolean().optional(),
 });
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -71,15 +72,26 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ((patch.visibility || patch.accent) && !["owner", "admin"].includes(me!.role)) {
     return Response.json({ ok: false, error: "forbidden", note: "accent/visibility are admin-only" }, { status: 403 });
   }
+  // Archiving is owner-only — it's effectively a lifecycle decision.
+  if (patch.archived !== undefined && me!.role !== "owner") {
+    return Response.json({ ok: false, error: "forbidden", note: "Only the owner can archive a workspace." }, { status: 403 });
+  }
 
-  const { error } = await sb.from("workspaces").update(patch).eq("id", id);
+  // Translate the boolean shortcut into a real column write.
+  const update: Record<string, unknown> = { ...patch };
+  if (patch.archived !== undefined) {
+    delete update.archived;
+    update.archived_at = patch.archived ? new Date().toISOString() : null;
+  }
+
+  const { error } = await sb.from("workspaces").update(update).eq("id", id);
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   await sb.from("workspace_activity").insert({
     workspace_id: id,
     user_id: me!.userId,
-    kind: "content_edit",
-    title: patch.title ? "Renamed workspace" : "Updated workspace",
+    kind: patch.archived === true ? "archived" : patch.archived === false ? "unarchived" : "content_edit",
+    title: patch.archived === true ? "Archived workspace" : patch.archived === false ? "Restored workspace" : patch.title ? "Renamed workspace" : "Updated workspace",
     body: patch.title ?? null,
   });
 

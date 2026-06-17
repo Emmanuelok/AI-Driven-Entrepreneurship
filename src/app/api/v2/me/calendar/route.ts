@@ -28,15 +28,22 @@ export type CalendarItemRow = {
 // Shared collector so the .ics route and this JSON route agree exactly.
 export async function collectCalendarItems(sb: NonNullable<ReturnType<typeof supabaseAdmin>>, userId: string): Promise<CalendarItemRow[]> {
   const { data: memberships } = await sb.from("workspace_members").select("workspace_id").eq("user_id", userId);
-  const wsIds = (memberships ?? []).map((m) => (m as { workspace_id: string }).workspace_id);
-  if (wsIds.length === 0) return [];
+  const allWsIds = (memberships ?? []).map((m) => (m as { workspace_id: string }).workspace_id);
+  if (allWsIds.length === 0) return [];
 
-  const { data: ws } = await sb.from("workspaces").select("id, title, accent").in("id", wsIds);
+  // Fetch metadata and FILTER OUT archived workspaces — calendar/email
+  // surfaces should fall silent for workspaces the user has decided to
+  // put aside, even if they're still technically a member.
+  const { data: ws } = await sb.from("workspaces").select("id, title, accent, archived_at").in("id", allWsIds);
   const meta = new Map<string, { title: string; accent: string }>();
+  const wsIds: string[] = [];
   for (const r of ws ?? []) {
-    const row = r as { id: string; title: string; accent: string };
+    const row = r as { id: string; title: string; accent: string; archived_at: string | null };
+    if (row.archived_at) continue;
     meta.set(row.id, { title: row.title, accent: row.accent });
+    wsIds.push(row.id);
   }
+  if (wsIds.length === 0) return [];
 
   const [mineDeadlines, wideDeadlines, tasks] = await Promise.all([
     sb.from("workspace_deadlines").select("id, workspace_id, title, detail, due_at, status, set_by_role, recurrence_rule").in("workspace_id", wsIds).eq("assignee_user_id", userId).eq("status", "open").limit(500),
