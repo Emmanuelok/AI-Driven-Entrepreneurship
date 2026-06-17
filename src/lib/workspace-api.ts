@@ -235,6 +235,9 @@ export const workspaceApi = {
   remove: (id: string) =>
     call(`/api/v2/workspaces/${id}`, { method: "DELETE" }),
 
+  duplicate: (id: string, payload?: { title?: string; copyDeadlines?: boolean; shiftDeadlinesDays?: number }) =>
+    call<{ id: string; clonedTasks: number; clonedNotes: number; clonedDeadlines: number }>(`/api/v2/workspaces/${id}/duplicate`, { method: "POST", body: JSON.stringify(payload ?? {}) }),
+
   invite: (id: string, payload: { email?: string | null; role?: Exclude<WorkspaceRole, "owner">; maxUses?: number; expiresInDays?: number }) =>
     call<{ invite: WorkspaceInvite }>(`/api/v2/workspaces/${id}/invites`, { method: "POST", body: JSON.stringify(payload) }),
 

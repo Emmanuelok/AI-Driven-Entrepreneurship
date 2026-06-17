@@ -23,7 +23,7 @@ const WorkspaceDiscussionPanel = dynamic(() => import("@/components/workspace-di
 const WorkspaceNotesPanel = dynamic(() => import("@/components/workspace-notes-panel").then((m) => m.WorkspaceNotesPanel), { ssr: false, loading: TabLoader });
 const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-panel").then((m) => m.WorkspaceTasksPanel), { ssr: false, loading: TabLoader });
 const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive } from "lucide-react";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -44,6 +44,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files">("overview");
 
   // Cmd/Ctrl+K opens the in-workspace search. Bypasses when the user is
@@ -143,6 +144,14 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
                 <LinkIcon className="size-4" /> Invite
               </Button>
             )}
+            <button
+              onClick={() => setDuplicateOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border hover:border-emerald/40 hover:bg-emerald/5 transition text-sm text-muted hover:text-foreground"
+              title="Spin up a new workspace from this one's structure"
+            >
+              <CopyPlus className="size-3.5" />
+              <span className="hidden sm:inline">Duplicate</span>
+            </button>
             {isOwner && (
               <button
                 onClick={toggleArchive}
@@ -313,6 +322,16 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         </div>
         )}
       </div>
+
+      {duplicateOpen && (
+        <DuplicateDialog
+          sourceTitle={ws.workspace.title}
+          accent={accent}
+          onClose={() => setDuplicateOpen(false)}
+          onDuplicated={(newId) => { setDuplicateOpen(false); router.push(`/studio/workspaces/${newId}`); }}
+          workspaceId={id}
+        />
+      )}
 
       <WorkspaceSearchDialog
         workspaceId={id}
@@ -776,4 +795,62 @@ function defaultDueAt(): string {
   d.setHours(9, 0, 0, 0);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function DuplicateDialog({ workspaceId, sourceTitle, accent, onClose, onDuplicated }: {
+  workspaceId: string; sourceTitle: string; accent: string; onClose: () => void; onDuplicated: (newId: string) => void;
+}) {
+  const [title, setTitle] = useState(`${sourceTitle} (copy)`);
+  const [copyDeadlines, setCopyDeadlines] = useState(false);
+  const [shiftDays, setShiftDays] = useState(7);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    if (!title.trim()) { setErr("Give the new workspace a title."); return; }
+    setBusy(true); setErr(null);
+    const r = await workspaceApi.duplicate(workspaceId, { title: title.trim(), copyDeadlines, shiftDeadlinesDays: shiftDays });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error); return; }
+    onDuplicated(r.id);
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass rounded-3xl max-w-md w-full p-7 relative overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute -top-20 -right-20 size-48 rounded-full blur-3xl opacity-25" style={{ background: accent }} />
+        <div className="relative">
+          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold mb-1">Duplicate this workspace</h2>
+          <p className="text-sm text-muted mb-5">
+            Copies the task board structure (subtasks too) and note titles. Discussion, files, and members stay behind — you start fresh as the owner.
+          </p>
+
+          <label className="block text-[10px] uppercase tracking-widest text-muted mb-2">New title</label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus className="w-full bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald mb-5" />
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
+            <input type="checkbox" checked={copyDeadlines} onChange={(e) => setCopyDeadlines(e.target.checked)} className="accent-emerald" />
+            Also copy deadlines (open only, dates shifted forward)
+          </label>
+          {copyDeadlines && (
+            <div className="flex items-center gap-2 text-sm mb-5 pl-6">
+              <span className="text-muted">Shift forward by</span>
+              <input type="number" min={0} max={365} value={shiftDays} onChange={(e) => setShiftDays(Math.max(0, Math.min(365, Number(e.target.value) || 0)))} className="w-16 bg-surface-2 border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-emerald" />
+              <span className="text-muted">days</span>
+            </div>
+          )}
+
+          {err && <p className="text-xs text-rust mb-3">{err}</p>}
+
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button onClick={submit} disabled={busy}>
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <CopyPlus className="size-3.5" />}
+              Create copy
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
