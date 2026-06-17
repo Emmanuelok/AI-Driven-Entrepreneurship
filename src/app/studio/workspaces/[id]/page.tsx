@@ -14,6 +14,7 @@ import { describeRule, type RecurrenceRule, type WeekdayCode } from "@/lib/recur
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 import { WorkspaceSearchDialog } from "@/components/workspace-search-dialog";
+import { WorkspaceActivityList } from "@/components/workspace-activity-list";
 
 // Lazy-load the heavy tab panels: they only mount when their tab is
 // active, so don't pay for them on the Overview tab. Loader stays simple
@@ -250,24 +251,12 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
             <section>
               <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold flex items-center gap-2 mb-3">
                 <Activity className="size-5 text-amber" /> Activity
+                <span className="text-[10px] uppercase tracking-widest text-muted font-normal flex items-center gap-1.5 ml-1">
+                  <span className="size-1.5 rounded-full bg-emerald animate-pulse" /> live
+                </span>
               </h2>
-              <Card className="p-5 max-h-[420px] overflow-y-auto">
-                {ws.activity.length === 0 ? (
-                  <p className="text-xs text-muted italic">Nothing yet. As members join, set deadlines, or edit content, it shows up here.</p>
-                ) : (
-                  <ol className="space-y-3">
-                    {ws.activity.map((a) => (
-                      <li key={a.id} className="flex gap-3 text-sm">
-                        <span className="size-1.5 rounded-full mt-2 shrink-0" style={{ background: accent }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-foreground leading-snug">{a.title}</div>
-                          {a.body && <div className="text-xs text-muted truncate">{a.body}</div>}
-                          <div className="text-[10px] text-muted mt-0.5">{formatDistanceToNow(new Date(a.created_at))} ago</div>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
-                )}
+              <Card className="p-5 max-h-[460px] overflow-y-auto">
+                <WorkspaceActivityList activity={ws.activity} members={ws.members} />
               </Card>
             </section>
           </div>
