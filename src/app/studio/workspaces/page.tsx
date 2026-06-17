@@ -9,7 +9,8 @@ import { WORKSPACE_TEMPLATES, getTemplate, seedFromTemplate } from "@/lib/worksp
 import { Card, Button } from "@/components/ui";
 import { Spotlight } from "@/components/spotlight";
 import { McpInstallSnippets } from "@/components/mcp-install-snippets";
-import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2, Bot, ChevronDown, Calendar as CalendarIcon, TrendingUp, Archive } from "lucide-react";
+import { Plus, Users, ArrowRight, Sparkles, GraduationCap, FlaskConical, FileText, Lightbulb, Rocket, Loader2, Bot, ChevronDown, Calendar as CalendarIcon, TrendingUp, Archive, Search } from "lucide-react";
+import { GlobalWorkspaceSearch } from "@/components/global-workspace-search";
 import { formatDistanceToNow } from "date-fns";
 
 const KIND_OPTIONS: { id: WorkspaceKind; label: string; tagline: string; icon: typeof Sparkles; accent: WorkspaceAccent }[] = [
@@ -33,6 +34,20 @@ export default function WorkspacesHub() {
   const [showArchived, setShowArchived] = useState(false);
   const { loading, results, error, refresh } = useMyWorkspaces({ includeArchived: showArchived });
   const [creating, setCreating] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Global Cmd/Ctrl+K from the hub. Skips input/textarea focus so it
+  // never hijacks an editor shortcut elsewhere on the page.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearchOpen(true); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const active = useMemo(() => (results ?? []).filter((w) => !w.archived_at), [results]);
   const archived = useMemo(() => (results ?? []).filter((w) => !!w.archived_at), [results]);
@@ -61,6 +76,14 @@ export default function WorkspacesHub() {
               <TrendingUp className="size-4" /> Roll-up
             </Link>
           )}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="inline-flex items-center gap-2 border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 px-4 py-2.5 rounded-full text-sm transition"
+            title="Search across every workspace (⌘K)"
+          >
+            <Search className="size-4" /> Search
+            <kbd className="hidden sm:inline text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 border border-border rounded">⌘K</kbd>
+          </button>
           <Link href="/studio/workspaces/calendar" className="inline-flex items-center gap-2 border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 px-4 py-2.5 rounded-full text-sm transition">
             <CalendarIcon className="size-4" /> Calendar
           </Link>
@@ -112,6 +135,8 @@ export default function WorkspacesHub() {
       )}
 
       {!loading && <McpConnectCard />}
+
+      <GlobalWorkspaceSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {creating && (
         <CreateDialog
