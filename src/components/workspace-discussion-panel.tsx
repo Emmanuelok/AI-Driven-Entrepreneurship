@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/store";
 import { useWorkspaceMessages } from "@/lib/use-workspace-content";
+import { useDiscussionTyping } from "@/lib/use-discussion-presence";
 import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components/mention-autocomplete";
 import { Markdown } from "@/components/markdown";
 import type { WorkspaceMember } from "@/lib/workspace-api";
@@ -17,6 +18,7 @@ import { formatDistanceToNow } from "date-fns";
 export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { workspaceId: string; members: WorkspaceMember[]; accent: string }) {
   const { user } = useStore();
   const { messages, loading, sending, agentThinking, send } = useWorkspaceMessages(workspaceId);
+  const { typing, signalTyping } = useDiscussionTyping(workspaceId, user ? { userId: user.id, name: user.name || "Member" } : null);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -109,12 +111,19 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { wor
         )}
       </div>
 
-      <div className="border-t border-border p-3">
+      {typing.length > 0 && (
+        <div className="px-4 py-1.5 text-[11px] text-emerald flex items-center gap-1.5 border-t border-border/50">
+          <span className="size-1.5 rounded-full bg-emerald animate-pulse" />
+          {typing.length === 1 ? `${typing[0].name} is typing…` : typing.length === 2 ? `${typing[0].name} and ${typing[1].name} are typing…` : `${typing[0].name} and ${typing.length - 1} others are typing…`}
+        </div>
+      )}
+
+      <div className={`border-t border-border p-3 ${typing.length > 0 ? "" : "mt-0"}`}>
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <MentionAutocompleteTextarea
               value={draft}
-              onChange={setDraft}
+              onChange={(v) => { setDraft(v); signalTyping(); }}
               candidates={candidates}
               rows={1}
               placeholder="Message your team — @sage to ask the AI…"
