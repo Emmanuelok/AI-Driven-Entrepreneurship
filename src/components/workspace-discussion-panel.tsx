@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/store";
 import { useWorkspaceMessages } from "@/lib/use-workspace-content";
 import { useDiscussionTyping } from "@/lib/use-discussion-presence";
+import { useDiscussionReads } from "@/lib/use-discussion-reads";
 import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components/mention-autocomplete";
 import { Markdown } from "@/components/markdown";
 import type { WorkspaceMember } from "@/lib/workspace-api";
-import { Send, Sparkles, Brain, Loader2, SmilePlus } from "lucide-react";
+import { Send, Sparkles, Brain, Loader2, SmilePlus, Check } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 // The workspace discussion thread. Members chat in real time; typing
@@ -19,9 +20,20 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { wor
   const { user } = useStore();
   const { messages, loading, sending, agentThinking, send, toggleReaction } = useWorkspaceMessages(workspaceId);
   const { typing, signalTyping } = useDiscussionTyping(workspaceId, user ? { userId: user.id, name: user.name || "Member" } : null);
+  const { seenCount, markRead } = useDiscussionReads(workspaceId);
   // Per-message hover state for the react picker — only one open at a
   // time. Tracked outside the message map so re-renders don't reset it.
   const [pickerFor, setPickerFor] = useState<string | null>(null);
+
+  // Auto-advance our watermark when the panel is mounted and new
+  // messages have landed. We use the latest message's created_at as
+  // the watermark — the hook is monotonic + debounced so this is
+  // cheap to re-fire on every render.
+  useEffect(() => {
+    if (loading || messages.length === 0) return;
+    const latest = messages[messages.length - 1];
+    void markRead(latest.created_at);
+  }, [loading, messages, markRead]);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -136,6 +148,18 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { wor
                       ))}
                     </div>
                   )}
+                  {mine && !m.is_agent && (() => {
+                    // Seen-by count: the watermarks include MINE (I've
+                    // by definition seen what I wrote), so subtract one.
+                    const others = Math.max(0, seenCount(m.created_at) - 1);
+                    if (others === 0) return null;
+                    return (
+                      <div className="text-[10px] text-muted mt-0.5 flex items-center gap-1 justify-end">
+                        <Check className="size-2.5" />
+                        Seen by {others}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );

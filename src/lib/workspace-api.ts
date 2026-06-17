@@ -338,6 +338,13 @@ export const workspaceApi = {
   search: (id: string, q: string) =>
     call<{ q: string; results: SearchHit[] }>(`/api/v2/workspaces/${id}/search?q=${encodeURIComponent(q)}`),
 
+  // ── Read receipts ───────────────────────────────────────────────────
+  getReads: (id: string) =>
+    call<{ results: { user_id: string; last_read_at: string }[] }>(`/api/v2/workspaces/${id}/reads`),
+
+  markRead: (id: string, at?: string) =>
+    call(`/api/v2/workspaces/${id}/reads`, { method: "POST", body: JSON.stringify({ at }) }),
+
   // ── Sage personal advisor ──────────────────────────────────────────
   getSageThread: (id: string) =>
     call<{ thread: { id: string; title: string; updated_at: string }; messages: { id: string; role: "user" | "assistant"; content: string; created_at: string }[] }>(`/api/v2/workspaces/${id}/sage`),
