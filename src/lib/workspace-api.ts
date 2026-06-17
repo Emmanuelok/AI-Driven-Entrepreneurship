@@ -338,6 +338,16 @@ export const workspaceApi = {
   search: (id: string, q: string) =>
     call<{ q: string; results: SearchHit[] }>(`/api/v2/workspaces/${id}/search?q=${encodeURIComponent(q)}`),
 
+  // ── Sage personal advisor ──────────────────────────────────────────
+  getSageThread: (id: string) =>
+    call<{ thread: { id: string; title: string; updated_at: string }; messages: { id: string; role: "user" | "assistant"; content: string; created_at: string }[] }>(`/api/v2/workspaces/${id}/sage`),
+
+  sendToSage: (id: string, content: string, siteContext?: unknown) =>
+    call<{ userMessage: { id: string; role: "user"; content: string; created_at: string }; assistantMessage: { id: string; role: "assistant"; content: string; created_at: string }; fallback?: boolean }>(`/api/v2/workspaces/${id}/sage`, { method: "POST", body: JSON.stringify({ content, siteContext }) }),
+
+  clearSageThread: (id: string) =>
+    call(`/api/v2/workspaces/${id}/sage`, { method: "DELETE" }),
+
   // ── AI synthesis ────────────────────────────────────────────────────
   synthesize: (id: string, postToDiscussion: boolean, siteContext?: unknown) =>
     call<{ brief: string; generatedAt: number; empty?: boolean; fallback?: boolean }>(`/api/v2/workspaces/${id}/synthesize`, {

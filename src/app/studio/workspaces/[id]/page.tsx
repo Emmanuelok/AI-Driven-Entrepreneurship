@@ -24,7 +24,8 @@ const WorkspaceDiscussionPanel = dynamic(() => import("@/components/workspace-di
 const WorkspaceNotesPanel = dynamic(() => import("@/components/workspace-notes-panel").then((m) => m.WorkspaceNotesPanel), { ssr: false, loading: TabLoader });
 const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-panel").then((m) => m.WorkspaceTasksPanel), { ssr: false, loading: TabLoader });
 const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus } from "lucide-react";
+const WorkspaceSagePanel = dynamic(() => import("@/components/workspace-sage-panel").then((m) => m.WorkspaceSagePanel), { ssr: false, loading: TabLoader });
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus, Brain } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -46,7 +47,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files">("overview");
+  const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files" | "sage">("overview");
 
   // Cmd/Ctrl+K opens the in-workspace search. Bypasses when the user is
   // already typing into an input/textarea/contentEditable so it doesn't
@@ -181,6 +182,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
             { id: "discussion", label: "Discussion", icon: MessageSquare },
             { id: "notes", label: "Notes", icon: FileText },
             { id: "files", label: "Files", icon: Paperclip },
+            { id: "sage", label: "Ask Sage", icon: Brain },
           ] as const).map((t) => (
             <button
               key={t.id}
@@ -216,6 +218,10 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
             </p>
             <WorkspaceAttachments workspaceId={id} canEdit={ws.myRole !== "viewer"} attach={undefined} />
           </div>
+        )}
+
+        {tab === "sage" && (
+          <WorkspaceSagePanel workspaceId={id} accent={accent} />
         )}
 
         {tab === "overview" && (
