@@ -6,7 +6,7 @@ import type { WorkspaceTask, TaskStatus, WorkspaceMember } from "@/lib/workspace
 import { Button } from "@/components/ui";
 import { WorkspaceAttachments } from "@/components/workspace-attachments";
 import { relativeDue } from "@/lib/deadline-schedule";
-import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban, Clock } from "lucide-react";
+import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban, Clock, ListChecks } from "lucide-react";
 
 // A shared Kanban board for a workspace. Four columns: To do / Doing /
 // Done / Blocked. Cards carry an assignee. Moving a card uses arrow
@@ -27,10 +27,40 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
   const [adding, setAdding] = useState<TaskStatus | null>(null);
   const [editing, setEditing] = useState<WorkspaceTask | null>(null);
 
+  // Top-level cards form the columns; subtasks live inside their parent.
+  const topLevel = useMemo(() => tasks.filter((t) => !t.parent_task_id), [tasks]);
+  // Subtask roll-up per parent — { open, total } so we can render
+  // '2/5 ✓' badges without re-scanning on every render.
+  const subtaskCounts = useMemo(() => {
+    const m = new Map<string, { open: number; total: number }>();
+    for (const t of tasks) {
+      if (!t.parent_task_id) continue;
+      const cur = m.get(t.parent_task_id) ?? { open: 0, total: 0 };
+      cur.total++;
+      if (t.status !== "done") cur.open++;
+      m.set(t.parent_task_id, cur);
+    }
+    return m;
+  }, [tasks]);
+
   const byColumn = useMemo(() => {
     const m: Record<TaskStatus, WorkspaceTask[]> = { todo: [], doing: [], done: [], blocked: [] };
-    for (const t of tasks) (m[t.status] ?? m.todo).push(t);
+    for (const t of topLevel) (m[t.status] ?? m.todo).push(t);
     for (const k of ORDER) m[k].sort((a, b) => a.position - b.position || new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    return m;
+  }, [topLevel]);
+
+  // All subtasks scoped by their parent — passed into the dialog so it
+  // can render the checklist without a second fetch.
+  const subtasksByParent = useMemo(() => {
+    const m = new Map<string, WorkspaceTask[]>();
+    for (const t of tasks) {
+      if (!t.parent_task_id) continue;
+      const arr = m.get(t.parent_task_id) ?? [];
+      arr.push(t);
+      m.set(t.parent_task_id, arr);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.position - b.position || new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     return m;
   }, [tasks]);
 
@@ -77,6 +107,7 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
                     onMoveLeft={() => move(t.id, ORDER[idx - 1])}
                     onMoveRight={() => move(t.id, ORDER[idx + 1])}
                     onOpen={() => setEditing(t)}
+                    subtaskCount={subtaskCounts.get(t.id) ?? null}
                   />
                 ))}
               </div>
@@ -92,6 +123,10 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
           members={members}
           canEdit={canEdit}
           accent={accent}
+          subtasks={subtasksByParent.get(editing.id) ?? []}
+          onAddSubtask={async (title) => { await add({ title, parentTaskId: editing.id, status: "todo" }); }}
+          onToggleSubtask={async (subId, done) => { await move(subId, done ? "done" : "todo"); }}
+          onRemoveSubtask={async (subId) => { await remove(subId); }}
           onClose={() => setEditing(null)}
           onSave={async (p) => { await patch({ id: editing.id, ...p }); setEditing(null); }}
           onDelete={async () => { await remove(editing.id); setEditing(null); }}
@@ -101,8 +136,9 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
   );
 }
 
-function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMoveRight, onOpen }: {
+function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMoveRight, onOpen, subtaskCount }: {
   task: WorkspaceTask; canEdit: boolean; canMoveLeft: boolean; canMoveRight: boolean; onMoveLeft: () => void; onMoveRight: () => void; onOpen: () => void;
+  subtaskCount: { open: number; total: number } | null;
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface-2/40 hover:border-emerald/30 transition group">
@@ -124,6 +160,11 @@ function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMove
               </span>
             );
           })()}
+          {subtaskCount && subtaskCount.total > 0 && (
+            <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-surface text-muted" title="Subtasks">
+              <ListChecks className="size-2.5" /> {subtaskCount.total - subtaskCount.open}/{subtaskCount.total}
+            </span>
+          )}
         </div>
       </button>
       {canEdit && (
@@ -161,14 +202,24 @@ function QuickAdd({ onAdd, onCancel }: { onAdd: (title: string) => void; onCance
   );
 }
 
-function TaskDialog({ task, workspaceId, members, canEdit, accent, onClose, onSave, onDelete }: {
+function TaskDialog({ task, workspaceId, members, canEdit, accent, subtasks, onAddSubtask, onToggleSubtask, onRemoveSubtask, onClose, onSave, onDelete }: {
   task: WorkspaceTask; workspaceId: string; members: WorkspaceMember[]; canEdit: boolean; accent: string;
+  subtasks: WorkspaceTask[];
+  onAddSubtask: (title: string) => Promise<void>;
+  onToggleSubtask: (id: string, done: boolean) => Promise<void>;
+  onRemoveSubtask: (id: string) => Promise<void>;
   onClose: () => void; onSave: (p: { title?: string; detail?: string; assigneeUserId?: string | null; dueAt?: string | null }) => void; onDelete: () => void;
 }) {
   const [title, setTitle] = useState(task.title);
   const [detail, setDetail] = useState(task.detail);
   const [assignee, setAssignee] = useState<string>(task.assignee_user_id ?? "");
   const [due, setDue] = useState<string>(isoToLocalInput(task.due_at));
+  const [newSub, setNewSub] = useState("");
+  const [addingSub, setAddingSub] = useState(false);
+  // Subtasks aren't allowed on subtasks (one level cap), so hide the
+  // panel entirely when this task is itself a subtask.
+  const isSubtaskItself = !!task.parent_task_id;
+  const doneSubs = subtasks.filter((s) => s.status === "done").length;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -197,6 +248,80 @@ function TaskDialog({ task, workspaceId, members, canEdit, accent, onClose, onSa
             <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} disabled={!canEdit} className="flex-1 bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald disabled:opacity-70" />
             {due && canEdit && <button onClick={() => setDue("")} className="text-xs text-muted hover:text-rust px-2" title="Clear due date">Clear</button>}
           </div>
+
+          {!isSubtaskItself && (
+            <div className="mb-5 p-3 rounded-xl border border-border bg-surface-2/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5">
+                  <ListChecks className="size-3" /> Subtasks
+                  {subtasks.length > 0 && <span className="text-foreground">· {doneSubs}/{subtasks.length}</span>}
+                </span>
+              </div>
+              {subtasks.length > 0 ? (
+                <ul className="space-y-1 mb-2">
+                  {subtasks.map((s) => {
+                    const done = s.status === "done";
+                    return (
+                      <li key={s.id} className="flex items-center gap-2 group">
+                        <button
+                          onClick={() => onToggleSubtask(s.id, !done)}
+                          disabled={!canEdit}
+                          className={`size-4 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
+                            done ? "border-emerald bg-emerald text-black" : "border-border hover:border-emerald"
+                          }`}
+                          aria-label={done ? "Mark not done" : "Mark done"}
+                        >
+                          {done && <CheckCircle2 className="size-2.5" />}
+                        </button>
+                        <span className={`text-sm flex-1 truncate ${done ? "line-through text-muted" : ""}`}>{s.title}</span>
+                        {s.assignee_name && <span className="text-[10px] text-muted hidden sm:inline truncate max-w-[80px]">{s.assignee_name}</span>}
+                        {canEdit && (
+                          <button onClick={() => { if (confirm(`Remove "${s.title}"?`)) onRemoveSubtask(s.id); }} className="size-5 rounded-md text-muted hover:text-rust hover:bg-rust/10 flex items-center justify-center transition opacity-0 group-hover:opacity-100" aria-label="Remove subtask">
+                            <X className="size-3" />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-[11px] text-muted italic mb-2">No subtasks. Break this down into smaller pieces.</p>
+              )}
+              {canEdit && (
+                <div className="flex items-center gap-1">
+                  <input
+                    value={newSub}
+                    onChange={(e) => setNewSub(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter" && newSub.trim() && !addingSub) {
+                        e.preventDefault();
+                        setAddingSub(true);
+                        await onAddSubtask(newSub.trim());
+                        setNewSub("");
+                        setAddingSub(false);
+                      }
+                    }}
+                    placeholder="Add a subtask — Enter to add"
+                    className="flex-1 bg-surface-2 border border-border rounded-lg px-2.5 py-1.5 text-sm outline-none focus:border-emerald"
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!newSub.trim() || addingSub) return;
+                      setAddingSub(true);
+                      await onAddSubtask(newSub.trim());
+                      setNewSub("");
+                      setAddingSub(false);
+                    }}
+                    disabled={addingSub || !newSub.trim()}
+                    className="size-7 rounded-md bg-emerald/15 text-emerald hover:bg-emerald/25 disabled:opacity-30 flex items-center justify-center transition"
+                    aria-label="Add subtask"
+                  >
+                    {addingSub ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="mb-5 p-3 rounded-xl border border-border bg-surface-2/30">
             <WorkspaceAttachments workspaceId={workspaceId} canEdit={canEdit} attach={{ kind: "task", id: task.id }} label="Files for this task" />

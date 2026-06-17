@@ -210,7 +210,7 @@ export function useWorkspaceTasks(id: string | null) {
     else void refresh();
   }, [id, refresh]);
 
-  const add = useCallback(async (payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; dueAt?: string | null }) => {
+  const add = useCallback(async (payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; dueAt?: string | null; parentTaskId?: string | null }) => {
     if (!id) return false;
     const res = await workspaceApi.addTask(id, payload);
     if (res.ok) setTasks((prev) => [...prev, res.task]);

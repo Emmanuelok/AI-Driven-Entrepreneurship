@@ -21,6 +21,7 @@ const CreateBody = z.object({
   status: z.enum(STATUSES as unknown as readonly [string, ...string[]]).optional(),
   assigneeUserId: z.string().max(64).optional().nullable(),
   dueAt: z.string().min(10).max(40).optional().nullable(),
+  parentTaskId: z.string().max(64).optional().nullable(),
 });
 
 const PatchBody = z.object({
@@ -67,7 +68,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!sb) return Response.json({ ok: false, error: "admin_unavailable" }, { status: 500 });
 
   const status = body.status ?? "todo";
-  const position = await nextPosition(sb, id, status);
+
+  // Subtask rules: parent must exist in the same workspace and itself
+  // be a top-level task — we cap nesting at one level (parent→child),
+  // which matches every real project-management tool worth using.
+  let parentTaskId: string | null = null;
+  if (body.parentTaskId) {
+    const { data: parent } = await sb.from("workspace_tasks").select("id, parent_task_id, workspace_id").eq("id", body.parentTaskId).maybeSingle();
+    if (!parent || parent.workspace_id !== id) return Response.json({ ok: false, error: "parent_not_found" }, { status: 400 });
+    if (parent.parent_task_id) return Response.json({ ok: false, error: "nesting_too_deep", note: "Subtasks can't have subtasks." }, { status: 400 });
+    parentTaskId = body.parentTaskId;
+  }
+
+  const position = await nextPosition(sb, id, status, parentTaskId);
   const assigneeName = body.assigneeUserId ? await memberName(sb, id, body.assigneeUserId) : null;
   const dueAt = parseDue(body.dueAt);
   if (body.dueAt && dueAt === undefined) return Response.json({ ok: false, error: "invalid_due_at" }, { status: 400 });
@@ -84,6 +97,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       position,
       created_by: me!.userId,
       due_at: dueAt ?? null,
+      parent_task_id: parentTaskId,
     })
     .select("*")
     .single();
@@ -192,15 +206,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────
-async function nextPosition(sb: NonNullable<ReturnType<typeof supabaseAdmin>>, workspaceId: string, status: string): Promise<number> {
-  const { data } = await sb
+async function nextPosition(sb: NonNullable<ReturnType<typeof supabaseAdmin>>, workspaceId: string, status: string, parentTaskId: string | null = null): Promise<number> {
+  // Position is scoped per (workspace, status, parent). Top-level rows
+  // pass parent=null; subtasks order within their parent's checklist.
+  let q = sb
     .from("workspace_tasks")
     .select("position")
     .eq("workspace_id", workspaceId)
-    .eq("status", status)
-    .order("position", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("status", status);
+  q = parentTaskId === null ? q.is("parent_task_id", null) : q.eq("parent_task_id", parentTaskId);
+  const { data } = await q.order("position", { ascending: false }).limit(1).maybeSingle();
   return ((data?.position as number | undefined) ?? 0) + 1;
 }
 
