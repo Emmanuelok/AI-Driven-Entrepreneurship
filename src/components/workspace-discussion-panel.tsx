@@ -7,7 +7,7 @@ import { useDiscussionTyping } from "@/lib/use-discussion-presence";
 import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components/mention-autocomplete";
 import { Markdown } from "@/components/markdown";
 import type { WorkspaceMember } from "@/lib/workspace-api";
-import { Send, Sparkles, Brain, Loader2 } from "lucide-react";
+import { Send, Sparkles, Brain, Loader2, SmilePlus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 // The workspace discussion thread. Members chat in real time; typing
@@ -17,8 +17,11 @@ import { formatDistanceToNow } from "date-fns";
 
 export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { workspaceId: string; members: WorkspaceMember[]; accent: string }) {
   const { user } = useStore();
-  const { messages, loading, sending, agentThinking, send } = useWorkspaceMessages(workspaceId);
+  const { messages, loading, sending, agentThinking, send, toggleReaction } = useWorkspaceMessages(workspaceId);
   const { typing, signalTyping } = useDiscussionTyping(workspaceId, user ? { userId: user.id, name: user.name || "Member" } : null);
+  // Per-message hover state for the react picker — only one open at a
+  // time. Tracked outside the message map so re-renders don't reset it.
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -68,8 +71,9 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { wor
         ) : (
           messages.map((m) => {
             const mine = m.user_id === user?.id;
+            const reactions = m.reactions ?? [];
             return (
-              <div key={m.id} className={`flex gap-3 ${mine ? "flex-row-reverse" : ""}`}>
+              <div key={m.id} className={`group flex gap-3 ${mine ? "flex-row-reverse" : ""}`}>
                 <div
                   className="size-8 rounded-full flex items-center justify-center text-black font-semibold text-xs shrink-0"
                   style={{ background: m.is_agent ? "linear-gradient(135deg,#2cc295,#0c8f6a)" : "linear-gradient(135deg,#2cc295,#f4a949)" }}
@@ -82,15 +86,56 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { wor
                     <span className={m.is_agent ? "text-emerald font-medium" : "font-medium text-foreground/80"}>{m.is_agent ? "Sage" : (mine ? "You" : m.author_name)}</span>
                     <span>{formatDistanceToNow(new Date(m.created_at))} ago</span>
                   </div>
-                  <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                    m.is_agent
-                      ? "bg-emerald/10 border border-emerald/25"
-                      : mine
-                        ? "bg-surface-2 border border-border"
-                        : "bg-surface-2/60 border border-border"
-                  }`}>
-                    {m.is_agent ? <Markdown src={m.body} className="prose-chat text-left" /> : <span className="whitespace-pre-wrap break-words">{m.body}</span>}
+                  <div className="relative">
+                    <div className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                      m.is_agent
+                        ? "bg-emerald/10 border border-emerald/25"
+                        : mine
+                          ? "bg-surface-2 border border-border"
+                          : "bg-surface-2/60 border border-border"
+                    }`}>
+                      {m.is_agent ? <Markdown src={m.body} className="prose-chat text-left" /> : <span className="whitespace-pre-wrap break-words">{m.body}</span>}
+                    </div>
+                    {/* Hover-only react trigger */}
+                    <button
+                      onClick={() => setPickerFor((c) => c === m.id ? null : m.id)}
+                      className={`absolute -top-2 ${mine ? "-left-2" : "-right-2"} size-6 rounded-full bg-surface-2 border border-border hover:border-emerald/40 hover:bg-emerald/10 text-muted hover:text-emerald flex items-center justify-center opacity-0 group-hover:opacity-100 transition`}
+                      title="Add a reaction"
+                    >
+                      <SmilePlus className="size-3" />
+                    </button>
+                    {pickerFor === m.id && (
+                      <div className={`absolute z-10 top-7 ${mine ? "left-0" : "right-0"} flex gap-0.5 bg-surface-2 border border-border rounded-full px-1.5 py-1 shadow-lg`}>
+                        {(["👍", "✅", "👀", "❤️", "🎉", "🤔", "🚀", "👏"] as const).map((e) => {
+                          const existing = reactions.find((r) => r.emoji === e);
+                          return (
+                            <button
+                              key={e}
+                              onClick={async () => { await toggleReaction(m.id, e, !!existing?.mine); setPickerFor(null); }}
+                              className={`size-7 rounded-full hover:bg-surface text-base transition ${existing?.mine ? "bg-emerald/20" : ""}`}
+                            >
+                              {e}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
+                  {reactions.length > 0 && (
+                    <div className={`flex gap-1 flex-wrap mt-1 ${mine ? "justify-end" : ""}`}>
+                      {reactions.map((r) => (
+                        <button
+                          key={r.emoji}
+                          onClick={() => toggleReaction(m.id, r.emoji, r.mine)}
+                          className={`text-[11px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full transition ${r.mine ? "bg-emerald/15 border border-emerald/40 text-emerald" : "bg-surface-2 border border-border text-muted hover:border-emerald/30"}`}
+                          title={r.mine ? "Remove your reaction" : "React"}
+                        >
+                          <span>{r.emoji}</span>
+                          <span>{r.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );

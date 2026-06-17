@@ -41,8 +41,41 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const { data, error } = await q;
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
-  // Reverse to newest-last for the client's append-only render.
-  return Response.json({ ok: true, results: (data ?? []).reverse() });
+  const messages = (data ?? []).reverse();
+
+  // Enrich with reactions in one batch query — much cheaper than N+1.
+  // Each message gets { emoji, count, mine } chips that the client can
+  // render directly.
+  const ids = messages.map((m) => (m as { id: string }).id);
+  const reactionsByMessage = new Map<string, { emoji: string; count: number; mine: boolean }[]>();
+  if (ids.length > 0) {
+    const { data: reactions } = await sb
+      .from("workspace_message_reactions")
+      .select("message_id, emoji, user_id")
+      .in("message_id", ids);
+    // Group: messageId → emoji → { count, mineFlag }.
+    const grouped = new Map<string, Map<string, { count: number; mine: boolean }>>();
+    for (const r of reactions ?? []) {
+      const row = r as { message_id: string; emoji: string; user_id: string };
+      const perMsg = grouped.get(row.message_id) ?? new Map<string, { count: number; mine: boolean }>();
+      const cur = perMsg.get(row.emoji) ?? { count: 0, mine: false };
+      cur.count++;
+      if (row.user_id === me.userId) cur.mine = true;
+      perMsg.set(row.emoji, cur);
+      grouped.set(row.message_id, perMsg);
+    }
+    for (const [mid, m] of grouped) {
+      reactionsByMessage.set(mid, Array.from(m.entries()).map(([emoji, v]) => ({ emoji, ...v })));
+    }
+  }
+
+  return Response.json({
+    ok: true,
+    results: messages.map((m) => {
+      const row = m as { id: string };
+      return { ...row, reactions: reactionsByMessage.get(row.id) ?? [] };
+    }),
+  });
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {

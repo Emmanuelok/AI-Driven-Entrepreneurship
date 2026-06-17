@@ -89,6 +89,8 @@ export type WorkspaceActivity = {
   created_at: string;
 };
 
+export type MessageReaction = { emoji: string; count: number; mine: boolean };
+
 export type WorkspaceMessage = {
   id: string;
   workspace_id: string;
@@ -97,6 +99,7 @@ export type WorkspaceMessage = {
   body: string;
   is_agent: boolean;
   mentions: string[];
+  reactions?: MessageReaction[];
   created_at: string;
 };
 
@@ -274,6 +277,12 @@ export const workspaceApi = {
 
   sendMessage: (id: string, body: string, siteContext?: unknown) =>
     call<{ message: WorkspaceMessage; agentReply: WorkspaceMessage | null }>(`/api/v2/workspaces/${id}/messages`, { method: "POST", body: JSON.stringify({ body, siteContext }) }),
+
+  addReaction: (id: string, messageId: string, emoji: string) =>
+    call(`/api/v2/workspaces/${id}/messages/${messageId}/reactions`, { method: "POST", body: JSON.stringify({ emoji }) }),
+
+  removeReaction: (id: string, messageId: string, emoji: string) =>
+    call(`/api/v2/workspaces/${id}/messages/${messageId}/reactions?emoji=${encodeURIComponent(emoji)}`, { method: "DELETE" }),
 
   // ── Notes ───────────────────────────────────────────────────────────
   listDocs: (id: string) =>

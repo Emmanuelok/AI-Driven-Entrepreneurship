@@ -34,6 +34,16 @@ export function useWorkspaceMessages(id: string | null) {
     });
   }, []);
 
+  // Pull fresh reactions onto existing messages WITHOUT re-loading the
+  // whole thread. Updates the reactions array in place by id.
+  const refreshReactions = useCallback(async () => {
+    if (!id) return;
+    const res = await workspaceApi.listMessages(id);
+    if (!res.ok) return;
+    const byId = new Map(res.results.map((m) => [m.id, m.reactions ?? []] as const));
+    setMessages((prev) => prev.map((m) => ({ ...m, reactions: byId.get(m.id) ?? m.reactions })));
+  }, [id]);
+
   // Initial load.
   useEffect(() => {
     if (!id) return;
@@ -60,9 +70,40 @@ export function useWorkspaceMessages(id: string | null) {
       if (payload.new) merge([payload.new]);
       if (payload.new?.is_agent) setAgentThinking(false);
     });
+    // Reaction inserts/deletes don't carry workspace_id, so we can't
+    // filter by workspace at the channel level. Any reaction change in
+    // the DB triggers a lightweight reactions-only refresh; the cost is
+    // a single list query, much cheaper than refetching all messages.
+    ch.on("postgres_changes" as never, { event: "*", schema: "public", table: "workspace_message_reactions" }, () => {
+      void refreshReactions();
+    });
     ch.subscribe();
     return () => { void sb.removeChannel(ch); };
-  }, [id, user?.id, merge]);
+  }, [id, user?.id, merge, refreshReactions]);
+
+  const toggleReaction = useCallback(async (messageId: string, emoji: string, currentlyMine: boolean) => {
+    if (!id) return;
+    // Optimistic flip — adjust the count & mine flag in place; on
+    // failure the realtime refresh will reconcile.
+    setMessages((prev) => prev.map((m) => {
+      if (m.id !== messageId) return m;
+      const reactions = (m.reactions ?? []).slice();
+      const idx = reactions.findIndex((r) => r.emoji === emoji);
+      if (currentlyMine) {
+        if (idx >= 0) {
+          const newCount = reactions[idx].count - 1;
+          if (newCount <= 0) reactions.splice(idx, 1);
+          else reactions[idx] = { ...reactions[idx], count: newCount, mine: false };
+        }
+      } else {
+        if (idx >= 0) reactions[idx] = { ...reactions[idx], count: reactions[idx].count + 1, mine: true };
+        else reactions.push({ emoji, count: 1, mine: true });
+      }
+      return { ...m, reactions };
+    }));
+    if (currentlyMine) await workspaceApi.removeReaction(id, messageId, emoji);
+    else await workspaceApi.addReaction(id, messageId, emoji);
+  }, [id]);
 
   const send = useCallback(async (body: string): Promise<boolean> => {
     if (!id || !body.trim()) return false;
@@ -81,7 +122,7 @@ export function useWorkspaceMessages(id: string | null) {
     return true;
   }, [id, merge]);
 
-  return { messages, loading, sending, agentThinking, send };
+  return { messages, loading, sending, agentThinking, send, toggleReaction };
 }
 
 // ── Notes ─────────────────────────────────────────────────────────────
