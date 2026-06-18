@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer, Zap, Dna, Mail, Hammer, Workflow,
+  User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -59,6 +59,7 @@ const NAV: NavItem[] = [
   { href: "/studio/atlas", label: "Atlas", icon: Map, group: "Build" },
   { href: "/studio/problems", label: "Problem Hub", icon: Globe2, group: "Build" },
 
+  { href: "/people", label: "People directory", icon: Contact, group: "Network" },
   { href: "/studio/mentors", label: "Mentors", icon: Users, group: "Network" },
   { href: "/studio/funding", label: "Funding", icon: Wallet, group: "Network" },
   { href: "/studio/workspaces", label: "Workspaces", icon: Users, group: "Network" },
@@ -71,6 +72,7 @@ const NAV: NavItem[] = [
   { href: "/studio/okrs", label: "OKRs", icon: Target, group: "Tools" },
   { href: "/studio/notebook", label: "Notebook", icon: Notebook, group: "Tools" },
 
+  { href: "/studio/profile", label: "My Profile", icon: IdCard, group: "You" },
   { href: "/studio/portfolio", label: "Portfolio", icon: Folder, group: "You" },
   { href: "/studio/credentials", label: "Credentials", icon: Award, group: "You" },
   { href: "/studio/connections", label: "Connections", icon: Network, group: "You" },

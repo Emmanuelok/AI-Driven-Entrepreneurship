@@ -5,7 +5,8 @@ import { FUNDING } from "@/lib/funding";
 import { resolveDepartment } from "@/lib/recommendations";
 import { useStore } from "@/store";
 import { Card, Badge } from "@/components/ui";
-import { Calendar, ExternalLink, Search, GraduationCap } from "lucide-react";
+import { RegisteredStakeholders } from "@/components/registered-stakeholders";
+import { Calendar, ExternalLink, Search, GraduationCap, Library } from "lucide-react";
 
 const TYPES = ["All", "Grant", "Accelerator", "Pre-seed VC", "Seed VC", "Series A+", "Competition", "Scholarship", "Debt"];
 const STAGES = ["All", "Idea", "MVP", "Revenue", "Growth"];
@@ -58,9 +59,27 @@ export default function FundingPage() {
           Every grant, accelerator, and check writing for African founders. In one place.
         </h1>
         <p className="mt-3 text-muted max-w-2xl">
-          From $5k Tony Elumelu grants to $20M Norrsken22 growth checks. Filter by stage, type, and sector. Apply with one click.
+          Funders and programs that have registered on Sankofa are below — reach out directly. Underneath, a curated catalog of real-world funding sources, from $5k Tony Elumelu grants to $20M Norrsken22 growth checks.
         </p>
       </div>
+
+      {/* Registered funders — real grant programs / accelerators that
+          signed up and can be contacted through their profile. */}
+      <RegisteredStakeholders
+        type="funder"
+        title="Funders & programs on Sankofa"
+        blurb="Registered grant programs, accelerators, and funders — reach out directly."
+        emptyHint="No funders have published a public profile yet. Run a grant or program?"
+        signupHref="/studio/onboarding?as=funder"
+      />
+
+      <div className="flex items-center gap-2 mt-10 mb-3">
+        <Library className="size-5 text-amber" />
+        <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">Funding catalog</h2>
+      </div>
+      <p className="text-sm text-muted mb-5 max-w-2xl">
+        A curated directory of real-world funding sources for African founders. Links go to each program&apos;s own application — these are external programs, not Sankofa accounts.
+      </p>
 
       <Card className="p-5 mb-6 grid sm:grid-cols-3 gap-3">
         <div className="rounded-xl bg-surface-2 border border-border p-4">

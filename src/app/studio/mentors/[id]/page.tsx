@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import { getMentor } from "@/lib/mentors";
 import { useStore } from "@/store";
 import { Card, Button, Badge, Input, Textarea, Dialog } from "@/components/ui";
-import { Star, MapPin, Clock, ArrowLeft, Calendar, MessageSquare, Sparkles, CheckCircle2 } from "lucide-react";
+import { Star, MapPin, Clock, ArrowLeft, Calendar, Sparkles, CheckCircle2 } from "lucide-react";
 import { ConnectionsPanel } from "@/components/connections-panel";
 
 export default function MentorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +22,10 @@ export default function MentorPage({ params }: { params: Promise<{ id: string }>
       <Link href="/studio/mentors" className="text-sm text-muted hover:text-foreground inline-flex items-center gap-1.5 mb-6">
         <ArrowLeft className="size-3.5" /> All mentors
       </Link>
+
+      <div className="mb-5 rounded-xl border border-amber/30 bg-amber/5 px-4 py-2.5 text-xs text-amber/90 leading-relaxed">
+        This is a curated profile of a public figure in African tech — for research and inspiration. They&apos;re not a registered Sankofa account. To reach mentors who&apos;ve signed up, browse <Link href="/people?type=mentor" className="underline">registered mentors</Link>.
+      </div>
 
       <div className="flex items-start gap-5 flex-wrap">
         <div className="size-24 rounded-3xl bg-gradient-to-br from-emerald to-amber flex items-center justify-center text-black font-bold text-3xl shadow-xl shadow-emerald/20 shrink-0">
@@ -80,11 +84,10 @@ export default function MentorPage({ params }: { params: Promise<{ id: string }>
         <Card className="p-5 flex flex-wrap items-center gap-3 bg-gradient-to-r from-emerald/10 to-amber/10">
           <Sparkles className="size-5 text-amber" />
           <div className="flex-1 min-w-[200px]">
-            <div className="font-medium">Ready to talk to {mentor.name.split(" ")[0]}?</div>
-            <div className="text-xs text-muted">{mentor.pricePerHour === 0 ? "Pro-bono for Sankofa students." : "Sankofa learners get a 20% discount."}</div>
+            <div className="font-medium">Want to learn from {mentor.name.split(" ")[0]}?</div>
+            <div className="text-xs text-muted">Draft your ask and save it to your plan — then look for a registered mentor with the same expertise to actually talk to.</div>
           </div>
-          <Button onClick={() => setBooking(true)} size="lg"><Calendar className="size-4" /> Book session</Button>
-          <Button variant="secondary"><MessageSquare className="size-4" /> Message</Button>
+          <Button onClick={() => setBooking(true)} size="lg"><Calendar className="size-4" /> Draft an ask</Button>
         </Card>
       </div>
 
@@ -92,14 +95,14 @@ export default function MentorPage({ params }: { params: Promise<{ id: string }>
         <ConnectionsPanel kind="mentor" id={id} title={mentor.name} />
       </div>
 
-      <Dialog open={booking} onClose={() => { setBooking(false); setConfirmed(false); }} title={confirmed ? "Booked!" : `Book ${mentor.name.split(" ")[0]}`}>
+      <Dialog open={booking} onClose={() => { setBooking(false); setConfirmed(false); }} title={confirmed ? "Saved to your plan" : `Draft an ask for ${mentor.name.split(" ")[0]}`}>
         {confirmed ? (
           <div className="text-center py-6">
             <div className="size-16 mx-auto rounded-full bg-emerald/15 flex items-center justify-center mb-4">
               <CheckCircle2 className="size-8 text-emerald" />
             </div>
-            <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold">Session confirmed</h3>
-            <p className="mt-2 text-muted text-sm">You'll get a calendar invite within 24 hours. {mentor.name.split(" ")[0]} replies fast — usually under {mentor.responseHrs}h.</p>
+            <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold">Saved</h3>
+            <p className="mt-2 text-muted text-sm">Your ask is saved to your plan. Bring it to a registered mentor who shares {mentor.name.split(" ")[0]}&apos;s expertise — or a workspace advisor — to get a real answer.</p>
             <Button className="mt-6" onClick={() => { setBooking(false); setConfirmed(false); }}>Done</Button>
           </div>
         ) : (

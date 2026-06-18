@@ -6,7 +6,8 @@ import { MENTORS } from "@/lib/mentors";
 import { resolveDepartment, scoreMentorAgainstDepartment, scoreMentors } from "@/lib/recommendations";
 import { useStore } from "@/store";
 import { Card } from "@/components/ui";
-import { Search, Star, Clock, GraduationCap, Sparkles } from "lucide-react";
+import { RegisteredStakeholders } from "@/components/registered-stakeholders";
+import { Search, Star, Clock, GraduationCap, Sparkles, Compass } from "lucide-react";
 
 const EXPERTISE = ["All", "Fundraising", "Fintech", "Agribusiness", "Healthtech", "Climate", "Edtech", "Marketplace", "Engineering culture"];
 
@@ -38,14 +39,32 @@ export default function MentorsPage() {
   return (
     <div className="max-w-6xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
       <div className="mb-8">
-        <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2">Mentor marketplace</p>
+        <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2">Mentors</p>
         <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight max-w-3xl">
-          Africa's most respected operators. Bookable today.
+          Find someone who's walked your road.
         </h1>
         <p className="mt-3 text-muted max-w-2xl">
-          Founders who built and exited. Investors who write the checks. Operators who scaled across borders. Most pro-bono for Sankofa students.
+          Mentors who&apos;ve registered on Sankofa are below — reach out directly. Underneath, study the playbooks of the operators and investors shaping African tech.
         </p>
       </div>
+
+      {/* Registered mentors — real people who signed up and can be
+          contacted through their profile. */}
+      <RegisteredStakeholders
+        type="mentor"
+        title="Mentors on Sankofa"
+        blurb="Registered mentors, available to connect."
+        emptyHint="No mentors have published a public profile yet. Are you one?"
+        signupHref="/studio/onboarding?as=mentor"
+      />
+
+      <div className="flex items-center gap-2 mt-10 mb-3">
+        <Compass className="size-5 text-amber" />
+        <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">Leaders shaping African tech</h2>
+      </div>
+      <p className="text-sm text-muted mb-5 max-w-2xl">
+        A curated directory of founders, operators, and investors worth studying. These are public figures for research and inspiration — not Sankofa accounts.
+      </p>
 
       <Card className="p-4 mb-6 flex flex-wrap gap-3 items-center">
         <div className="flex-1 min-w-[240px] flex items-center gap-2 bg-surface-2 border border-border rounded-xl px-3 py-2">
