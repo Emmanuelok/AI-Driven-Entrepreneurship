@@ -313,6 +313,9 @@ export const workspaceApi = {
   deleteTask: (id: string, taskId: string) =>
     call(`/api/v2/workspaces/${id}/tasks?taskId=${encodeURIComponent(taskId)}`, { method: "DELETE" }),
 
+  bulkTaskOp: (id: string, ids: string[], op: { kind: "move"; status: TaskStatus } | { kind: "assign"; assigneeUserId: string | null } | { kind: "delete" }) =>
+    call<{ affected: number }>(`/api/v2/workspaces/${id}/tasks/bulk`, { method: "POST", body: JSON.stringify({ ids, op }) }),
+
   // ── Files ───────────────────────────────────────────────────────────
   listFiles: (id: string, filter?: { attachedToKind?: AttachmentKind | "null"; attachedToId?: string }) => {
     const params = new URLSearchParams();

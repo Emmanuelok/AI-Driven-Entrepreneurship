@@ -271,7 +271,20 @@ export function useWorkspaceTasks(id: string | null) {
     await workspaceApi.deleteTask(id, taskId);
   }, [id]);
 
-  return { tasks, loading, move, add, patch, remove };
+  const bulk = useCallback(async (ids: string[], op: { kind: "move"; status: TaskStatus } | { kind: "assign"; assigneeUserId: string | null } | { kind: "delete" }) => {
+    if (!id || ids.length === 0) return 0;
+    // Optimistic apply on the client so the board reacts immediately.
+    setTasks((prev) => {
+      if (op.kind === "delete") return prev.filter((t) => !ids.includes(t.id));
+      if (op.kind === "move") return prev.map((t) => (ids.includes(t.id) ? { ...t, status: op.status } : t));
+      return prev.map((t) => (ids.includes(t.id) ? { ...t, assignee_user_id: op.assigneeUserId, assignee_name: t.assignee_name } : t));
+    });
+    const r = await workspaceApi.bulkTaskOp(id, ids, op);
+    if (!r.ok) void refresh();
+    return r.ok ? r.affected : 0;
+  }, [id, refresh]);
+
+  return { tasks, loading, move, add, patch, remove, bulk };
 }
 
 export function useWorkspaceDocList(id: string | null) {

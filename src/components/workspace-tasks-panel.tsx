@@ -6,7 +6,7 @@ import type { WorkspaceTask, TaskStatus, WorkspaceMember } from "@/lib/workspace
 import { Button } from "@/components/ui";
 import { WorkspaceAttachments } from "@/components/workspace-attachments";
 import { relativeDue } from "@/lib/deadline-schedule";
-import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban, Clock, ListChecks } from "lucide-react";
+import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban, Clock, ListChecks, Check, Move, UserPlus2 } from "lucide-react";
 
 // A shared Kanban board for a workspace. Four columns: To do / Doing /
 // Done / Blocked. Cards carry an assignee. Moving a card uses arrow
@@ -23,7 +23,19 @@ const COLUMNS: { id: TaskStatus; label: string; icon: typeof Circle; color: stri
 const ORDER: TaskStatus[] = ["todo", "doing", "done", "blocked"];
 
 export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: { workspaceId: string; canEdit: boolean; members: WorkspaceMember[]; accent: string }) {
-  const { tasks, loading, move, add, patch, remove } = useWorkspaceTasks(workspaceId);
+  const { tasks, loading, move, add, patch, remove, bulk } = useWorkspaceTasks(workspaceId);
+  // Multi-select for bulk operations. Click toggles a row in/out;
+  // empty when no bulk action bar is showing.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  function toggleSelect(taskId: string) {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
+  function clearSelection() { setSelected(new Set()); }
   const [adding, setAdding] = useState<TaskStatus | null>(null);
   const [editing, setEditing] = useState<WorkspaceTask | null>(null);
 
@@ -108,6 +120,8 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
                     onMoveRight={() => move(t.id, ORDER[idx + 1])}
                     onOpen={() => setEditing(t)}
                     subtaskCount={subtaskCounts.get(t.id) ?? null}
+                    selected={selected.has(t.id)}
+                    onToggleSelect={canEdit ? () => toggleSelect(t.id) : undefined}
                   />
                 ))}
               </div>
@@ -115,6 +129,21 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
           );
         })}
       </div>
+
+      {selected.size > 0 && (
+        <BulkActionBar
+          count={selected.size}
+          members={members}
+          onMove={async (s) => { await bulk(Array.from(selected), { kind: "move", status: s }); clearSelection(); }}
+          onAssign={async (u) => { await bulk(Array.from(selected), { kind: "assign", assigneeUserId: u }); clearSelection(); }}
+          onDelete={async () => {
+            if (!confirm(`Delete ${selected.size} task${selected.size === 1 ? "" : "s"}? This can't be undone.`)) return;
+            await bulk(Array.from(selected), { kind: "delete" });
+            clearSelection();
+          }}
+          onClear={clearSelection}
+        />
+      )}
 
       {editing && (
         <TaskDialog
@@ -136,13 +165,26 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
   );
 }
 
-function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMoveRight, onOpen, subtaskCount }: {
+function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMoveRight, onOpen, subtaskCount, selected, onToggleSelect }: {
   task: WorkspaceTask; canEdit: boolean; canMoveLeft: boolean; canMoveRight: boolean; onMoveLeft: () => void; onMoveRight: () => void; onOpen: () => void;
   subtaskCount: { open: number; total: number } | null;
+  selected: boolean;
+  onToggleSelect?: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface-2/40 hover:border-emerald/30 transition group">
-      <button onClick={onOpen} className="w-full text-left p-3">
+    <div className={`relative rounded-xl border bg-surface-2/40 hover:border-emerald/30 transition group ${selected ? "border-emerald/60 ring-1 ring-emerald/30" : "border-border"}`}>
+      {onToggleSelect && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
+          className={`absolute mt-2 ml-2 size-4 rounded border-2 flex items-center justify-center text-emerald shrink-0 transition opacity-0 group-hover:opacity-100 ${selected ? "border-emerald bg-emerald text-black opacity-100" : "border-border bg-surface hover:border-emerald"}`}
+          title="Select for bulk actions"
+          aria-label={selected ? "Deselect task" : "Select task"}
+          style={{ position: "absolute" }}
+        >
+          {selected && <Check className="size-2.5" />}
+        </button>
+      )}
+      <button onClick={onOpen} className={`w-full text-left p-3 ${onToggleSelect ? "pl-7" : ""}`}>
         <div className={`text-sm font-medium leading-snug ${task.status === "done" ? "line-through text-muted" : ""}`}>{task.title}</div>
         {task.detail && <p className="text-[11px] text-muted mt-1 line-clamp-2">{task.detail}</p>}
         <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -350,4 +392,75 @@ function isoToLocalInput(iso: string | null): string {
   if (isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function BulkActionBar({ count, members, onMove, onAssign, onDelete, onClear }: {
+  count: number;
+  members: WorkspaceMember[];
+  onMove: (status: TaskStatus) => Promise<void>;
+  onAssign: (userId: string | null) => Promise<void>;
+  onDelete: () => Promise<void>;
+  onClear: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    try { await fn(); } finally { setBusy(false); }
+  }
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[80] glass rounded-2xl shadow-2xl border border-emerald/30 flex items-center gap-2 px-4 py-3 max-w-[calc(100vw-2rem)] flex-wrap">
+      <span className="text-sm font-medium flex items-center gap-1.5">
+        <Check className="size-3.5 text-emerald" /> {count} task{count === 1 ? "" : "s"}
+      </span>
+      <div className="h-5 w-px bg-border mx-1" />
+      <div className="flex items-center gap-1">
+        {COLUMNS.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => run(() => onMove(c.id))}
+            disabled={busy}
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-border hover:border-emerald/40 hover:bg-emerald/5 transition flex items-center gap-1.5"
+            title={`Move to ${c.label}`}
+          >
+            <c.icon className="size-3" style={{ color: c.color }} /> {c.label}
+          </button>
+        ))}
+      </div>
+      <div className="h-5 w-px bg-border mx-1" />
+      <div className="relative">
+        <select
+          onChange={async (e) => {
+            const v = e.target.value;
+            await run(() => onAssign(v === "_unassign_" ? null : v));
+            e.target.value = "";
+          }}
+          disabled={busy}
+          defaultValue=""
+          className="text-xs px-2.5 py-1.5 rounded-lg border border-border hover:border-emerald/40 bg-surface appearance-none pr-7 cursor-pointer"
+        >
+          <option value="" disabled>Assign to…</option>
+          <option value="_unassign_">Unassigned</option>
+          {members.map((m) => (
+            <option key={m.user_id} value={m.user_id}>{m.display_name || m.email || "Member"}</option>
+          ))}
+        </select>
+        <UserPlus2 className="size-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-muted" />
+      </div>
+      <button
+        onClick={() => run(onDelete)}
+        disabled={busy}
+        className="text-xs px-2.5 py-1.5 rounded-lg border border-rust/30 text-rust hover:bg-rust/10 transition flex items-center gap-1.5"
+      >
+        <Trash2 className="size-3" /> Delete
+      </button>
+      <button
+        onClick={onClear}
+        disabled={busy}
+        className="size-7 rounded-lg text-muted hover:text-foreground hover:bg-surface-2 flex items-center justify-center transition"
+        aria-label="Clear selection"
+      >
+        <X className="size-3.5" />
+      </button>
+    </div>
+  );
 }
