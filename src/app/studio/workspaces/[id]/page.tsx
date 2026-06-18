@@ -18,6 +18,7 @@ import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 import { WorkspaceInsightsCard } from "@/components/workspace-insights-card";
 import { WorkspaceSearchDialog } from "@/components/workspace-search-dialog";
 import { WorkspaceActivityList } from "@/components/workspace-activity-list";
+import { WorkspaceCalendarSubscribeCard } from "@/components/workspace-calendar-subscribe-card";
 
 // Lazy-load the heavy tab panels: they only mount when their tab is
 // active, so don't pay for them on the Overview tab. Loader stays simple
@@ -297,6 +298,12 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
                   {orderedDeadlines.map((d) => (
                     <DeadlineRow key={d.id} d={d} canEdit={isAdmin || (d.assignee_user_id === user?.id && d.set_by_role === "self")} workspaceId={id} onChange={ws.refetch} />
                   ))}
+                </div>
+              )}
+              {/* Subscribe this workspace's deadlines into a calendar app */}
+              {orderedDeadlines.length > 0 && (
+                <div className="mt-4">
+                  <WorkspaceCalendarSubscribeCard workspaceId={id} />
                 </div>
               )}
             </section>

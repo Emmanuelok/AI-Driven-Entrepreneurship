@@ -401,6 +401,14 @@ export const workspaceApi = {
     }
   },
 
+  // ── Per-workspace calendar feed token ──────────────────────────────
+  // Returns the caller's per-workspace .ics feed token, minting one on
+  // first call. POST rotates and invalidates any subscribed app.
+  getWorkspaceCalendarToken: (id: string) =>
+    call<{ token: string }>(`/api/v2/workspaces/${id}/calendar-token`),
+  rotateWorkspaceCalendarToken: (id: string) =>
+    call<{ token: string }>(`/api/v2/workspaces/${id}/calendar-token`, { method: "POST", body: "{}" }),
+
   // ── Activity log ────────────────────────────────────────────────────
   listActivity: (id: string, opts?: { kinds?: string[]; userId?: string; since?: string; until?: string; limit?: number; offset?: number }) => {
     const params = new URLSearchParams();
