@@ -87,6 +87,9 @@ export default function WorkspacesHub() {
           <Link href="/studio/workspaces/calendar" className="inline-flex items-center gap-2 border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 px-4 py-2.5 rounded-full text-sm transition">
             <CalendarIcon className="size-4" /> Calendar
           </Link>
+          <Link href="/studio/insights" className="inline-flex items-center gap-2 border border-border hover:border-emerald/40 bg-surface hover:bg-surface-2 px-4 py-2.5 rounded-full text-sm transition">
+            <TrendingUp className="size-4" /> Your insights
+          </Link>
           <button
             onClick={() => setShowArchived((v) => !v)}
             className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm transition border ${showArchived ? "border-emerald/40 bg-emerald/10 text-emerald" : "border-border bg-surface hover:bg-surface-2"}`}
