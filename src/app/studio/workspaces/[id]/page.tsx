@@ -30,7 +30,7 @@ const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attach
 const WorkspaceSagePanel = dynamic(() => import("@/components/workspace-sage-panel").then((m) => m.WorkspaceSagePanel), { ssr: false, loading: TabLoader });
 const WorkspaceDmDialog = dynamic(() => import("@/components/workspace-dm-dialog").then((m) => m.WorkspaceDmDialog), { ssr: false });
 const WorkspaceDmInboxPanel = dynamic(() => import("@/components/workspace-dm-inbox-panel").then((m) => m.WorkspaceDmInboxPanel), { ssr: false, loading: TabLoader });
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, MessagesSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus, Brain } from "lucide-react";
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, MessagesSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus, Brain, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -53,6 +53,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
   const [searchOpen, setSearchOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [dmWith, setDmWith] = useState<{ id: string; name: string } | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files" | "sage" | "dms">("overview");
 
   // Cmd/Ctrl+K opens the in-workspace search. Bypasses when the user is
@@ -167,6 +168,22 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
               <CopyPlus className="size-3.5" />
               <span className="hidden sm:inline">Duplicate</span>
             </button>
+            {isOwner && (
+              <button
+                onClick={async () => {
+                  setExporting(true);
+                  const r = await workspaceApi.exportWorkspace(id);
+                  setExporting(false);
+                  if (!r.ok) alert(`Couldn't export: ${r.error}`);
+                }}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-border hover:border-emerald/40 hover:bg-emerald/5 transition text-sm text-muted hover:text-foreground disabled:opacity-50"
+                title="Download a JSON archive of this workspace"
+              >
+                {exporting ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                <span className="hidden sm:inline">{exporting ? "Exporting…" : "Export"}</span>
+              </button>
+            )}
             {isOwner && (
               <button
                 onClick={toggleArchive}

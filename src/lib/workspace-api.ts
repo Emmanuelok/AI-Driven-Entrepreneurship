@@ -367,6 +367,40 @@ export const workspaceApi = {
   sendDmMessage: (id: string, tid: string, body: string) =>
     call<{ message: { id: string; sender_user_id: string; body: string; created_at: string } }>(`/api/v2/workspaces/${id}/dms/${tid}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
 
+  // ── Export ──────────────────────────────────────────────────────────
+  // Bespoke: we want the browser to save the response as a file rather
+  // than parse it as JSON. We do an authenticated fetch then create a
+  // blob URL.
+  exportWorkspace: async (id: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+    try {
+      const res = await fetch(`/api/v2/workspaces/${id}/export`, {
+        headers: { ...(await authHeader()) },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "request_failed" }));
+        return { ok: false, error: (body as { error?: string }).error ?? "request_failed" };
+      }
+      const blob = await res.blob();
+      // Pull the suggested filename from the Content-Disposition header
+      // if present; otherwise fall back to a sensible default.
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      const m = cd.match(/filename="?([^"]+)"?/i);
+      const filename = m?.[1] ?? `workspace-archive-${id}.json`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Defer the revoke so the click can flush.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  },
+
   // ── Activity log ────────────────────────────────────────────────────
   listActivity: (id: string, opts?: { kinds?: string[]; userId?: string; since?: string; until?: string; limit?: number; offset?: number }) => {
     const params = new URLSearchParams();
