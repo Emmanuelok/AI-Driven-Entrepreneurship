@@ -633,7 +633,7 @@ function Slice({ onNext }: { onNext: () => void }) {
         <div className="space-y-4">
           <div>
             <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Working name for this slice</div>
-            <Input placeholder="KubaCold Pilot" value={vname} onChange={(e) => setVname(e.target.value)} />
+            <Input placeholder="Your pilot's working name" value={vname} onChange={(e) => setVname(e.target.value)} />
           </div>
           <div>
             <div className="text-xs uppercase tracking-widest text-muted mb-1.5">The slice — exactly what you'll deliver</div>

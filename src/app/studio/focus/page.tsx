@@ -76,7 +76,7 @@ export default function FocusPage() {
         <Card className="p-8">
           <div>
             <div className="text-xs uppercase tracking-widest text-muted mb-1.5">What are you focusing on?</div>
-            <Input placeholder="e.g. Draft customer interview script for KubaCold" value={task} onChange={(e) => setTask(e.target.value)} />
+            <Input placeholder="e.g. Draft customer interview script for your venture" value={task} onChange={(e) => setTask(e.target.value)} />
           </div>
           <div className="mt-5">
             <div className="text-xs uppercase tracking-widest text-muted mb-2">Duration</div>

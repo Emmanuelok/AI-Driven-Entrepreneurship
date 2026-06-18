@@ -176,32 +176,10 @@ export const useExt = create<State>()(
       },
 
       seedCohort: () => {
-        if (get().cohorts.length > 0) return;
-        const cohort: Cohort = {
-          id: "knust-w24",
-          name: "KNUST Sankofa W24",
-          institution: "KNUST",
-          startDate: "2026-01-15",
-          endDate: "2026-04-15",
-          members: [
-            { id: "m1", name: "Ama Mensah", venture: "KubaCold", xp: 4820, level: 7 },
-            { id: "m2", name: "Kojo Asante", venture: "KubaCold", xp: 4210, level: 6 },
-            { id: "m3", name: "Akosua Boateng", venture: "SmartFarm", xp: 5630, level: 8 },
-            { id: "m4", name: "Yaw Owusu", venture: "AgriSync", xp: 3890, level: 5 },
-            { id: "m5", name: "Adwoa Asare", venture: "ClinicAI", xp: 6240, level: 9 },
-            { id: "m6", name: "Kwame Boateng", venture: "MarketMate", xp: 2780, level: 4 },
-            { id: "m7", name: "Esi Mensah", venture: "Wakili", xp: 5120, level: 7 },
-            { id: "m8", name: "Nana Asante", xp: 1980, level: 3 },
-          ],
-          milestones: [
-            { id: "ms1", title: "Pick a real problem from Hub", due: "2026-01-22", status: "done" },
-            { id: "ms2", title: "Complete 20 customer interviews", due: "2026-02-12", status: "done" },
-            { id: "ms3", title: "Ship MVP demo", due: "2026-03-05", status: "in-progress" },
-            { id: "ms4", title: "Acquire first 10 paying customers", due: "2026-03-26", status: "upcoming" },
-            { id: "ms5", title: "Demo day pitch", due: "2026-04-12", status: "upcoming" },
-          ],
-        };
-        set({ cohorts: [cohort] });
+        // Production: cohorts come from a real instructor account
+        // creating one and inviting students by email. Removed the
+        // demo "KNUST W24" seed so this surface is empty until a real
+        // cohort is created.
       },
 
       _hydrate: () => set({ hydrated: true }),

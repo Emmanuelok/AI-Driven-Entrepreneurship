@@ -76,7 +76,7 @@ Authorized Signature              Authorized Signature
     estReadingMinutes: 12,
     universal: true,
     vars: [
-      { key: "company", label: "Company name", placeholder: "KubaCold Ltd" },
+      { key: "company", label: "Company name", placeholder: "Your company name" },
       { key: "founder1", label: "Founder 1 name + email" },
       { key: "founder1_pct", label: "Founder 1 equity %", placeholder: "40" },
       { key: "founder1_role", label: "Founder 1 role", placeholder: "CEO" },

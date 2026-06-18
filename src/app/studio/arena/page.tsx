@@ -8,21 +8,17 @@ import { Trophy, Plus, Sparkles, Heart, ArrowRight, Flame, Crown, Star } from "l
 import { Markdown } from "@/components/markdown";
 import { LiveBuildersStrip } from "@/components/live-builders-strip";
 
-const SEED_PITCHES = [
-  { id: "s1", title: "KubaCold", ventureName: "KubaCold", founderName: "Ama Mensah", pitchText: "Solar microcold-storage for tomato co-ops in Northern Ghana. Pay-per-crate. 80% loss reduction at the Yendi pilot. $2.2k MRR after 6 weeks. 11 LOIs signed. Raising $250k pre-seed to deploy to 12 more co-ops.", votes: 487, judgeScore: { problem: 9, solution: 8, market: 9, team: 7, ask: 8, overall: 8.2, feedback: "Strong founder-problem fit. Distribution wedge is the killer differentiator." } },
-  { id: "s2", title: "KiviPay", ventureName: "KiviPay", founderName: "Achieng' Otieno", pitchText: "Cross-border payments for diaspora-to-Africa remittance. Sub-1% fees vs Western Union's 8%. $8.4k MRR, 1,200 customers. CBK aggregator license filed. Raising $1.5M seed to expand to 5 corridors.", votes: 412, judgeScore: { problem: 8, solution: 8, market: 9, team: 8, ask: 7, overall: 8.0, feedback: "Crowded space — need sharper wedge story. Strong unit economics." } },
-  { id: "s3", title: "TriageGPT", ventureName: "TriageGPT", founderName: "Adaeze Nwosu", pitchText: "AI co-pilot for Community Health Workers in rural Nigeria. Multimodal triage: photo + voice in Pidgin/Hausa/Yoruba. Tested in 11 clinics, 40% improvement in correct first-pass diagnoses. Raising $200k pre-seed.", votes: 356, judgeScore: { problem: 10, solution: 7, market: 8, team: 8, ask: 7, overall: 8.0, feedback: "Highest-impact problem on the arena. Regulatory path needs more clarity." } },
-  { id: "s4", title: "Koeso", ventureName: "Koeso", founderName: "Boubacar Diallo", pitchText: "GPS+IoT trackers + ML for artisanal fishery cooperatives in Senegal. Catch reporting, illegal-fishing detection, certification for premium European buyers. 3 pilots running.", votes: 287, judgeScore: { problem: 7, solution: 8, market: 6, team: 7, ask: 6, overall: 6.8, feedback: "Niche but defensible. Market size questions." } },
-  { id: "s5", title: "Lelapa AI", ventureName: "Lelapa AI", founderName: "Karen Wanjiku", pitchText: "Foundation models in 12 African languages. Already deployed across 8 banks for KYC voice. $40k MRR. Series A next quarter.", votes: 244, judgeScore: { problem: 9, solution: 9, market: 9, team: 9, ask: 8, overall: 8.8, feedback: "Best traction on the arena. Sharpen the moat story for Series A diligence." } },
-];
-
 export default function ArenaPage() {
   const { pitches, submitPitch, votePitch, judgePitch } = useExt();
   const { user, ventures, unlockBadge } = useStore();
   const [submitting, setSubmitting] = useState(false);
   const [judging, setJudging] = useState<string | null>(null);
 
-  const all = [...SEED_PITCHES, ...pitches].sort((a, b) => (b.judgeScore?.overall ?? 0) * 100 + b.votes - ((a.judgeScore?.overall ?? 0) * 100 + a.votes));
+  // Only real, user-submitted pitches show on the leaderboard. The
+  // arena was previously seeded with placeholder pitches to make it
+  // look populated — those misled visitors about what was real and
+  // are now gone.
+  const all = [...pitches].sort((a, b) => (b.judgeScore?.overall ?? 0) * 100 + b.votes - ((a.judgeScore?.overall ?? 0) * 100 + a.votes));
   const totalVotes = all.reduce((s, p) => s + p.votes, 0);
 
   return (
@@ -46,12 +42,20 @@ export default function ArenaPage() {
 
       <LiveBuildersStrip area="arena" className="mb-6" />
 
-      <div className="grid sm:grid-cols-4 gap-3 mb-8">
+      <div className="grid sm:grid-cols-3 gap-3 mb-8">
         <Stat label="Pitches submitted" value={all.length} color="emerald" />
         <Stat label="Community votes" value={totalVotes.toLocaleString()} color="amber" />
         <Stat label="Top score" value={all[0]?.judgeScore?.overall.toFixed(1) ?? "—"} color="indigo" />
-        <Stat label="Investor intros made" value="7" color="rust" sub="last 30 days" />
       </div>
+
+      {all.length === 0 && (
+        <EmptyState
+          icon={Trophy}
+          title="The arena is open."
+          body="No pitches have been submitted yet. Be the first — get scored by the AI panel, climb the leaderboard, win an investor intro."
+          action={<Button onClick={() => setSubmitting(true)}><Plus className="size-4" /> Submit the first pitch</Button>}
+        />
+      )}
 
       <div className="grid gap-3">
         {all.map((p, i) => (

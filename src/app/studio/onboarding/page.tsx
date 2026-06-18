@@ -28,7 +28,7 @@ type Form = {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { signIn, addDeck, addCard, createVenture, notify } = useStore();
+  const { signIn, addDeck, addCard, notify } = useStore();
   const { setGenome, remember } = useMe();
   const [stage, setStage] = useState<"hello" | "identity" | "place" | "school" | "department" | "program" | "preview" | "genome" | "weaving" | "ready">("hello");
   const [form, setForm] = useState<Form>({
@@ -58,24 +58,14 @@ export default function OnboardingPage() {
       d.cards.forEach((c) => addCard({ deckId: id, front: c.front, back: c.back }));
     });
 
-    createVenture({
-      name: "KubaCold",
-      tagline: ctx?.department.suggestedVentureSeed ?? "Solar microcold-storage for tomato co-ops in Northern Ghana",
-      problemId: ctx?.department.relevantProblemIds?.[0] ?? "post-harvest-loss",
-      phase: "discover",
-      region: form.country,
-      metrics: { interviewsTarget: 20, revenue: 0, customers: 0, mrr: 0 },
-      mvpTasks: [],
-      team: [{ name: form.name, role: "Co-founder, CEO" }],
-      interviews: [],
-      canvas: {},
-      fundingTarget: 50_000, fundingRaised: 0,
-      achievements: [],
-    });
+    // Don't auto-create a venture. The first venture is the founder's
+    // own decision — the studio surfaces problem suggestions in the
+    // Atlas and Brainstorm tabs so they can pick a real direction
+    // instead of editing a placeholder.
 
     remember({ fact: `Studies ${fieldName}; from ${form.country}; speaks ${form.primaryLanguage}.`, kind: "context", source: "explicit", importance: 5 });
     remember({ fact: `Genome totem: ${genome.totem}, motivation: ${genome.motivation}, primary fear: ${genome.primaryFear}.`, kind: "preference", source: "explicit", importance: 5 });
-    notify({ title: `Akwaaba, ${form.name.split(" ")[0]}`, body: `Your studio is tuned to ${fieldName}.` });
+    notify({ title: `Akwaaba, ${form.name.split(" ")[0]}`, body: `Your studio is tuned to ${fieldName}. Start your first venture when you're ready.` });
 
     router.push("/studio");
   }
@@ -219,7 +209,7 @@ function Identity({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: 
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Ama Mensah"
+            placeholder="Your full name"
             className={`bg-surface-2 border rounded-xl px-4 py-3 text-base outline-none w-full transition ${
               nameOk || form.name.trim().length === 0 ? "border-border focus:border-emerald" : "border-amber/50 focus:border-amber"
             }`}
@@ -233,7 +223,7 @@ function Identity({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: 
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            placeholder="you@example.com"
+            placeholder="you@yourschool.edu"
             className={`bg-surface-2 border rounded-xl px-4 py-3 text-base outline-none w-full transition ${
               emailOk || !emailStarted ? "border-border focus:border-emerald" : "border-amber/50 focus:border-amber"
             }`}

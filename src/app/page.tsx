@@ -187,10 +187,11 @@ function Scene1Hero() {
 function Scene2Mirror() {
   const [idx, setIdx] = useState(0);
   useEffect(() => {
+    if (HOOKS.length === 0) return;
     const t = setInterval(() => setIdx((i) => (i + 1) % HOOKS.length), 4200);
     return () => clearInterval(t);
   }, []);
-  const hook = HOOKS[idx];
+  const hook = HOOKS[idx] ?? { field: "your discipline", line: "Your studio is shaped by who you are, what you study, and where you build from." };
 
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
@@ -254,6 +255,12 @@ function Scene2Mirror() {
 function Scene3LivingExamples() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
+
+  // We only render this "live feed" section when there are actual
+  // shipped artifacts to show. Empty list = skip the whole scene
+  // rather than ship a section full of placeholders.
+  if (STORIES.length === 0) return null;
+
   return (
     <section ref={ref} className="relative py-24 sm:py-32 px-5 sm:px-8 border-y border-border bg-surface/30">
       <div className="max-w-7xl mx-auto">
@@ -265,7 +272,7 @@ function Scene3LivingExamples() {
         >
           <p className="text-xs uppercase tracking-[0.25em] text-emerald mb-4">Today on Sankofa</p>
           <h2 className="font-[family-name:var(--font-display)] text-3xl sm:text-5xl font-semibold leading-[1.1]">
-            Students shipped <span className="text-emerald italic">real things</span> in the last hour.
+            Builders shipped <span className="text-emerald italic">real things</span> in the last hour.
           </h2>
           <p className="mt-5 text-muted text-lg leading-relaxed">
             Not lessons completed. Not certificates earned. <span className="text-foreground">Letters signed.

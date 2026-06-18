@@ -27,31 +27,13 @@ export const HOTSPOTS: GeoPoint[] = [
   { id: "p-cocoa-civ", name: "Cocoa farmer poverty", country: "Côte d'Ivoire", lng: -5.55, lat: 7.55, type: "problem", meta: "1M+ farmers", hot: 5 },
   { id: "p-waste-cairo", name: "Urban waste-to-value", country: "Egypt", lng: 31.24, lat: 30.04, type: "problem", meta: "Cairo 22M", hot: 4 },
 
-  // Ventures (green)
-  { id: "v-kubacold", name: "KubaCold", country: "Ghana", lng: -0.85, lat: 9.41, type: "venture", meta: "Solar cold chain", hot: 4 },
-  { id: "v-triagegpt", name: "TriageGPT", country: "Nigeria", lng: 3.4, lat: 6.5, type: "venture", meta: "CHW co-pilot", hot: 3 },
-  { id: "v-kivipay", name: "KiviPay", country: "Kenya", lng: 36.82, lat: -1.29, type: "venture", meta: "Cross-border payments", hot: 4 },
-  { id: "v-sahelwx", name: "SahelWeather", country: "Burkina Faso", lng: -1.53, lat: 12.37, type: "venture", meta: "Climate voice notes", hot: 3 },
-  { id: "v-koeso", name: "Koeso", country: "Senegal", lng: -17.47, lat: 14.72, type: "venture", meta: "Fishery telematics", hot: 3 },
-  { id: "v-ndizi", name: "Ndizi Cloud", country: "Tanzania", lng: 39.27, lat: -6.82, type: "venture", meta: "Banana cold logistics", hot: 3 },
-
-  // Mentors (amber)
-  { id: "m-ia", name: "Iyinoluwa Aboyeji", country: "Nigeria", lng: 3.42, lat: 6.49, type: "mentor", meta: "Future Africa", hot: 5 },
-  { id: "m-re", name: "Rebecca Enonchong", country: "Cameroon", lng: 9.7, lat: 4.05, type: "mentor", meta: "AppsTech", hot: 5 },
-  { id: "m-hs", name: "Ham Serunjogi", country: "Uganda", lng: 32.58, lat: 0.34, type: "mentor", meta: "Chipper Cash", hot: 5 },
-  { id: "m-ka", name: "Kola Aina", country: "Nigeria", lng: 3.41, lat: 6.48, type: "mentor", meta: "Ventures Platform", hot: 5 },
-  { id: "m-sa", name: "Shola Akinlade", country: "Nigeria", lng: 3.39, lat: 6.46, type: "mentor", meta: "Paystack", hot: 5 },
-  { id: "m-rmt", name: "Rose Mutiso", country: "Kenya", lng: 36.83, lat: -1.3, type: "mentor", meta: "Energy for Growth", hot: 4 },
-  { id: "m-ace", name: "Audrey Cheng", country: "Kenya", lng: 36.81, lat: -1.28, type: "mentor", meta: "Moringa School", hot: 4 },
-  { id: "m-afb", name: "Ange Frederick", country: "Côte d'Ivoire", lng: -4.02, lat: 5.36, type: "mentor", meta: "LifeBank CI", hot: 4 },
-
-  // Cohorts (indigo)
-  { id: "c-knust", name: "KNUST cohort W24", country: "Ghana", lng: -1.57, lat: 6.68, type: "cohort", meta: "671 learners", hot: 4 },
-  { id: "c-unilag", name: "UNILAG cohort", country: "Nigeria", lng: 3.4, lat: 6.52, type: "cohort", meta: "1,204 learners", hot: 5 },
-  { id: "c-uonbi", name: "UoN cohort", country: "Kenya", lng: 36.82, lat: -1.28, type: "cohort", meta: "892 learners", hot: 4 },
-  { id: "c-wits", name: "Wits cohort", country: "South Africa", lng: 28.03, lat: -26.19, type: "cohort", meta: "445 learners", hot: 3 },
-  { id: "c-makerere", name: "Makerere cohort", country: "Uganda", lng: 32.57, lat: 0.33, type: "cohort", meta: "312 learners", hot: 3 },
-  { id: "c-asesa", name: "Ashesi cohort", country: "Ghana", lng: -0.21, lat: 5.76, type: "cohort", meta: "248 learners", hot: 3 },
+  // Ventures, mentors, and cohorts populate from real registrations:
+  // a venture appears here when a founder publishes one publicly, a
+  // mentor pin appears when someone signs up with the mentor account
+  // type and sets their home base, and a cohort appears when an
+  // instructor connects a real cohort. Until then the map shows just
+  // the problem layer so visitors see the real surface area of work,
+  // not a fabricated network of activity.
 ];
 
 // project lat/lng to 0-1000 viewport coords (rough equirectangular for Africa)

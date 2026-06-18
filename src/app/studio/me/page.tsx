@@ -135,7 +135,7 @@ export default function MePage() {
               <Button size="sm" onClick={() => setGoalDialog(true)}><Plus className="size-3.5" /> New goal</Button>
             </div>
             {goals.length === 0 ? (
-              <p className="text-sm text-muted">No goals yet. Goals let Sage know what to nudge you about and what to prioritize. Try: "Validate KubaCold with 20 interviews by April 30."</p>
+              <p className="text-sm text-muted">No goals yet. Goals let Sage know what to nudge you about and what to prioritize. Try: &quot;Validate my venture with 20 customer interviews by month-end.&quot;</p>
             ) : (
               <div className="space-y-2">
                 {activeGoals.map((g) => {
@@ -313,7 +313,7 @@ function GoalForm({ onCreate }: { onCreate: (g: { text: string; category: "learn
     <div className="space-y-3">
       <div>
         <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Goal</div>
-        <Textarea placeholder="e.g. Validate KubaCold with 20 interviews by April 30" value={text} onChange={(e) => setText(e.target.value)} rows={3} />
+        <Textarea placeholder="e.g. Validate my venture with 20 customer interviews by month-end" value={text} onChange={(e) => setText(e.target.value)} rows={3} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
