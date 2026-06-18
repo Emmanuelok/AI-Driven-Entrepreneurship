@@ -357,6 +357,10 @@ export const workspaceApi = {
   sendDmMessage: (id: string, tid: string, body: string) =>
     call<{ message: { id: string; sender_user_id: string; body: string; created_at: string } }>(`/api/v2/workspaces/${id}/dms/${tid}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
 
+  // ── Personal insights ───────────────────────────────────────────────
+  getInsights: (id: string, days = 7) =>
+    call<{ insights: { windowDays: number; tasksClosed: number; deadlinesHit: number; messagesSent: number; filesAdded: number; tasksCreated: number; notesEdited: number; activeDays: number; totalEvents: number; momentum: "on-fire" | "steady" | "light" | "quiet"; headline: string } }>(`/api/v2/workspaces/${id}/insights?days=${days}`),
+
   // ── Read receipts ───────────────────────────────────────────────────
   getReads: (id: string) =>
     call<{ results: { user_id: string; last_read_at: string }[] }>(`/api/v2/workspaces/${id}/reads`),

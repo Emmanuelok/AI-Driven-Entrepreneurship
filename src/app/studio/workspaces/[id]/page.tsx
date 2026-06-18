@@ -15,6 +15,7 @@ import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { useDiscussionUnread } from "@/lib/use-discussion-unread";
 import { useDmInbox } from "@/lib/use-dm-inbox";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
+import { WorkspaceInsightsCard } from "@/components/workspace-insights-card";
 import { WorkspaceSearchDialog } from "@/components/workspace-search-dialog";
 import { WorkspaceActivityList } from "@/components/workspace-activity-list";
 
@@ -254,6 +255,9 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         {tab === "overview" && (
         <div className="grid lg:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-6">
+            {/* Personal 'your week here' insights */}
+            <WorkspaceInsightsCard workspaceId={id} accent={accent} />
+
             {/* Sage's read — AI synthesis of the whole workspace */}
             <WorkspaceSynthesisCard workspaceId={id} accent={accent} />
 
