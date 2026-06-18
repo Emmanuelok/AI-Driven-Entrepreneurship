@@ -38,6 +38,20 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
   function clearSelection() { setSelected(new Set()); }
   const [adding, setAdding] = useState<TaskStatus | null>(null);
   const [editing, setEditing] = useState<WorkspaceTask | null>(null);
+  // Native HTML5 drag-and-drop state. `dragId` is the task being
+  // dragged; `dropCol` is the column currently hovered (for a visual
+  // ring). Touch users keep the arrow buttons; desktop users get drag.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropCol, setDropCol] = useState<TaskStatus | null>(null);
+
+  function onDropToColumn(status: TaskStatus) {
+    if (dragId) {
+      const t = tasks.find((x) => x.id === dragId);
+      if (t && t.status !== status) void move(dragId, status);
+    }
+    setDragId(null);
+    setDropCol(null);
+  }
 
   // Top-level cards form the columns; subtasks live inside their parent.
   const topLevel = useMemo(() => tasks.filter((t) => !t.parent_task_id), [tasks]);
@@ -86,8 +100,15 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
         {COLUMNS.map((col) => {
           const colTasks = byColumn[col.id];
           const idx = ORDER.indexOf(col.id);
+          const isDropTarget = dropCol === col.id && dragId !== null;
           return (
-            <div key={col.id} className="glass rounded-2xl p-3 flex flex-col min-h-[200px]">
+            <div
+              key={col.id}
+              onDragOver={canEdit ? (e) => { e.preventDefault(); if (dropCol !== col.id) setDropCol(col.id); } : undefined}
+              onDragLeave={canEdit ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropCol((c) => (c === col.id ? null : c)); } : undefined}
+              onDrop={canEdit ? (e) => { e.preventDefault(); onDropToColumn(col.id); } : undefined}
+              className={`glass rounded-2xl p-3 flex flex-col min-h-[200px] transition ${isDropTarget ? "ring-2 ring-emerald/50 bg-emerald/5" : ""}`}
+            >
               <div className="flex items-center justify-between px-1 mb-2">
                 <span className="text-xs font-medium flex items-center gap-1.5" style={{ color: col.color }}>
                   <col.icon className="size-3.5" /> {col.label}
@@ -122,6 +143,10 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
                     subtaskCount={subtaskCounts.get(t.id) ?? null}
                     selected={selected.has(t.id)}
                     onToggleSelect={canEdit ? () => toggleSelect(t.id) : undefined}
+                    draggable={canEdit}
+                    isDragging={dragId === t.id}
+                    onDragStart={() => setDragId(t.id)}
+                    onDragEnd={() => { setDragId(null); setDropCol(null); }}
                   />
                 ))}
               </div>
@@ -165,14 +190,23 @@ export function WorkspaceTasksPanel({ workspaceId, canEdit, members, accent }: {
   );
 }
 
-function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMoveRight, onOpen, subtaskCount, selected, onToggleSelect }: {
+function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMoveRight, onOpen, subtaskCount, selected, onToggleSelect, draggable, isDragging, onDragStart, onDragEnd }: {
   task: WorkspaceTask; canEdit: boolean; canMoveLeft: boolean; canMoveRight: boolean; onMoveLeft: () => void; onMoveRight: () => void; onOpen: () => void;
   subtaskCount: { open: number; total: number } | null;
   selected: boolean;
   onToggleSelect?: () => void;
+  draggable?: boolean;
+  isDragging?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }) {
   return (
-    <div className={`relative rounded-xl border bg-surface-2/40 hover:border-emerald/30 transition group ${selected ? "border-emerald/60 ring-1 ring-emerald/30" : "border-border"}`}>
+    <div
+      draggable={draggable}
+      onDragStart={draggable ? (e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", task.id); onDragStart?.(); } : undefined}
+      onDragEnd={draggable ? onDragEnd : undefined}
+      className={`relative rounded-xl border bg-surface-2/40 hover:border-emerald/30 transition group ${draggable ? "cursor-grab active:cursor-grabbing" : ""} ${isDragging ? "opacity-40" : ""} ${selected ? "border-emerald/60 ring-1 ring-emerald/30" : "border-border"}`}
+    >
       {onToggleSelect && (
         <button
           onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
