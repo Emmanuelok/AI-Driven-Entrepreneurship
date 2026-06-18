@@ -7,10 +7,27 @@ export const dynamic = "force-dynamic";
 // public-safe payload (we never auto-derive from sankofa_main, so the
 // owner has explicit control over what leaks).
 //
-// Body: { ventureId, slug, payload }
+// Body: { ventureId, slug, payload, sectors?, stage?, isRaising?,
+//         raisingAmountUsd?, region? }
 // Returns: { ok, slug, url }
+//
+// The new filter fields (sectors, stage, is_raising, raising_amount,
+// region) populate the columns added in 0043 so the investor browse
+// surface can sort and filter without unpacking the jsonb payload on
+// every query. They're all optional — omitting them leaves the row
+// out of the corresponding filter chip but still reachable directly
+// at /v/[slug].
 
-type Body = { ventureId: string; slug: string; payload: unknown };
+type Body = {
+  ventureId: string;
+  slug: string;
+  payload: unknown;
+  sectors?: string[];
+  stage?: string;
+  isRaising?: boolean;
+  raisingAmountUsd?: number;
+  region?: string;
+};
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{2,40}$/;
 
@@ -45,11 +62,32 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: "That slug is taken." }, { status: 409 });
   }
 
+  // Light sanitization of filter fields. Drop weird values rather
+  // than 400 — the payload is the source of truth, these are for
+  // discovery filters and can be re-uploaded freely.
+  const STAGES = ["idea", "discover", "mvp", "launch", "scale"];
+  const cleanStage = body.stage && STAGES.includes(body.stage) ? body.stage : null;
+  const cleanSectors = Array.isArray(body.sectors)
+    ? body.sectors.map((s) => String(s).trim()).filter((s) => s.length > 0 && s.length <= 40).slice(0, 10)
+    : [];
+  const cleanRegion = typeof body.region === "string" && body.region.trim().length > 0
+    ? body.region.trim().slice(0, 80)
+    : null;
+  const cleanRaisingAmount = typeof body.raisingAmountUsd === "number" && body.raisingAmountUsd >= 0 && body.raisingAmountUsd < 1e10
+    ? Math.floor(body.raisingAmountUsd)
+    : null;
+  const cleanIsRaising = !!body.isRaising;
+
   const { error } = await sb.from("public_ventures").upsert({
     slug,
     owner_id: userId,
     venture_id: body.ventureId,
     payload: body.payload,
+    sectors: cleanSectors,
+    stage: cleanStage,
+    is_raising: cleanIsRaising,
+    raising_amount_usd: cleanRaisingAmount,
+    region: cleanRegion,
     updated_at: new Date().toISOString(),
   });
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
