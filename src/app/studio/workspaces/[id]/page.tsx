@@ -12,6 +12,7 @@ import { CoPresence } from "@/components/co-presence";
 import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-schedule";
 import { describeRule, type RecurrenceRule, type WeekdayCode } from "@/lib/recurrence";
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
+import { useDiscussionUnread } from "@/lib/use-discussion-unread";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 import { WorkspaceSearchDialog } from "@/components/workspace-search-dialog";
 import { WorkspaceActivityList } from "@/components/workspace-activity-list";
@@ -75,6 +76,11 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
     deadlines: ws.deadlines,
     myRole: ws.myRole,
   });
+
+  // Unread badge on the Discussion tab — counts messages newer than my
+  // watermark that aren't mine. Lives at the room level so it stays
+  // accurate even while the user is reading another tab.
+  const unread = useDiscussionUnread(id);
 
   if (ws.loading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="size-6 text-emerald animate-spin" /></div>;
@@ -192,6 +198,11 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
               }`}
             >
               <t.icon className="size-3.5" /> {t.label}
+              {t.id === "discussion" && unread > 0 && tab !== "discussion" && (
+                <span className="ml-1 inline-flex items-center justify-center text-[10px] font-bold rounded-full bg-rust text-white min-w-[16px] h-4 px-1" aria-label={`${unread} unread`}>
+                  {unread > 60 ? "60+" : unread}
+                </span>
+              )}
             </button>
           ))}
         </div>
