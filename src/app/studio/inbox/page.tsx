@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { profileApi, type ContactRequest } from "@/lib/profile-api";
+import { workspaceApi, type WorkspaceListing } from "@/lib/workspace-api";
 import { getAccountTypeDef } from "@/lib/account-types";
 import { Card, Button, Badge, Textarea } from "@/components/ui";
 import { formatDistanceToNow } from "date-fns";
-import { Inbox as InboxIcon, Send, Loader2, Check, X, Archive, Mail } from "lucide-react";
+import { Inbox as InboxIcon, Send, Loader2, Check, X, Archive, Mail, Users } from "lucide-react";
 
 // Contact inbox. Two tabs: requests you've RECEIVED (act on them) and
 // requests you've SENT (track responses). The received list is the
@@ -17,6 +18,11 @@ export default function InboxPage() {
   const [received, setReceived] = useState<ContactRequest[]>([]);
   const [sent, setSent] = useState<ContactRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  // Workspaces the caller can admin — used to populate the "invite to
+  // a workspace" picker on the accept flow. Loaded once on mount; the
+  // user can flip back to the inbox after creating a new workspace
+  // and they'll see it next reload.
+  const [adminWorkspaces, setAdminWorkspaces] = useState<WorkspaceListing[]>([]);
 
   async function load(markRead = false) {
     const r = await profileApi.getContacts(markRead);
@@ -25,6 +31,17 @@ export default function InboxPage() {
   }
 
   useEffect(() => { void load(true); }, []);
+
+  useEffect(() => {
+    (async () => {
+      const r = await workspaceApi.list();
+      if (r.ok) {
+        // Only workspaces where the caller is owner or admin can mint
+        // invites — anything below is read-only here.
+        setAdminWorkspaces(r.results.filter((w) => w.role === "owner" || w.role === "admin"));
+      }
+    })();
+  }, []);
 
   const activeReceived = received.filter((r) => r.status !== "archived");
 
@@ -65,7 +82,7 @@ export default function InboxPage() {
         ) : (
           <div className="space-y-3">
             {activeReceived.map((r) => (
-              <ReceivedCard key={r.id} req={r} onChanged={() => load(false)} />
+              <ReceivedCard key={r.id} req={r} adminWorkspaces={adminWorkspaces} onChanged={() => load(false)} />
             ))}
           </div>
         )
@@ -109,16 +126,31 @@ function StatusBadge({ status }: { status: ContactRequest["status"] }) {
   return <Badge color={m.color}>{m.label}</Badge>;
 }
 
-function ReceivedCard({ req, onChanged }: { req: ContactRequest; onChanged: () => void }) {
+function ReceivedCard({ req, adminWorkspaces, onChanged }: { req: ContactRequest; adminWorkspaces: WorkspaceListing[]; onChanged: () => void }) {
   const def = getAccountTypeDef(req.from_account_type as never);
   const [replying, setReplying] = useState<"accepted" | "declined" | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // Workspace invite picker — only meaningful on accept. Empty string
+  // means "no invite, just reply." Defaults to none so accepting
+  // without thinking about workspaces stays as easy as before.
+  const [inviteWsId, setInviteWsId] = useState<string>("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "editor" | "viewer">("editor");
 
   async function respond(status: "accepted" | "declined" | "archived", withReply = false) {
     setBusy(true);
-    await profileApi.respondToContact(req.id, status, withReply ? reply.trim() || undefined : undefined);
+    setErr(null);
+    const r = await profileApi.respondToContact(req.id, status, {
+      reply_body: withReply ? reply.trim() || undefined : undefined,
+      inviteWorkspaceId: status === "accepted" && inviteWsId ? inviteWsId : undefined,
+      inviteRole: status === "accepted" && inviteWsId ? inviteRole : undefined,
+    });
     setBusy(false);
+    if (!r.ok) {
+      setErr(r.error === "invite_forbidden" ? "You're not admin on that workspace anymore." : "Couldn't save your response. Try again.");
+      return;
+    }
     setReplying(null);
     onChanged();
   }
@@ -145,9 +177,15 @@ function ReceivedCard({ req, onChanged }: { req: ContactRequest; onChanged: () =
         </div>
       )}
 
+      {req.invite_workspace_id && req.status === "accepted" && (
+        <p className="mt-3 text-xs text-emerald inline-flex items-center gap-1.5">
+          <Users className="size-3" /> You attached a workspace invite to this acceptance.
+        </p>
+      )}
+
       {req.status === "pending" && (
         replying ? (
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-3">
             <Textarea
               value={reply}
               onChange={(e) => setReply(e.target.value)}
@@ -156,11 +194,46 @@ function ReceivedCard({ req, onChanged }: { req: ContactRequest; onChanged: () =
                 ? "Optional: how to continue — your email, a calendar link, or 'I'll DM you in a workspace'."
                 : "Optional: a kind note on why now isn't a fit."}
             />
+            {replying === "accepted" && adminWorkspaces.length > 0 && (
+              <div className="rounded-xl border border-emerald/20 bg-emerald/5 p-3 space-y-2">
+                <div className="text-[11px] uppercase tracking-widest text-emerald flex items-center gap-1.5">
+                  <Users className="size-3" /> Optionally invite into a workspace
+                </div>
+                <div className="grid sm:grid-cols-[1fr_auto] gap-2">
+                  <select
+                    value={inviteWsId}
+                    onChange={(e) => setInviteWsId(e.target.value)}
+                    className="bg-surface-2 border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald w-full"
+                  >
+                    <option value="">— Just reply, no invite —</option>
+                    {adminWorkspaces.map((w) => (
+                      <option key={w.id} value={w.id}>{w.title}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as typeof inviteRole)}
+                    disabled={!inviteWsId}
+                    className="bg-surface-2 border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald disabled:opacity-40"
+                  >
+                    <option value="viewer">as viewer</option>
+                    <option value="editor">as editor</option>
+                    <option value="admin">as admin</option>
+                  </select>
+                </div>
+                <p className="text-[11px] text-muted leading-snug">
+                  Mints a single-use email-targeted invite that expires in 14 days. They&apos;ll see a &quot;Join {inviteWsId ? adminWorkspaces.find((w) => w.id === inviteWsId)?.title : "workspace"} →&quot; button in their inbox.
+                </p>
+              </div>
+            )}
+            {err && <p className="text-xs text-rust">{err}</p>}
             <div className="flex items-center gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setReplying(null)} disabled={busy}>Cancel</Button>
+              <Button variant="ghost" size="sm" onClick={() => { setReplying(null); setErr(null); }} disabled={busy}>Cancel</Button>
               <Button size="sm" onClick={() => respond(replying, true)} disabled={busy}>
                 {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
-                {replying === "accepted" ? "Accept + send reply" : "Decline + send note"}
+                {replying === "accepted"
+                  ? (inviteWsId ? "Accept + invite + reply" : "Accept + send reply")
+                  : "Decline + send note"}
               </Button>
             </div>
           </div>
@@ -183,6 +256,7 @@ function ReceivedCard({ req, onChanged }: { req: ContactRequest; onChanged: () =
 }
 
 function SentCard({ req }: { req: ContactRequest }) {
+  const accepted = req.status === "accepted";
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -194,10 +268,25 @@ function SentCard({ req }: { req: ContactRequest }) {
       </div>
       {req.subject && <div className="text-sm font-medium mb-1">{req.subject}</div>}
       <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{req.body}</p>
-      {req.status === "accepted" && req.reply_body && (
+      {accepted && (req.reply_body || req.invite_token) && (
         <div className="mt-3 pt-3 border-t border-emerald/20 bg-emerald/5 -mx-5 -mb-5 px-5 pb-5 rounded-b-2xl">
-          <div className="text-[10px] uppercase tracking-widest text-emerald mb-1 mt-3">They replied</div>
-          <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{req.reply_body}</p>
+          {req.reply_body && (
+            <>
+              <div className="text-[10px] uppercase tracking-widest text-emerald mb-1 mt-3">They replied</div>
+              <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{req.reply_body}</p>
+            </>
+          )}
+          {req.invite_token && req.invite_workspace && (
+            <div className="mt-3 flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-sm">
+                <Users className="size-4 text-emerald" />
+                <span>You were invited to <strong>{req.invite_workspace.title}</strong></span>
+              </div>
+              <Link href={`/i/${req.invite_token}`}>
+                <Button size="sm">Join workspace</Button>
+              </Link>
+            </div>
+          )}
         </div>
       )}
       {req.status === "declined" && (

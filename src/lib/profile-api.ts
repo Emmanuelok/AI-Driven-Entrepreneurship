@@ -47,6 +47,14 @@ export type ContactRequest = {
   created_at: string;
   responded_at: string | null;
   read_by_recipient: boolean;
+  // Workspace invite attached to the acceptance, if any. Only the
+  // SENT list carries the hydrated invite_token + invite_workspace
+  // (the recipient already has full workspace context, so the list
+  // skips that fetch for them).
+  invite_id?: string | null;
+  invite_workspace_id?: string | null;
+  invite_token?: string | null;
+  invite_workspace?: { id: string; title: string; accent: string } | null;
 };
 
 async function authHeader(): Promise<Record<string, string>> {
@@ -110,10 +118,28 @@ export const profileApi = {
       `/api/v2/me/contacts${markRead ? "?markRead=1" : ""}`,
     ),
 
-  // Respond to a received request.
-  respondToContact: (id: string, status: "accepted" | "declined" | "archived", reply_body?: string) =>
-    call<{ request: { id: string; status: string; reply_body: string | null; responded_at: string | null } }>(
+  // Respond to a received request. On accept, optionally attach a
+  // workspace invite — server enforces that you must be admin+ on the
+  // chosen workspace and mints the invite via the same workspace_invites
+  // pipeline /studio/workspaces uses.
+  respondToContact: (
+    id: string,
+    status: "accepted" | "declined" | "archived",
+    opts?: { reply_body?: string; inviteWorkspaceId?: string; inviteRole?: "admin" | "editor" | "viewer" },
+  ) =>
+    call<{
+      request: { id: string; status: string; reply_body: string | null; responded_at: string | null; invite_id: string | null; invite_workspace_id: string | null };
+      invite: { id: string; token: string; workspaceId: string } | null;
+    }>(
       `/api/v2/me/contacts/${id}`,
-      { method: "PATCH", body: JSON.stringify({ status, reply_body }) },
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          status,
+          reply_body: opts?.reply_body,
+          inviteWorkspaceId: opts?.inviteWorkspaceId,
+          inviteRole: opts?.inviteRole,
+        }),
+      },
     ),
 };
