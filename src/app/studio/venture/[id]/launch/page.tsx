@@ -141,8 +141,12 @@ ${u.metrics}`;
     const slug = prompt("Pick a slug for the public URL — sankofa.studio/v/SLUG. Letters, digits, hyphens. 3-40 chars.", proposedSlug);
     if (!slug) return;
 
-    // Public-safe projection — owner controls what's exposed.
+    // Public-safe projection — owner controls what's exposed. We
+    // also alias name → title because the browse endpoint reads
+    // payload->>title for search; keeping `name` for back-compat
+    // with /v/[slug] readers that already use it.
     const publicPayload = {
+      title: v.name,
       name: v.name,
       tagline: v.tagline,
       region: v.region,
@@ -158,10 +162,35 @@ ${u.metrics}`;
       updates: v.updates?.slice(0, 1).map((u) => ({ month: u.month, highlights: u.highlights })),
     };
 
+    // Derive the new discovery filters from existing venture state —
+    // founders don't have to fill another form, and re-publishing
+    // refreshes these automatically. v.phase doubles as the stage
+    // filter; raise math comes from funding target vs raised; region
+    // comes through as-is. Sectors stay empty here — the venture
+    // doesn't carry them as a first-class field yet, and we'd rather
+    // omit the column than guess wrong.
+    const remainingRaise = Math.max(0, (v.fundingTarget ?? 0) - (v.fundingRaised ?? 0));
+    const isRaising = remainingRaise > 0;
+    // Map venture phases → public stage values accepted by the
+    // publish API. "ideate" collapses to "idea" so we don't lose
+    // pre-seed-shaped ventures from the stage filter.
+    const stageMap: Record<string, string> = {
+      ideate: "idea", idea: "idea", discover: "discover",
+      mvp: "mvp", launch: "launch", scale: "scale",
+    };
+    const stage = stageMap[v.phase] ?? "idea";
     const res = await fetch("/api/public/publish", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ ventureId: v.id, slug, payload: publicPayload }),
+      body: JSON.stringify({
+        ventureId: v.id,
+        slug,
+        payload: publicPayload,
+        stage,
+        region: v.region || undefined,
+        isRaising,
+        raisingAmountUsd: isRaising ? remainingRaise : undefined,
+      }),
     });
     const data = await res.json();
     if (!data.ok) { alert(data.error || "Couldn't publish."); return; }
