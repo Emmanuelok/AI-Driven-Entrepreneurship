@@ -286,12 +286,15 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
             {/* Activity */}
             <section>
-              <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold flex items-center gap-2 mb-3">
-                <Activity className="size-5 text-amber" /> Activity
-                <span className="text-[10px] uppercase tracking-widest text-muted font-normal flex items-center gap-1.5 ml-1">
-                  <span className="size-1.5 rounded-full bg-emerald animate-pulse" /> live
-                </span>
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold flex items-center gap-2">
+                  <Activity className="size-5 text-amber" /> Activity
+                  <span className="text-[10px] uppercase tracking-widest text-muted font-normal flex items-center gap-1.5 ml-1">
+                    <span className="size-1.5 rounded-full bg-emerald animate-pulse" /> live
+                  </span>
+                </h2>
+                <Link href={`/studio/workspaces/${id}/log`} className="text-xs text-emerald hover:underline">View all →</Link>
+              </div>
               <Card className="p-5 max-h-[460px] overflow-y-auto">
                 <WorkspaceActivityList activity={ws.activity} members={ws.members} />
               </Card>

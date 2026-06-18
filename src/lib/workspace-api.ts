@@ -367,6 +367,19 @@ export const workspaceApi = {
   sendDmMessage: (id: string, tid: string, body: string) =>
     call<{ message: { id: string; sender_user_id: string; body: string; created_at: string } }>(`/api/v2/workspaces/${id}/dms/${tid}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
 
+  // ── Activity log ────────────────────────────────────────────────────
+  listActivity: (id: string, opts?: { kinds?: string[]; userId?: string; since?: string; until?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.kinds && opts.kinds.length > 0) params.set("kinds", opts.kinds.join(","));
+    if (opts?.userId) params.set("userId", opts.userId);
+    if (opts?.since) params.set("since", opts.since);
+    if (opts?.until) params.set("until", opts.until);
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    if (opts?.offset) params.set("offset", String(opts.offset));
+    const qs = params.toString();
+    return call<{ results: WorkspaceActivity[]; total: number | null; distinctKinds: string[] }>(`/api/v2/workspaces/${id}/activity${qs ? `?${qs}` : ""}`);
+  },
+
   // ── Personal insights ───────────────────────────────────────────────
   getInsights: (id: string, days = 7) =>
     call<{ insights: { windowDays: number; tasksClosed: number; deadlinesHit: number; messagesSent: number; filesAdded: number; tasksCreated: number; notesEdited: number; activeDays: number; totalEvents: number; momentum: "on-fire" | "steady" | "light" | "quiet"; headline: string } }>(`/api/v2/workspaces/${id}/insights?days=${days}`),
