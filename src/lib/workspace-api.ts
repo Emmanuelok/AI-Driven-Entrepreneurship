@@ -178,6 +178,8 @@ export type WorkspaceTask = {
   position: number;
   due_at: string | null;
   parent_task_id: string | null;
+  recurrence_rule: RecurrenceRule | null;
+  occurrences_completed: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -312,10 +314,10 @@ export const workspaceApi = {
   listTasks: (id: string) =>
     call<{ results: WorkspaceTask[] }>(`/api/v2/workspaces/${id}/tasks`),
 
-  addTask: (id: string, payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; dueAt?: string | null; parentTaskId?: string | null }) =>
+  addTask: (id: string, payload: { title: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; dueAt?: string | null; parentTaskId?: string | null; recurrenceRule?: RecurrenceRule | null }) =>
     call<{ task: WorkspaceTask }>(`/api/v2/workspaces/${id}/tasks`, { method: "POST", body: JSON.stringify(payload) }),
 
-  patchTask: (id: string, payload: { id: string; title?: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; position?: number; dueAt?: string | null }) =>
+  patchTask: (id: string, payload: { id: string; title?: string; detail?: string; status?: TaskStatus; assigneeUserId?: string | null; position?: number; dueAt?: string | null; recurrenceRule?: RecurrenceRule | null }) =>
     call<{ task: WorkspaceTask }>(`/api/v2/workspaces/${id}/tasks`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   deleteTask: (id: string, taskId: string) =>

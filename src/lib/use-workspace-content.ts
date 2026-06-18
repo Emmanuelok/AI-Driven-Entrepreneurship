@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useStore } from "@/store";
-import { workspaceApi, type WorkspaceMessage, type WorkspaceDoc, type WorkspaceDocMeta, type WorkspaceTask, type TaskStatus } from "@/lib/workspace-api";
+import { workspaceApi, type WorkspaceMessage, type WorkspaceDoc, type WorkspaceDocMeta, type WorkspaceTask, type TaskStatus, type RecurrenceRule } from "@/lib/workspace-api";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -273,7 +273,7 @@ export function useWorkspaceTasks(id: string | null) {
     return res.ok;
   }, [id]);
 
-  const patch = useCallback(async (payload: { id: string; title?: string; detail?: string; assigneeUserId?: string | null; dueAt?: string | null }) => {
+  const patch = useCallback(async (payload: { id: string; title?: string; detail?: string; assigneeUserId?: string | null; dueAt?: string | null; recurrenceRule?: RecurrenceRule | null }) => {
     if (!id) return;
     const res = await workspaceApi.patchTask(id, payload);
     if (res.ok) setTasks((prev) => prev.map((t) => (t.id === res.task.id ? res.task : t)));

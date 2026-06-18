@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authWorkspace, requireWorkspaceRole, bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
 import { pushToUser } from "@/lib/push-to-user";
+import { nextOccurrence, validateRule, type RecurrenceRule } from "@/lib/recurrence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ const CreateBody = z.object({
   assigneeUserId: z.string().max(64).optional().nullable(),
   dueAt: z.string().min(10).max(40).optional().nullable(),
   parentTaskId: z.string().max(64).optional().nullable(),
+  recurrenceRule: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 const PatchBody = z.object({
@@ -32,6 +34,7 @@ const PatchBody = z.object({
   assigneeUserId: z.string().max(64).optional().nullable(),
   position: z.number().optional(),
   dueAt: z.string().min(10).max(40).optional().nullable(),
+  recurrenceRule: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -85,6 +88,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const dueAt = parseDue(body.dueAt);
   if (body.dueAt && dueAt === undefined) return Response.json({ ok: false, error: "invalid_due_at" }, { status: 400 });
 
+  // Recurring tasks require a due_at to anchor the series. Validate
+  // the rule with the same pure validator the deadline route uses.
+  let rule: RecurrenceRule | null = null;
+  if (body.recurrenceRule) {
+    if (!dueAt) return Response.json({ ok: false, error: "recurring_requires_due_at" }, { status: 400 });
+    const v = validateRule(body.recurrenceRule);
+    if (!v.ok) return Response.json({ ok: false, error: v.error }, { status: 400 });
+    rule = v.rule;
+  }
+
   const { data, error } = await sb
     .from("workspace_tasks")
     .insert({
@@ -98,6 +111,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       created_by: me!.userId,
       due_at: dueAt ?? null,
       parent_task_id: parentTaskId,
+      recurrence_rule: rule,
     })
     .select("*")
     .single();
@@ -134,7 +148,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { data: existing } = await sb
     .from("workspace_tasks")
-    .select("assignee_user_id, status")
+    .select("assignee_user_id, status, due_at, recurrence_rule, occurrences_completed, title")
     .eq("id", taskId)
     .eq("workspace_id", id)
     .maybeSingle();
@@ -150,7 +164,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (patch.title !== undefined) update.title = patch.title;
   if (patch.detail !== undefined) update.detail = patch.detail;
   if (patch.position !== undefined) update.position = patch.position;
-  if (patch.status !== undefined) {
+
+  // Recurring tasks: closing one advances its due_at to the next
+  // occurrence and resets status to todo. The series stays alive until
+  // the rule is exhausted (COUNT / UNTIL).
+  let advancedTo: string | null = null;
+  let seriesEnded = false;
+  if (patch.status === "done" && existing.recurrence_rule && existing.due_at) {
+    const rule = existing.recurrence_rule as RecurrenceRule;
+    const completed = ((existing.occurrences_completed as number) ?? 0) + 1;
+    const next = nextOccurrence(rule, new Date(existing.due_at as string), completed);
+    if (next) {
+      update.status = "todo";
+      update.due_at = next.toISOString();
+      update.occurrences_completed = completed;
+      // Land at the bottom of the todo column for the new instance.
+      if (patch.position === undefined) update.position = await nextPosition(sb, id, "todo");
+      advancedTo = next.toISOString();
+    } else {
+      update.status = "done";
+      update.occurrences_completed = completed;
+      seriesEnded = true;
+    }
+  } else if (patch.status !== undefined) {
     update.status = patch.status;
     // Moving columns → land at the bottom of the target column unless an
     // explicit position was supplied.
@@ -170,20 +206,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       update.due_at = d;
     }
   }
+  if (patch.recurrenceRule !== undefined) {
+    if (patch.recurrenceRule === null) {
+      update.recurrence_rule = null;
+      update.occurrences_completed = 0;
+    } else {
+      const v = validateRule(patch.recurrenceRule);
+      if (!v.ok) return Response.json({ ok: false, error: v.error }, { status: 400 });
+      // Recurring tasks need a due_at to anchor the series — either the
+      // existing one stays, or one is being set in this same patch.
+      const willHaveDue = patch.dueAt !== undefined ? patch.dueAt !== null : !!existing.due_at;
+      if (!willHaveDue) return Response.json({ ok: false, error: "recurring_requires_due_at" }, { status: 400 });
+      update.recurrence_rule = v.rule;
+    }
+  }
 
   const { data, error } = await sb.from("workspace_tasks").update(update).eq("id", taskId).select("*").single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
   if (patch.status === "done" && existing.status !== "done") {
-    await sb.from("workspace_activity").insert({ workspace_id: id, user_id: me.userId, kind: "task_done", title: `Completed: ${data!.title}`, body: null });
+    const note = advancedTo
+      ? `Completed "${data!.title}" — next occurrence ${new Date(advancedTo).toUTCString()}`
+      : seriesEnded
+        ? `Completed "${data!.title}" — recurring series complete`
+        : `Completed: ${data!.title}`;
+    await sb.from("workspace_activity").insert({ workspace_id: id, user_id: me.userId, kind: "task_done", title: note, body: null });
   }
+
+  // Note: advancedTo/seriesEnded flow through the return below.
 
   // Notify on a NEW assignment to someone other than the editor making it.
   if (patch.assigneeUserId !== undefined && patch.assigneeUserId && patch.assigneeUserId !== existing.assignee_user_id && patch.assigneeUserId !== me.userId) {
     await notifyAssignment(sb, id, patch.assigneeUserId, data!.title as string, (data!.due_at as string | null) ?? null);
   }
 
-  return Response.json({ ok: true, task: data });
+  return Response.json({ ok: true, task: data, advancedTo, seriesEnded });
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {

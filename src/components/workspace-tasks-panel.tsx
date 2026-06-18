@@ -6,7 +6,8 @@ import type { WorkspaceTask, TaskStatus, WorkspaceMember } from "@/lib/workspace
 import { Button } from "@/components/ui";
 import { WorkspaceAttachments } from "@/components/workspace-attachments";
 import { relativeDue } from "@/lib/deadline-schedule";
-import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban, Clock, ListChecks, Check, Move, UserPlus2 } from "lucide-react";
+import { Plus, Loader2, ChevronLeft, ChevronRight, Trash2, X, User2, CircleDot, Circle, CheckCircle2, Ban, Clock, ListChecks, Check, Move, UserPlus2, Repeat } from "lucide-react";
+import { describeRule, type RecurrenceRule, type WeekdayCode } from "@/lib/recurrence";
 
 // A shared Kanban board for a workspace. Four columns: To do / Doing /
 // Done / Blocked. Cards carry an assignee. Moving a card uses arrow
@@ -241,6 +242,11 @@ function TaskCard({ task, canEdit, canMoveLeft, canMoveRight, onMoveLeft, onMove
               <ListChecks className="size-2.5" /> {subtaskCount.total - subtaskCount.open}/{subtaskCount.total}
             </span>
           )}
+          {task.recurrence_rule && (
+            <span className="text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald/10 border border-emerald/30 text-emerald" title={describeRule(task.recurrence_rule)}>
+              <Repeat className="size-2.5" /> {describeRule(task.recurrence_rule)}
+            </span>
+          )}
         </div>
       </button>
       {canEdit && (
@@ -284,16 +290,37 @@ function TaskDialog({ task, workspaceId, members, canEdit, accent, subtasks, onA
   onAddSubtask: (title: string) => Promise<void>;
   onToggleSubtask: (id: string, done: boolean) => Promise<void>;
   onRemoveSubtask: (id: string) => Promise<void>;
-  onClose: () => void; onSave: (p: { title?: string; detail?: string; assigneeUserId?: string | null; dueAt?: string | null }) => void; onDelete: () => void;
+  onClose: () => void; onSave: (p: { title?: string; detail?: string; assigneeUserId?: string | null; dueAt?: string | null; recurrenceRule?: RecurrenceRule | null }) => void; onDelete: () => void;
 }) {
   const [title, setTitle] = useState(task.title);
   const [detail, setDetail] = useState(task.detail);
   const [assignee, setAssignee] = useState<string>(task.assignee_user_id ?? "");
   const [due, setDue] = useState<string>(isoToLocalInput(task.due_at));
+  // Recurrence picker — repeat=none = one-shot.
+  const initialRule = task.recurrence_rule;
+  const [repeat, setRepeat] = useState<"none" | "daily" | "weekly" | "monthly">(initialRule?.freq ?? "none");
+  const [interval, setIntervalState] = useState(initialRule?.interval ?? 1);
+  const [byDay, setByDay] = useState<WeekdayCode[]>(initialRule?.byDay ?? []);
+  const [endKind, setEndKind] = useState<"never" | "count" | "until">(
+    initialRule?.count ? "count" : initialRule?.until ? "until" : "never",
+  );
+  const [endCount, setEndCount] = useState(initialRule?.count ?? 10);
+  const [endUntil, setEndUntil] = useState(initialRule?.until ?? "");
+
+  function buildRule(): RecurrenceRule | null {
+    if (repeat === "none") return null;
+    const rule: RecurrenceRule = { freq: repeat };
+    if (interval > 1) rule.interval = interval;
+    if (repeat === "weekly" && byDay.length > 0) rule.byDay = byDay;
+    if (endKind === "count" && endCount > 0) rule.count = endCount;
+    if (endKind === "until" && endUntil) rule.until = new Date(endUntil).toISOString();
+    return rule;
+  }
   const [newSub, setNewSub] = useState("");
   const [addingSub, setAddingSub] = useState(false);
   // Subtasks aren't allowed on subtasks (one level cap), so hide the
-  // panel entirely when this task is itself a subtask.
+  // panel entirely when this task is itself a subtask. Recurrence is
+  // also gated to top-level tasks for the same reason.
   const isSubtaskItself = !!task.parent_task_id;
   const doneSubs = subtasks.filter((s) => s.status === "done").length;
 
@@ -320,10 +347,70 @@ function TaskDialog({ task, workspaceId, members, canEdit, accent, subtasks, onA
           </select>
 
           <label className="block text-[10px] uppercase tracking-widest text-muted mb-2 flex items-center gap-1.5"><Clock className="size-3" /> Due date (optional)</label>
-          <div className="flex items-center gap-2 mb-5">
+          <div className="flex items-center gap-2 mb-3">
             <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} disabled={!canEdit} className="flex-1 bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald disabled:opacity-70" />
             {due && canEdit && <button onClick={() => setDue("")} className="text-xs text-muted hover:text-rust px-2" title="Clear due date">Clear</button>}
           </div>
+
+          {!isSubtaskItself && due && (
+            <>
+              <label className="block text-[10px] uppercase tracking-widest text-muted mb-2 flex items-center gap-1.5"><Repeat className="size-3" /> Repeat</label>
+              <div className="flex gap-1.5 mb-3 flex-wrap">
+                {(["none", "daily", "weekly", "monthly"] as const).map((r) => (
+                  <button key={r} type="button" onClick={() => setRepeat(r)} disabled={!canEdit} className={`px-3 py-1.5 rounded-full text-xs border transition ${repeat === r ? "border-emerald/60 bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}>
+                    {r === "none" ? "One-shot" : r === "daily" ? "Daily" : r === "weekly" ? "Weekly" : "Monthly"}
+                  </button>
+                ))}
+              </div>
+              {repeat !== "none" && (
+                <div className="mb-4 p-3 rounded-xl border border-border bg-surface-2/30 space-y-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted">Every</span>
+                    <input type="number" min={1} max={365} value={interval} onChange={(e) => setIntervalState(Math.max(1, Math.min(365, Number(e.target.value) || 1)))} disabled={!canEdit} className="w-16 bg-surface-2 border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-emerald" />
+                    <span className="text-muted">{repeat === "daily" ? (interval === 1 ? "day" : "days") : repeat === "weekly" ? (interval === 1 ? "week" : "weeks") : (interval === 1 ? "month" : "months")}</span>
+                  </div>
+                  {repeat === "weekly" && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">On</div>
+                      <div className="flex gap-1">
+                        {(["MO", "TU", "WE", "TH", "FR", "SA", "SU"] as WeekdayCode[]).map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            disabled={!canEdit}
+                            onClick={() => setByDay((cur) => cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d])}
+                            className={`size-8 rounded-lg text-[11px] font-medium border transition ${byDay.includes(d) ? "border-emerald/60 bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}
+                          >
+                            {d[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-muted mb-1.5">Ends</div>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {(["never", "count", "until"] as const).map((k) => (
+                        <button key={k} type="button" onClick={() => setEndKind(k)} disabled={!canEdit} className={`px-3 py-1 rounded-full text-[11px] border transition ${endKind === k ? "border-emerald/60 bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}>
+                          {k === "never" ? "Never" : k === "count" ? "After…" : "On…"}
+                        </button>
+                      ))}
+                    </div>
+                    {endKind === "count" && (
+                      <div className="mt-2 flex items-center gap-2 text-sm">
+                        <input type="number" min={1} max={999} value={endCount} onChange={(e) => setEndCount(Math.max(1, Math.min(999, Number(e.target.value) || 1)))} disabled={!canEdit} className="w-20 bg-surface-2 border border-border rounded-lg px-2 py-1 text-sm outline-none focus:border-emerald" />
+                        <span className="text-muted">occurrences</span>
+                      </div>
+                    )}
+                    {endKind === "until" && (
+                      <input type="date" value={endUntil} onChange={(e) => setEndUntil(e.target.value)} disabled={!canEdit} className="mt-2 bg-surface-2 border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-emerald" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-emerald">{buildRule() ? describeRule(buildRule()!) : ""}</p>
+                </div>
+              )}
+            </>
+          )}
 
           {!isSubtaskItself && (
             <div className="mb-5 p-3 rounded-xl border border-border bg-surface-2/30">
@@ -408,7 +495,7 @@ function TaskDialog({ task, workspaceId, members, canEdit, accent, subtasks, onA
               <button onClick={onDelete} className="text-xs text-rust hover:underline flex items-center gap-1"><Trash2 className="size-3.5" /> Delete</button>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                <Button onClick={() => onSave({ title: title.trim(), detail: detail.trim(), assigneeUserId: assignee || null, dueAt: due ? new Date(due).toISOString() : null })}>Save</Button>
+                <Button onClick={() => onSave({ title: title.trim(), detail: detail.trim(), assigneeUserId: assignee || null, dueAt: due ? new Date(due).toISOString() : null, recurrenceRule: buildRule() })}>Save</Button>
               </div>
             </div>
           )}
