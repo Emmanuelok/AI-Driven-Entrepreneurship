@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStore } from "@/store";
+import { useStore, type AccountType } from "@/store";
 import { useMe } from "@/store/me";
 import { SEED_DECKS } from "@/lib/srs-seed";
 import { SCHOOLS, getDepartment } from "@/lib/disciplines";
 import { GENOME_QUESTIONS, computeGenome } from "@/lib/genome";
-import { Sparkles, ArrowRight, ArrowLeft, Brain, Building2, GraduationCap, Globe2, Heart, Rocket, Lightbulb, MapPin } from "lucide-react";
+import { ACCOUNT_TYPES, type AccountType as ATCatalog } from "@/lib/account-types";
+import { profileApi } from "@/lib/profile-api";
+import { Sparkles, ArrowRight, ArrowLeft, Brain, Rocket, Lightbulb, MapPin } from "lucide-react";
 
 const COUNTRIES = ["Ghana", "Nigeria", "Kenya", "South Africa", "Uganda", "Tanzania", "Ethiopia", "Rwanda", "Senegal", "Côte d'Ivoire", "Egypt", "Morocco", "Other"];
 const LANGUAGES = ["English", "Pidgin", "Twi", "Yoruba", "Hausa", "Swahili", "Amharic", "French", "Wolof", "Zulu", "Arabic"];
 
 type Form = {
+  accountType: AccountType;
   name: string;
   email: string;
   institution: string;
@@ -24,31 +27,98 @@ type Form = {
   country: string;
   primaryLanguage: string;
   genomeAnswers: Record<string, string>;
+  // Persona-specific. Free-form free strings during onboarding; the
+  // profile editor at /studio/me lets the user enrich after this.
+  expertise: string;        // mentor/investor: comma-separated tags
+  yearsExperience: string;  // mentor
+  firmOrOrg: string;        // investor firm, funder program, etc.
+  outletName: string;       // journalist
 };
 
 export default function OnboardingPage() {
+  // useSearchParams requires a Suspense boundary for static generation.
+  // We render the form inside; the fallback is a quiet loader.
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="size-12 rounded-full border-4 border-emerald/30 border-t-emerald animate-spin" /></div>}>
+      <OnboardingInner />
+    </Suspense>
+  );
+}
+
+function OnboardingInner() {
   const router = useRouter();
+  const params = useSearchParams();
   const { signIn, addDeck, addCard, notify } = useStore();
   const { setGenome, remember } = useMe();
-  const [stage, setStage] = useState<"hello" | "identity" | "place" | "school" | "department" | "program" | "preview" | "genome" | "weaving" | "ready">("hello");
+  // Optional ?as=mentor|investor|… deep-link from the landing's
+  // stakeholder CTAs — pre-fills the account-type chooser so the user
+  // lands one click into their tailored flow.
+  const initialAccountType = (params?.get("as") as AccountType | null) ?? "student";
+  const [stage, setStage] = useState<"hello" | "type" | "identity" | "place" | "school" | "department" | "program" | "preview" | "genome" | "persona" | "weaving" | "ready">("hello");
   const [form, setForm] = useState<Form>({
+    accountType: initialAccountType,
     name: "", email: "", institution: "",
     schoolId: "", departmentId: "", programId: "",
     year: 2, country: "Ghana", primaryLanguage: "English",
     genomeAnswers: {},
+    expertise: "", yearsExperience: "", firmOrOrg: "", outletName: "",
   });
   const [genomeQIdx, setGenomeQIdx] = useState(0);
 
+  // Step-after-identity router: students go through the school flow
+  // before the genome; everyone else skips straight to a persona step
+  // for type-specific fields, then optionally fills place/genome.
+  const isStudent = form.accountType === "student";
+  function afterIdentity() { setStage(isStudent ? "place" : "persona"); }
+  function backFromPersona() { setStage("identity"); }
+
   function finish() {
     const ctx = form.departmentId ? getDepartment(form.departmentId) : null;
-    const fieldName = ctx ? `${ctx.department.name} (${ctx.school.name})` : "General";
+    const fieldName = ctx
+      ? `${ctx.department.name} (${ctx.school.name})`
+      : isStudent
+        ? "General"
+        : form.expertise || form.firmOrOrg || form.outletName || "General";
 
     signIn({
-      name: form.name, email: form.email, institution: form.institution,
+      name: form.name, email: form.email,
+      accountType: form.accountType,
+      institution: form.institution,
       program: form.programId || (ctx?.department.name ?? ""),
       year: form.year, country: form.country, primaryLanguage: form.primaryLanguage,
       field: fieldName,
     });
+
+    // Persist the same data to the server profile so the directory +
+    // public profile page light up immediately. Fire-and-forget; the
+    // user lands in studio either way, and the profile is editable.
+    const persona: Record<string, unknown> = (() => {
+      switch (form.accountType) {
+        case "student":
+          return { institution: form.institution, schoolId: form.schoolId, departmentId: form.departmentId, programId: form.programId, year: form.year, field: fieldName };
+        case "mentor":
+          return { expertise: form.expertise.split(",").map((s) => s.trim()).filter(Boolean), yearsExperience: form.yearsExperience ? parseInt(form.yearsExperience) : undefined, availability: "both" as const };
+        case "investor":
+          return { firmName: form.firmOrOrg, sectors: form.expertise.split(",").map((s) => s.trim()).filter(Boolean) };
+        case "funder":
+          return { programName: form.firmOrOrg, focusAreas: form.expertise.split(",").map((s) => s.trim()).filter(Boolean) };
+        case "journalist":
+          return { outletName: form.outletName, beats: form.expertise.split(",").map((s) => s.trim()).filter(Boolean) };
+        case "instructor":
+          return { institution: form.institution, department: form.firmOrOrg };
+        case "institution":
+          return { name: form.firmOrOrg };
+        default:
+          return {};
+      }
+    })();
+    void profileApi.patchMyProfile({
+      account_type: form.accountType,
+      display_name: form.name,
+      country: form.country,
+      primary_language: form.primaryLanguage,
+      persona_data: persona,
+    }).catch(() => { /* swallow — local store is the source of truth in offline-only mode */ });
 
     const genome = computeGenome(form.genomeAnswers);
     setGenome(genome);
@@ -74,9 +144,11 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex items-center justify-center overflow-hidden relative px-5 py-10">
       <BG />
       <AnimatePresence mode="wait">
-        {stage === "hello" && <Hello key="hello" onNext={() => setStage("identity")} />}
-        {stage === "identity" && <Identity key="identity" form={form} setForm={setForm} onNext={() => setStage("place")} onBack={() => setStage("hello")} />}
-        {stage === "place" && <Place key="place" form={form} setForm={setForm} onNext={() => setStage("school")} onBack={() => setStage("identity")} />}
+        {stage === "hello" && <Hello key="hello" onNext={() => setStage("type")} />}
+        {stage === "type" && <ChooseType key="type" form={form} setForm={setForm} onNext={() => setStage("identity")} onBack={() => setStage("hello")} />}
+        {stage === "identity" && <Identity key="identity" form={form} setForm={setForm} onNext={afterIdentity} onBack={() => setStage("type")} />}
+        {stage === "persona" && <PersonaStep key="persona" form={form} setForm={setForm} onNext={() => setStage("place")} onBack={backFromPersona} />}
+        {stage === "place" && <Place key="place" form={form} setForm={setForm} onNext={() => setStage(isStudent ? "school" : "weaving")} onBack={() => setStage(isStudent ? "identity" : "persona")} />}
         {stage === "school" && <School key="school" form={form} setForm={setForm} onNext={() => setStage("department")} onBack={() => setStage("place")} />}
         {stage === "department" && <Department key="department" form={form} setForm={setForm} onNext={() => setStage("program")} onBack={() => setStage("school")} />}
         {stage === "program" && <Program key="program" form={form} setForm={setForm} onNext={() => setStage("preview")} onBack={() => setStage("department")} />}
@@ -165,6 +237,135 @@ function Nav({ onBack, onNext, canNext, nextLabel = "Continue" }: { onBack?: () 
   );
 }
 
+/* ─── Stage 1.5: ACCOUNT TYPE ───
+   Right after Hello, ask who they are on the platform. The remaining
+   flow branches: students go through the discipline picker; everyone
+   else fills a smaller persona step then jumps to "Place". This is
+   the single biggest unlock for stakeholder onboarding — mentors,
+   investors, instructors, funders, journalists all land here. */
+function ChooseType({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: Form) => void; onNext: () => void; onBack: () => void }) {
+  return (
+    <StageShell>
+      <SageBubble text="Who are you on the platform? Pick the one closest to today — you can always switch later." />
+      <div className="grid sm:grid-cols-2 gap-2.5">
+        {ACCOUNT_TYPES.map((t) => {
+          const selected = form.accountType === t.type;
+          return (
+            <button
+              key={t.type}
+              onClick={() => setForm({ ...form, accountType: t.type })}
+              className={`text-left p-4 rounded-2xl border transition group ${selected ? "border-emerald bg-emerald/10" : "border-border hover:border-muted hover:bg-surface-2"}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="text-2xl shrink-0">{t.emoji}</div>
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">{t.label}</div>
+                  <div className="text-[11px] text-muted mt-0.5 leading-snug">{t.oneLiner}</div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <Nav onBack={onBack} onNext={onNext} canNext={!!form.accountType} />
+    </StageShell>
+  );
+}
+
+/* ─── Stage 2.5: PERSONA — type-specific fields (non-students) ───
+   Skipped entirely for students (they go through schools/department
+   instead). Asks 2-3 targeted questions for the chosen stakeholder
+   type — enough to seed a useful profile, light enough to not stall
+   onboarding. The full profile editor on /studio/me is where users
+   round it out. */
+function PersonaStep({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: Form) => void; onNext: () => void; onBack: () => void }) {
+  const t = form.accountType;
+  if (t === "student" || t === "general") {
+    // Skip silently if we somehow landed here for a type that doesn't
+    // need a persona step.
+    onNext();
+    return null;
+  }
+
+  const config: { prompt: string; ask: { key: keyof Form; label: string; placeholder: string; required: boolean }[] } = (() => {
+    switch (t) {
+      case "mentor":
+        return {
+          prompt: "Tell me about the founders you can help. I'll match you with the ones whose sectors and stage line up with yours.",
+          ask: [
+            { key: "expertise", label: "Sectors & expertise (comma-separated)", placeholder: "e.g. fintech, distribution, B2B SaaS go-to-market", required: true },
+            { key: "yearsExperience", label: "Years building / operating", placeholder: "e.g. 7", required: false },
+          ],
+        };
+      case "investor":
+        return {
+          prompt: "What do you back? I'll surface ventures that match — you stay in control of the outreach.",
+          ask: [
+            { key: "firmOrOrg", label: "Firm or fund name (optional for angels)", placeholder: "e.g. Future Africa, or 'Angel'", required: false },
+            { key: "expertise", label: "Sectors of interest (comma-separated)", placeholder: "e.g. fintech, climate, healthtech", required: true },
+          ],
+        };
+      case "funder":
+        return {
+          prompt: "Which grant, fellowship, or accelerator do you represent? Eligible founders will see your program in the funding tab.",
+          ask: [
+            { key: "firmOrOrg", label: "Program name", placeholder: "e.g. Mozilla Builders Fellowship", required: true },
+            { key: "expertise", label: "Focus areas (comma-separated)", placeholder: "e.g. African languages NLP, climate adaptation", required: true },
+          ],
+        };
+      case "journalist":
+        return {
+          prompt: "Which outlet are you writing for, and what beats are you covering? Founders consent to outreach on a per-story basis.",
+          ask: [
+            { key: "outletName", label: "Outlet", placeholder: "e.g. TechCabal, Rest of World, freelance", required: true },
+            { key: "expertise", label: "Beats (comma-separated)", placeholder: "e.g. African fintech, climate, founder profiles", required: true },
+          ],
+        };
+      case "instructor":
+        return {
+          prompt: "Which institution and program do you teach? You'll be able to create cohorts under this affiliation.",
+          ask: [
+            { key: "institution", label: "Institution", placeholder: "e.g. KNUST, University of Cape Town, Carnegie Mellon Africa", required: true },
+            { key: "firmOrOrg", label: "Department / program", placeholder: "e.g. School of Business, Entrepreneurship MSc", required: true },
+          ],
+        };
+      case "institution":
+        return {
+          prompt: "Tell me which institution you're setting up. You'll be the admin contact for partnership conversations.",
+          ask: [
+            { key: "firmOrOrg", label: "Institution name", placeholder: "e.g. African Leadership University", required: true },
+          ],
+        };
+      default:
+        return { prompt: "", ask: [] };
+    }
+  })();
+
+  const allRequiredFilled = config.ask.every((a) => !a.required || String(form[a.key] ?? "").trim().length > 0);
+
+  return (
+    <StageShell>
+      <SageBubble text={config.prompt} />
+      <div className="glass rounded-2xl p-7 space-y-5">
+        {config.ask.map((a) => (
+          <Field key={a.key} label={a.label}>
+            <input
+              value={String(form[a.key] ?? "")}
+              onChange={(e) => setForm({ ...form, [a.key]: e.target.value })}
+              placeholder={a.placeholder}
+              className="bg-surface-2 border border-border rounded-xl px-4 py-3 text-base outline-none focus:border-emerald w-full"
+            />
+          </Field>
+        ))}
+        <p className="text-[11px] text-muted leading-relaxed">
+          You can add a bio, headline, social links, and more in your profile after sign-up. This is just enough to introduce yourself.
+        </p>
+      </div>
+      <Nav onBack={onBack} onNext={onNext} canNext={allRequiredFilled} />
+    </StageShell>
+  );
+}
+
 /* ─── Stage 1: HELLO ─── */
 function Hello({ onNext }: { onNext: () => void }) {
   return (
@@ -243,18 +444,26 @@ function Identity({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: 
 
 /* ─── Stage 3: PLACE ─── */
 function Place({ form, setForm, onNext, onBack }: { form: Form; setForm: (f: Form) => void; onNext: () => void; onBack: () => void }) {
+  // Year + institution are only meaningful for students. Other types
+  // (mentors, investors, etc.) just answer country + language here.
+  const isStudent = form.accountType === "student";
+  const canNext = isStudent ? form.institution.trim().length > 1 : true;
   return (
     <StageShell>
       <SageBubble text={`${form.name.split(" ")[0]} — where in the world is your story rooted?`} />
       <div className="glass rounded-2xl p-7 space-y-5">
-        <Field label="Institution"><input value={form.institution} onChange={(e) => setForm({ ...form, institution: e.target.value })} placeholder="KNUST / UG / UNILAG / UCT / Makerere" className="bg-surface-2 border border-border rounded-xl px-4 py-3 outline-none focus:border-emerald w-full" /></Field>
-        <div className="grid grid-cols-3 gap-3">
+        {isStudent && (
+          <Field label="Institution"><input value={form.institution} onChange={(e) => setForm({ ...form, institution: e.target.value })} placeholder="KNUST / UG / UNILAG / UCT / Makerere" className="bg-surface-2 border border-border rounded-xl px-4 py-3 outline-none focus:border-emerald w-full" /></Field>
+        )}
+        <div className={`grid gap-3 ${isStudent ? "grid-cols-3" : "grid-cols-2"}`}>
           <Field label="Country"><select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className="bg-surface-2 border border-border rounded-xl px-3 py-3 text-sm outline-none focus:border-emerald w-full">{COUNTRIES.map((c) => <option key={c} value={c} className="bg-surface">{c}</option>)}</select></Field>
-          <Field label="Year"><select value={String(form.year)} onChange={(e) => setForm({ ...form, year: parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5 })} className="bg-surface-2 border border-border rounded-xl px-3 py-3 text-sm outline-none focus:border-emerald w-full">{["1", "2", "3", "4", "5"].map((y) => <option key={y} value={y} className="bg-surface">{y}</option>)}</select></Field>
+          {isStudent && (
+            <Field label="Year"><select value={String(form.year)} onChange={(e) => setForm({ ...form, year: parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5 })} className="bg-surface-2 border border-border rounded-xl px-3 py-3 text-sm outline-none focus:border-emerald w-full">{["1", "2", "3", "4", "5"].map((y) => <option key={y} value={y} className="bg-surface">{y}</option>)}</select></Field>
+          )}
           <Field label="Language"><select value={form.primaryLanguage} onChange={(e) => setForm({ ...form, primaryLanguage: e.target.value })} className="bg-surface-2 border border-border rounded-xl px-3 py-3 text-sm outline-none focus:border-emerald w-full">{LANGUAGES.map((l) => <option key={l} value={l} className="bg-surface">{l}</option>)}</select></Field>
         </div>
       </div>
-      <Nav onBack={onBack} onNext={onNext} canNext={form.institution.trim().length > 1} />
+      <Nav onBack={onBack} onNext={onNext} canNext={canNext} />
     </StageShell>
   );
 }

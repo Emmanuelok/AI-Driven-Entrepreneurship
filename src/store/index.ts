@@ -5,10 +5,25 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { nanoid } from "nanoid";
 
 // ---------- types ----------
+// Account type — the kind of stakeholder this person is on the
+// platform. Mirrors the ACCOUNT_TYPES catalog in account-types.ts and
+// the user_profiles.account_type column in the database. Stored on the
+// store so guards and UI can branch on persona without re-fetching.
+export type AccountType =
+  | "student"
+  | "mentor"
+  | "instructor"
+  | "investor"
+  | "funder"
+  | "journalist"
+  | "institution"
+  | "general";
+
 export type User = {
   id: string;
   name: string;
   email: string;
+  accountType: AccountType;
   institution: string;
   program: string;
   year: 1 | 2 | 3 | 4 | 5;
@@ -254,6 +269,10 @@ export const useStore = create<Store>()(
             id: u.id ?? nanoid(8),
             name: u.name,
             email: u.email,
+            // Default to 'student' for back-compat with anyone who
+            // signed up before this field existed; new signups pass
+            // accountType explicitly from the onboarding picker.
+            accountType: u.accountType ?? "student",
             institution: u.institution,
             program: u.program,
             year: u.year,

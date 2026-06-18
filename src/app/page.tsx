@@ -64,6 +64,7 @@ function Nav() {
           <Link href="/studio/workspaces" className="hover:text-foreground transition">Workspaces</Link>
           <a href="#voices" className="hover:text-foreground transition">Voices</a>
           <Link href="/studio/atlas" className="hover:text-foreground transition">Atlas</Link>
+          <Link href="/people" className="hover:text-foreground transition">People</Link>
           <Link href="/sign-in" className="hover:text-foreground transition">Sign in</Link>
         </nav>
         <Link href="/studio" className="flex items-center gap-1.5 bg-emerald text-black font-medium text-sm px-4 py-2 rounded-full hover:bg-amber transition shadow-lg shadow-emerald/30">
@@ -758,6 +759,39 @@ function Scene8Call() {
           {["No credit card", "Works on $50 phones", "Offline-tolerant", "12 African languages", "Verifiable credentials", "⌘K everywhere"].map((f) => (
             <span key={f} className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-emerald" />{f}</span>
           ))}
+        </div>
+
+        {/* Stakeholder sign-up CTAs — not just founders. Mentors,
+            investors, instructors, funders, journalists each get a
+            direct entry that pre-fills the onboarding chooser. */}
+        <div className="mt-14 pt-10 border-t border-border max-w-3xl mx-auto">
+          <p className="text-xs uppercase tracking-[0.25em] text-amber mb-4 text-center">Not a founder?</p>
+          <p className="text-center text-muted leading-relaxed mb-6">
+            Sankofa is also for the people around founders — the mentors who advise, the instructors who teach, the investors who back, the funders who grant, the journalists who cover. Pick the role that fits.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {([
+              { type: "mentor",     emoji: "🧭", label: "Join as a mentor" },
+              { type: "instructor", emoji: "📚", label: "Join as an instructor" },
+              { type: "investor",   emoji: "💰", label: "Join as an investor" },
+              { type: "funder",     emoji: "🌱", label: "Join as a funder" },
+              { type: "journalist", emoji: "📰", label: "Join as a journalist" },
+              { type: "institution",emoji: "🏛️", label: "Set up an institution" },
+            ] as const).map((t) => (
+              <Link
+                key={t.type}
+                href={`/studio/onboarding?as=${t.type}`}
+                className="text-sm px-4 py-3 rounded-2xl border border-border bg-surface/40 hover:border-emerald/40 hover:bg-emerald/5 transition flex items-center gap-3"
+              >
+                <span className="text-xl">{t.emoji}</span>
+                <span>{t.label}</span>
+                <ArrowRight className="size-3.5 ml-auto text-muted" />
+              </Link>
+            ))}
+          </div>
+          <p className="text-center text-xs text-muted mt-5">
+            Already a member? <Link href="/sign-in" className="text-emerald hover:underline">Sign in</Link> · Or browse the <Link href="/people" className="text-emerald hover:underline">People directory</Link>
+          </p>
         </div>
       </motion.div>
     </section>

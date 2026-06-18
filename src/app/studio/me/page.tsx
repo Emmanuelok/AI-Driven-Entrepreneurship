@@ -51,11 +51,12 @@ export default function MePage() {
             </p>
             <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">{user.name}</h1>
             <div className="text-muted mt-1">{rec.department?.name ?? user.field} · {user.institution}</div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2 items-center">
               <Badge color="emerald">Lv {lvl}</Badge>
               <Badge color="amber">🔥 {streak}d streak</Badge>
               <Badge color="muted">{xp.toLocaleString()} XP</Badge>
               <Badge color="indigo">{ventures.length} ventures</Badge>
+              <Link href="/studio/profile" className="text-xs text-emerald hover:underline ml-1">Edit profile →</Link>
             </div>
           </div>
         </div>
