@@ -225,7 +225,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         )}
 
         {tab === "discussion" && (
-          <WorkspaceDiscussionPanel workspaceId={id} members={ws.members} accent={accent} />
+          <WorkspaceDiscussionPanel workspaceId={id} members={ws.members} accent={accent} isAdmin={isAdmin} />
         )}
 
         {tab === "notes" && (

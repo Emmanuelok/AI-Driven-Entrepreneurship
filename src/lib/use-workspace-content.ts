@@ -70,6 +70,12 @@ export function useWorkspaceMessages(id: string | null) {
       if (payload.new) merge([payload.new]);
       if (payload.new?.is_agent) setAgentThinking(false);
     });
+    // Pin/unpin is an UPDATE — patch the row in place rather than
+    // refetching the whole thread.
+    ch.on("postgres_changes" as never, { event: "UPDATE", schema: "public", table: "workspace_messages", filter: `workspace_id=eq.${id}` }, (payload: { new: WorkspaceMessage }) => {
+      if (!payload.new) return;
+      setMessages((prev) => prev.map((m) => (m.id === payload.new.id ? { ...m, pinned_at: payload.new.pinned_at, pinned_by: payload.new.pinned_by } : m)));
+    });
     // Reaction inserts/deletes don't carry workspace_id, so we can't
     // filter by workspace at the channel level. Any reaction change in
     // the DB triggers a lightweight reactions-only refresh; the cost is
@@ -122,7 +128,16 @@ export function useWorkspaceMessages(id: string | null) {
     return true;
   }, [id, merge]);
 
-  return { messages, loading, sending, agentThinking, send, toggleReaction };
+  const togglePin = useCallback(async (messageId: string, currentlyPinned: boolean) => {
+    if (!id) return;
+    // Optimistic flip — realtime UPDATE will reconcile.
+    const newPinnedAt = currentlyPinned ? null : new Date().toISOString();
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, pinned_at: newPinnedAt } : m)));
+    if (currentlyPinned) await workspaceApi.unpinMessage(id, messageId);
+    else await workspaceApi.pinMessage(id, messageId);
+  }, [id]);
+
+  return { messages, loading, sending, agentThinking, send, toggleReaction, togglePin };
 }
 
 // ── Notes ─────────────────────────────────────────────────────────────

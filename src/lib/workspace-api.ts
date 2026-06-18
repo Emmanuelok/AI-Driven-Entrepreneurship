@@ -100,6 +100,8 @@ export type WorkspaceMessage = {
   is_agent: boolean;
   mentions: string[];
   reactions?: MessageReaction[];
+  pinned_at: string | null;
+  pinned_by: string | null;
   created_at: string;
 };
 
@@ -283,6 +285,12 @@ export const workspaceApi = {
 
   removeReaction: (id: string, messageId: string, emoji: string) =>
     call(`/api/v2/workspaces/${id}/messages/${messageId}/reactions?emoji=${encodeURIComponent(emoji)}`, { method: "DELETE" }),
+
+  pinMessage: (id: string, messageId: string) =>
+    call<{ pinned_at: string }>(`/api/v2/workspaces/${id}/messages/${messageId}/pin`, { method: "POST" }),
+
+  unpinMessage: (id: string, messageId: string) =>
+    call(`/api/v2/workspaces/${id}/messages/${messageId}/pin`, { method: "DELETE" }),
 
   // ── Notes ───────────────────────────────────────────────────────────
   listDocs: (id: string) =>

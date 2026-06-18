@@ -33,7 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const before = url.searchParams.get("before");
   let q = sb
     .from("workspace_messages")
-    .select("id, workspace_id, user_id, author_name, body, is_agent, mentions, created_at")
+    .select("id, workspace_id, user_id, author_name, body, is_agent, mentions, pinned_at, pinned_by, created_at")
     .eq("workspace_id", id)
     .order("created_at", { ascending: false })
     .limit(60);
@@ -113,7 +113,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       is_agent: false,
       mentions: tokens,
     })
-    .select("id, workspace_id, user_id, author_name, body, is_agent, mentions, created_at")
+    .select("id, workspace_id, user_id, author_name, body, is_agent, mentions, pinned_at, pinned_by, created_at")
     .single();
   if (error || !inserted) return Response.json({ ok: false, error: error?.message ?? "insert_failed" }, { status: 500 });
 
@@ -160,7 +160,7 @@ async function replyAsSage(
   workspaceId: string,
   wsTitle: string,
   rawBody: unknown,
-): Promise<{ id: string; workspace_id: string; user_id: string | null; author_name: string | null; body: string; is_agent: boolean; mentions: string[]; created_at: string } | null> {
+): Promise<{ id: string; workspace_id: string; user_id: string | null; author_name: string | null; body: string; is_agent: boolean; mentions: string[]; pinned_at: string | null; pinned_by: string | null; created_at: string } | null> {
   const guard = await aiGuard({ req, scope: "workspace-discuss", maxCalls: 30 });
   if (!guard.ok || !guard.apiKey) {
     return await postAgentMessage(sb, workspaceId, "I'm here, but my AI brain isn't wired up in this environment yet. Once an API key is configured I'll join the conversation properly.");
@@ -208,7 +208,7 @@ async function postAgentMessage(
   const { data } = await sb
     .from("workspace_messages")
     .insert({ workspace_id: workspaceId, user_id: null, author_name: "Sage", body, is_agent: true, mentions: [] })
-    .select("id, workspace_id, user_id, author_name, body, is_agent, mentions, created_at")
+    .select("id, workspace_id, user_id, author_name, body, is_agent, mentions, pinned_at, pinned_by, created_at")
     .single();
   return data ?? null;
 }

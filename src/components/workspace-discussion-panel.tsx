@@ -8,7 +8,7 @@ import { useDiscussionReads } from "@/lib/use-discussion-reads";
 import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components/mention-autocomplete";
 import { Markdown } from "@/components/markdown";
 import type { WorkspaceMember } from "@/lib/workspace-api";
-import { Send, Sparkles, Brain, Loader2, SmilePlus, Check } from "lucide-react";
+import { Send, Sparkles, Brain, Loader2, SmilePlus, Check, Pin, PinOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 // The workspace discussion thread. Members chat in real time; typing
@@ -16,9 +16,9 @@ import { formatDistanceToNow } from "date-fns";
 // notify them. The composer offers @-autocomplete over the member
 // roster plus the reserved "sage" handle.
 
-export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { workspaceId: string; members: WorkspaceMember[]; accent: string }) {
+export function WorkspaceDiscussionPanel({ workspaceId, members, accent, isAdmin = false }: { workspaceId: string; members: WorkspaceMember[]; accent: string; isAdmin?: boolean }) {
   const { user } = useStore();
-  const { messages, loading, sending, agentThinking, send, toggleReaction } = useWorkspaceMessages(workspaceId);
+  const { messages, loading, sending, agentThinking, send, toggleReaction, togglePin } = useWorkspaceMessages(workspaceId);
   const { typing, signalTyping } = useDiscussionTyping(workspaceId, user ? { userId: user.id, name: user.name || "Member" } : null);
   const { seenCount, markRead } = useDiscussionReads(workspaceId);
   // Per-message hover state for the react picker — only one open at a
@@ -66,8 +66,40 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { wor
     if (!ok) setDraft(text); // restore on failure
   }
 
+  // Pinned messages: most-recently-pinned first. Capped at 3 in the
+  // strip; the rest still live in the main thread with a pin chip.
+  const pinned = messages
+    .filter((m) => m.pinned_at)
+    .sort((a, b) => new Date(b.pinned_at!).getTime() - new Date(a.pinned_at!).getTime())
+    .slice(0, 3);
+
   return (
     <div className="glass rounded-2xl flex flex-col h-[560px] overflow-hidden">
+      {pinned.length > 0 && (
+        <div className="border-b border-border bg-surface-2/30 px-4 py-2.5">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-amber mb-1.5">
+            <Pin className="size-3" /> Pinned · {pinned.length}
+          </div>
+          <ul className="space-y-1">
+            {pinned.map((p) => (
+              <li key={p.id} className="text-xs leading-snug flex items-start gap-2">
+                <span className="text-foreground/80 font-medium shrink-0">{p.author_name || (p.is_agent ? "Sage" : "Member")}:</span>
+                <span className="text-muted line-clamp-1 flex-1 min-w-0">{p.body}</span>
+                {(isAdmin || p.user_id === user?.id) && !p.is_agent && (
+                  <button
+                    onClick={() => togglePin(p.id, true)}
+                    className="size-5 rounded text-muted hover:text-amber hover:bg-surface-2 flex items-center justify-center shrink-0 transition"
+                    title="Unpin"
+                    aria-label="Unpin message"
+                  >
+                    <PinOff className="size-3" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
         {loading ? (
           <div className="h-full flex items-center justify-center"><Loader2 className="size-5 text-emerald animate-spin" /></div>
@@ -108,6 +140,25 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent }: { wor
                     }`}>
                       {m.is_agent ? <Markdown src={m.body} className="prose-chat text-left" /> : <span className="whitespace-pre-wrap break-words">{m.body}</span>}
                     </div>
+                    {/* Pin chip on already-pinned messages — always visible */}
+                    {m.pinned_at && !m.is_agent && (
+                      <span
+                        className={`absolute -top-2 ${mine ? "-right-2" : "-left-2"} text-[9px] uppercase tracking-widest font-bold inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber/15 border border-amber/40 text-amber`}
+                        title="Pinned"
+                      >
+                        <Pin className="size-2.5" /> Pinned
+                      </span>
+                    )}
+                    {/* Hover-only pin/unpin trigger — admins + the author */}
+                    {!m.is_agent && (isAdmin || m.user_id === user?.id) && (
+                      <button
+                        onClick={() => togglePin(m.id, !!m.pinned_at)}
+                        className={`absolute -top-2 ${mine ? "-left-8" : "-right-8"} size-6 rounded-full bg-surface-2 border border-border hover:border-amber/40 hover:bg-amber/10 text-muted hover:text-amber flex items-center justify-center opacity-0 group-hover:opacity-100 transition`}
+                        title={m.pinned_at ? "Unpin" : "Pin"}
+                      >
+                        {m.pinned_at ? <PinOff className="size-3" /> : <Pin className="size-3" />}
+                      </button>
+                    )}
                     {/* Hover-only react trigger */}
                     <button
                       onClick={() => setPickerFor((c) => c === m.id ? null : m.id)}
