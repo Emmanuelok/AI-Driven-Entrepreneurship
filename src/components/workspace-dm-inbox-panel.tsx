@@ -128,6 +128,7 @@ export function WorkspaceDmInboxPanel({ workspaceId, accent, members, myUserId }
           withUserId={open.id}
           withName={open.name}
           accent={accent}
+          members={members}
           onClose={() => { setOpen(null); void refresh(); }}
         />
       )}

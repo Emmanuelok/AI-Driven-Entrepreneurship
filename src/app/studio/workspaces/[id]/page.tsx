@@ -262,7 +262,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         )}
 
         {tab === "sage" && (
-          <WorkspaceSagePanel workspaceId={id} accent={accent} />
+          <WorkspaceSagePanel workspaceId={id} accent={accent} members={ws.members} />
         )}
 
         {tab === "dms" && (
@@ -394,6 +394,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
           withUserId={dmWith.id}
           withName={dmWith.name}
           accent={accent}
+          members={ws.members}
           onClose={() => setDmWith(null)}
         />
       )}

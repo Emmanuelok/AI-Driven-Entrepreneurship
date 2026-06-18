@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { workspaceApi } from "@/lib/workspace-api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { workspaceApi, type WorkspaceMember } from "@/lib/workspace-api";
 import { buildSiteContextSnapshotAsync } from "@/lib/site-brain-snapshot";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui";
+import { useMentionAutocomplete, MentionDropdown } from "@/components/use-mention-autocomplete";
+import { buildMentionCandidates } from "@/lib/workspace-mentions";
+import { useStore } from "@/store";
 import { Brain, Send, Loader2, Trash2, Sparkles } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -16,13 +19,22 @@ type Msg = { id: string; role: "user" | "assistant"; content: string; created_at
 // so advice stays grounded in what the team is actually doing without
 // the user having to re-explain.
 
-export function WorkspaceSagePanel({ workspaceId, accent }: { workspaceId: string; accent: string }) {
+export function WorkspaceSagePanel({ workspaceId, accent, members = [] }: { workspaceId: string; accent: string; members?: WorkspaceMember[] }) {
+  const { user } = useStore();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Mention candidates: workspace members (without the signed-in user).
+  // No reserved Sage handle — you're already chatting with Sage.
+  const candidates = useMemo(
+    () => buildMentionCandidates(members, { excludeUserId: user?.id }),
+    [members, user?.id],
+  );
+  const mention = useMentionAutocomplete({ value: draft, candidates, onChange: setDraft });
 
   // Initial load.
   useEffect(() => {
@@ -137,15 +149,25 @@ export function WorkspaceSagePanel({ workspaceId, accent }: { workspaceId: strin
 
       <div className="relative border-t border-border p-3">
         <div className="flex items-end gap-2">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
-            placeholder="What do you want to think through?"
-            rows={1}
-            disabled={sending}
-            className="flex-1 bg-surface-2/60 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald resize-none max-h-32 placeholder:text-muted"
-          />
+          <div className="relative flex-1">
+            <textarea
+              ref={mention.ref}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onClick={mention.onClick}
+              onKeyDown={(e) => {
+                if (mention.handleKey(e)) return;
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
+              }}
+              placeholder="What do you want to think through?"
+              rows={1}
+              disabled={sending}
+              className="w-full bg-surface-2/60 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald resize-none max-h-32 placeholder:text-muted"
+            />
+            {mention.open && (
+              <MentionDropdown filtered={mention.filtered} active={mention.active} onInsert={mention.insert} anchorRef={mention.ref} />
+            )}
+          </div>
           <button
             onClick={send}
             disabled={sending || !draft.trim()}

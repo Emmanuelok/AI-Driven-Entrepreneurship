@@ -8,6 +8,7 @@ import { useDiscussionReads } from "@/lib/use-discussion-reads";
 import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components/mention-autocomplete";
 import { Markdown } from "@/components/markdown";
 import type { WorkspaceMember } from "@/lib/workspace-api";
+import { buildMentionCandidates } from "@/lib/workspace-mentions";
 import { Send, Sparkles, Brain, Loader2, SmilePlus, Check, Pin, PinOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -38,20 +39,10 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent, isAdmin
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Mention candidates: every member + the reserved Sage handle.
-  const candidates = useMemo<MentionCandidate[]>(() => {
-    const memberCands: MentionCandidate[] = members
-      .filter((m) => m.user_id !== user?.id)
-      .map((m) => ({
-        id: m.user_id,
-        display: m.display_name || m.email || "Member",
-        token: (m.display_name || m.email || "member").toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g, ""),
-        hint: m.role,
-      }));
-    return [
-      { id: "sage", display: "Sage (AI mentor)", token: "sage", hint: "ask the AI" },
-      ...memberCands,
-    ];
-  }, [members, user?.id]);
+  const candidates = useMemo<MentionCandidate[]>(
+    () => buildMentionCandidates(members, { includeSage: true, excludeUserId: user?.id }),
+    [members, user?.id],
+  );
 
   // Auto-scroll on new messages / thinking indicator.
   useEffect(() => {

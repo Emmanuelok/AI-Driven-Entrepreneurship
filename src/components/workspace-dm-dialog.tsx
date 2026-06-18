@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useStore } from "@/store";
-import { workspaceApi } from "@/lib/workspace-api";
+import { workspaceApi, type WorkspaceMember } from "@/lib/workspace-api";
+import { useMentionAutocomplete, MentionDropdown } from "@/components/use-mention-autocomplete";
+import { buildMentionCandidates } from "@/lib/workspace-mentions";
 import { Send, Loader2, X, MessageSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -18,9 +20,10 @@ type DMMessage = { id: string; sender_user_id: string; body: string; created_at:
 // a quick note without leaving whatever tab they were on.
 
 export function WorkspaceDmDialog({
-  workspaceId, withUserId, withName, accent, onClose,
+  workspaceId, withUserId, withName, accent, onClose, members = [],
 }: {
   workspaceId: string; withUserId: string; withName: string; accent: string; onClose: () => void;
+  members?: WorkspaceMember[];
 }) {
   const { user } = useStore();
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -32,6 +35,14 @@ export function WorkspaceDmDialog({
   const seenIds = useRef<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
+
+  // Mention candidates: every member except the signed-in user. No
+  // reserved Sage handle in DMs — those are private to two members.
+  const candidates = useMemo(
+    () => buildMentionCandidates(members, { excludeUserId: user?.id }),
+    [members, user?.id],
+  );
+  const mention = useMentionAutocomplete({ value: draft, candidates, onChange: setDraft });
 
   function merge(incoming: DMMessage[]) {
     setMessages((prev) => {
@@ -168,16 +179,26 @@ export function WorkspaceDmDialog({
 
         <div className="relative border-t border-border p-3">
           <div className="flex items-end gap-2">
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
-              placeholder={`Message ${withName}…`}
-              rows={1}
-              disabled={sending || loading}
-              className="flex-1 bg-surface-2/60 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald resize-none max-h-32 placeholder:text-muted"
-              autoFocus
-            />
+            <div className="relative flex-1">
+              <textarea
+                ref={mention.ref}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onClick={mention.onClick}
+                onKeyDown={(e) => {
+                  if (mention.handleKey(e)) return;
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
+                }}
+                placeholder={`Message ${withName}…`}
+                rows={1}
+                disabled={sending || loading}
+                className="w-full bg-surface-2/60 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald resize-none max-h-32 placeholder:text-muted"
+                autoFocus
+              />
+              {mention.open && (
+                <MentionDropdown filtered={mention.filtered} active={mention.active} onInsert={mention.insert} anchorRef={mention.ref} />
+              )}
+            </div>
             <button
               onClick={send}
               disabled={sending || loading || !draft.trim()}
