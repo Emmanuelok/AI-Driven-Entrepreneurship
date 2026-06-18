@@ -3,10 +3,11 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { supabaseBrowser } from "@/lib/supabase";
 import { profileApi, type UserProfile } from "@/lib/profile-api";
 import { getAccountTypeDef } from "@/lib/account-types";
-import { Card, Badge, Button } from "@/components/ui";
-import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin } from "lucide-react";
+import { Card, Badge, Button, Textarea, Input, Dialog } from "@/components/ui";
+import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2 } from "lucide-react";
 
 // Public profile page rendered at /people/[slug]. Shows the same
 // fields the directory teases plus the persona-specific data
@@ -17,10 +18,21 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
+  // Real Supabase auth id of the viewer (null when signed out). Used to
+  // decide whether to show the contact composer and to hide it on your
+  // own profile.
+  const [viewerId, setViewerId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      try {
+        const sb = supabaseBrowser();
+        if (sb) {
+          const { data } = await sb.auth.getSession();
+          if (!cancelled) setViewerId(data.session?.user.id ?? null);
+        }
+      } catch { /* anonymous viewer is fine */ }
       const r = await profileApi.getProfileBySlug(slug);
       if (cancelled) return;
       if (r.ok) setProfile(r.profile);
@@ -102,16 +114,12 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
         </Card>
       )}
 
-      {profile.contact_policy === "open" && (
-        <Card className="p-5 mt-5 bg-gradient-to-br from-emerald/5 to-amber/5">
-          <h3 className="font-medium mb-2 flex items-center gap-2"><Mail className="size-4 text-emerald" /> Want to reach out?</h3>
-          <p className="text-sm text-muted leading-relaxed mb-4">
-            {profile.display_name?.split(" ")[0] || "This member"} accepts contact from signed-in members. Sign in to invite them to a workspace or send a direct message.
-          </p>
-          <Link href="/sign-in">
-            <Button size="sm">Sign in to connect</Button>
-          </Link>
-        </Card>
+      {profile.contact_policy !== "closed" && (
+        <ContactSection
+          profile={profile}
+          isSelf={!!viewerId && viewerId === profile.user_id}
+          signedIn={!!viewerId}
+        />
       )}
     </div>
   );
@@ -270,4 +278,113 @@ function PersonaPanel({ profile }: { profile: UserProfile }) {
     default:
       return null;
   }
+}
+
+// Contact section: shows a real composer when the viewer is signed in
+// (and it isn't their own profile). Server enforces the policy — we
+// just open the door. Signed-out visitors get a sign-in nudge.
+function ContactSection({ profile, isSelf, signedIn }: { profile: UserProfile; isSelf: boolean; signedIn: boolean }) {
+  const [open, setOpen] = useState(false);
+  const firstName = profile.display_name?.split(" ")[0] || "this member";
+
+  if (isSelf) {
+    return (
+      <Card className="p-5 mt-5">
+        <p className="text-sm text-muted">This is your public profile. <Link href="/studio/profile" className="text-emerald hover:underline">Edit it</Link> or <Link href="/studio/inbox" className="text-emerald hover:underline">check your inbox</Link>.</p>
+      </Card>
+    );
+  }
+
+  const policyLine =
+    profile.contact_policy === "institution"
+      ? `${firstName} accepts contact from people at the same institution.`
+      : `${firstName} is open to contact from members.`;
+
+  return (
+    <Card className="p-5 mt-5 bg-gradient-to-br from-emerald/5 to-amber/5">
+      <h3 className="font-medium mb-2 flex items-center gap-2"><Mail className="size-4 text-emerald" /> Want to reach out?</h3>
+      <p className="text-sm text-muted leading-relaxed mb-4">{policyLine}</p>
+      {signedIn ? (
+        <Button size="sm" onClick={() => setOpen(true)}><Send className="size-3.5" /> Send a message</Button>
+      ) : (
+        <Link href="/sign-in">
+          <Button size="sm">Sign in to connect</Button>
+        </Link>
+      )}
+      <Dialog open={open} onClose={() => setOpen(false)} title={`Reach out to ${firstName}`}>
+        <ContactComposer profile={profile} onSent={() => setOpen(false)} />
+      </Dialog>
+    </Card>
+  );
+}
+
+function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: () => void }) {
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  async function send() {
+    if (!body.trim() || sending) return;
+    setSending(true);
+    setErr(null);
+    const r = await profileApi.sendContactRequest(profile.slug ?? "", {
+      body: body.trim(),
+      subject: subject.trim() || undefined,
+      context: profile.account_type,
+    });
+    setSending(false);
+    if (r.ok) {
+      setSent(true);
+      setTimeout(onSent, 1600);
+    } else {
+      const map: Record<string, string> = {
+        already_pending: "You already have a pending request to this member.",
+        closed: "This member has closed inbound contact.",
+        institution_only: "This member only accepts contact from the same institution.",
+        not_public: "This member isn't accepting contact right now.",
+        auth_failed: "Please sign in to send a message.",
+        self: "You can't message yourself.",
+      };
+      setErr(map[r.error] ?? "Couldn't send your message. Try again.");
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="text-center py-6">
+        <div className="size-14 mx-auto rounded-full bg-emerald/15 flex items-center justify-center mb-3">
+          <CheckCircle2 className="size-7 text-emerald" />
+        </div>
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">Message sent</h3>
+        <p className="mt-1.5 text-sm text-muted">
+          {profile.display_name?.split(" ")[0] || "They"}&apos;ll see it in their inbox. If they accept, their reply lands in yours.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted leading-relaxed">
+        Keep it specific — who you are, why you&apos;re reaching out, and what you&apos;re hoping for. A clear, short ask gets answered.
+      </p>
+      <label className="block">
+        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Subject (optional)</div>
+        <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Quick question on distribution in Ghana" maxLength={160} />
+      </label>
+      <label className="block">
+        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Message</div>
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder={`Hi ${profile.display_name?.split(" ")[0] || "there"} — I'm building…`} maxLength={2000} />
+        <div className="text-[11px] text-muted mt-1">{body.length}/2000</div>
+      </label>
+      {err && <p className="text-xs text-rust">{err}</p>}
+      <div className="flex justify-end">
+        <Button onClick={send} disabled={!body.trim() || sending}>
+          {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Send message
+        </Button>
+      </div>
+    </div>
+  );
 }

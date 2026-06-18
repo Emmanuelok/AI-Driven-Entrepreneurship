@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard,
+  User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard, Inbox,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -73,6 +73,7 @@ const NAV: NavItem[] = [
   { href: "/studio/notebook", label: "Notebook", icon: Notebook, group: "Tools" },
 
   { href: "/studio/profile", label: "My Profile", icon: IdCard, group: "You" },
+  { href: "/studio/inbox", label: "Inbox", icon: Inbox, group: "You" },
   { href: "/studio/portfolio", label: "Portfolio", icon: Folder, group: "You" },
   { href: "/studio/credentials", label: "Credentials", icon: Award, group: "You" },
   { href: "/studio/connections", label: "Connections", icon: Network, group: "You" },

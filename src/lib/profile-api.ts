@@ -33,6 +33,22 @@ export type ProfileSummary = Pick<
   "user_id" | "slug" | "account_type" | "display_name" | "headline" | "country" | "city" | "avatar_url" | "persona_data" | "contact_policy"
 >;
 
+export type ContactRequest = {
+  id: string;
+  from_user_id: string;
+  to_user_id: string;
+  from_name: string;
+  from_account_type: string;
+  context: string;
+  subject: string;
+  body: string;
+  status: "pending" | "accepted" | "declined" | "archived";
+  reply_body: string | null;
+  created_at: string;
+  responded_at: string | null;
+  read_by_recipient: boolean;
+};
+
 async function authHeader(): Promise<Record<string, string>> {
   const sb = supabaseBrowser();
   if (!sb) return {};
@@ -77,4 +93,27 @@ export const profileApi = {
     const qs = params.toString();
     return call<{ results: ProfileSummary[]; total: number }>(`/api/v2/profiles${qs ? `?${qs}` : ""}`);
   },
+
+  // ── Contact requests ─────────────────────────────────────────────
+  // Send a cold intro to a profile owner (by slug). Server enforces
+  // the recipient's contact policy.
+  sendContactRequest: (slug: string, body: { body: string; subject?: string; context?: string }) =>
+    call<{ request: { id: string; status: string; created_at: string } }>(
+      `/api/v2/profiles/${encodeURIComponent(slug)}/contact`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  // The caller's inbox — received + sent + unread count. Pass
+  // markRead to clear the recipient unread watermark on view.
+  getContacts: (markRead = false) =>
+    call<{ received: ContactRequest[]; sent: ContactRequest[]; unread: number }>(
+      `/api/v2/me/contacts${markRead ? "?markRead=1" : ""}`,
+    ),
+
+  // Respond to a received request.
+  respondToContact: (id: string, status: "accepted" | "declined" | "archived", reply_body?: string) =>
+    call<{ request: { id: string; status: string; reply_body: string | null; responded_at: string | null } }>(
+      `/api/v2/me/contacts/${id}`,
+      { method: "PATCH", body: JSON.stringify({ status, reply_body }) },
+    ),
 };
