@@ -84,6 +84,16 @@ export function WorkspaceDmDialog({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, sending]);
 
+  // Auto-mark the thread read while the dialog is mounted. We advance
+  // the watermark to the latest message's created_at. workspaceApi
+  // wraps a no-op if the timestamp isn't strictly newer than the
+  // server's stored one, so this is cheap to re-fire.
+  useEffect(() => {
+    if (!threadId || messages.length === 0) return;
+    const latest = messages[messages.length - 1];
+    void workspaceApi.markDmRead(workspaceId, threadId, latest.created_at);
+  }, [threadId, messages, workspaceId]);
+
   async function send() {
     const text = draft.trim();
     if (!text || sending || !threadId) return;

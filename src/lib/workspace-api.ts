@@ -343,7 +343,10 @@ export const workspaceApi = {
 
   // ── Direct messages ─────────────────────────────────────────────────
   listDmThreads: (id: string) =>
-    call<{ results: { id: string; with_user_id: string; with_name: string; last_message_at: string; last_message_preview: string | null; last_message_was_mine: boolean | null }[] }>(`/api/v2/workspaces/${id}/dms`),
+    call<{ results: { id: string; with_user_id: string; with_name: string; last_message_at: string; last_message_preview: string | null; last_message_was_mine: boolean | null; unread: boolean }[] }>(`/api/v2/workspaces/${id}/dms`),
+
+  markDmRead: (id: string, tid: string, at?: string) =>
+    call(`/api/v2/workspaces/${id}/dms/${tid}/reads`, { method: "POST", body: JSON.stringify({ at }) }),
 
   openDmThread: (id: string, withUserId: string) =>
     call<{ thread: { id: string; with_user_id: string; with_name: string }; alreadyExisted: boolean }>(`/api/v2/workspaces/${id}/dms`, { method: "POST", body: JSON.stringify({ withUserId }) }),

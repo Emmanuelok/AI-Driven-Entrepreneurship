@@ -13,6 +13,7 @@ import { setByLabel, relativeDue, dueWindow, windowLabel } from "@/lib/deadline-
 import { describeRule, type RecurrenceRule, type WeekdayCode } from "@/lib/recurrence";
 import { usePersonalWorkspaceAgent } from "@/lib/workspace-agent-watcher";
 import { useDiscussionUnread } from "@/lib/use-discussion-unread";
+import { useDmInbox } from "@/lib/use-dm-inbox";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 import { WorkspaceSearchDialog } from "@/components/workspace-search-dialog";
 import { WorkspaceActivityList } from "@/components/workspace-activity-list";
@@ -27,7 +28,8 @@ const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-p
 const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
 const WorkspaceSagePanel = dynamic(() => import("@/components/workspace-sage-panel").then((m) => m.WorkspaceSagePanel), { ssr: false, loading: TabLoader });
 const WorkspaceDmDialog = dynamic(() => import("@/components/workspace-dm-dialog").then((m) => m.WorkspaceDmDialog), { ssr: false });
-import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus, Brain } from "lucide-react";
+const WorkspaceDmInboxPanel = dynamic(() => import("@/components/workspace-dm-inbox-panel").then((m) => m.WorkspaceDmInboxPanel), { ssr: false, loading: TabLoader });
+import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, MessagesSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus, Brain } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 const ACCENT_HEX: Record<WorkspaceAccent, string> = {
@@ -50,7 +52,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
   const [searchOpen, setSearchOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [dmWith, setDmWith] = useState<{ id: string; name: string } | null>(null);
-  const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files" | "sage">("overview");
+  const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files" | "sage" | "dms">("overview");
 
   // Cmd/Ctrl+K opens the in-workspace search. Bypasses when the user is
   // already typing into an input/textarea/contentEditable so it doesn't
@@ -83,6 +85,8 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
   // watermark that aren't mine. Lives at the room level so it stays
   // accurate even while the user is reading another tab.
   const unread = useDiscussionUnread(id);
+  // Same idea for DMs — total unread conversations.
+  const dmInbox = useDmInbox(id);
 
   if (ws.loading) {
     return <div className="min-h-[50vh] flex items-center justify-center"><Loader2 className="size-6 text-emerald animate-spin" /></div>;
@@ -190,6 +194,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
             { id: "discussion", label: "Discussion", icon: MessageSquare },
             { id: "notes", label: "Notes", icon: FileText },
             { id: "files", label: "Files", icon: Paperclip },
+            { id: "dms", label: "DMs", icon: MessagesSquare },
             { id: "sage", label: "Ask Sage", icon: Brain },
           ] as const).map((t) => (
             <button
@@ -203,6 +208,11 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
               {t.id === "discussion" && unread > 0 && tab !== "discussion" && (
                 <span className="ml-1 inline-flex items-center justify-center text-[10px] font-bold rounded-full bg-rust text-white min-w-[16px] h-4 px-1" aria-label={`${unread} unread`}>
                   {unread > 60 ? "60+" : unread}
+                </span>
+              )}
+              {t.id === "dms" && dmInbox.totalUnread > 0 && tab !== "dms" && (
+                <span className="ml-1 inline-flex items-center justify-center text-[10px] font-bold rounded-full bg-rust text-white min-w-[16px] h-4 px-1" aria-label={`${dmInbox.totalUnread} unread conversations`}>
+                  {dmInbox.totalUnread}
                 </span>
               )}
             </button>
@@ -235,6 +245,10 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
 
         {tab === "sage" && (
           <WorkspaceSagePanel workspaceId={id} accent={accent} />
+        )}
+
+        {tab === "dms" && (
+          <WorkspaceDmInboxPanel workspaceId={id} accent={accent} members={ws.members} myUserId={user?.id} />
         )}
 
         {tab === "overview" && (

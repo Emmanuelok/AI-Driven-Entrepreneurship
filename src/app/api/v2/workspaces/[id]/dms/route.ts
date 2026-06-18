@@ -66,10 +66,29 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!previewByThread.has(row.thread_id)) previewByThread.set(row.thread_id, row);
   }
 
+  // My read watermarks for these threads — drives the inbox's unread
+  // badges. Threads with no watermark row count as never-read.
+  const { data: reads } = await sb
+    .from("workspace_dm_reads")
+    .select("thread_id, last_read_at")
+    .in("thread_id", threadIds)
+    .eq("user_id", me.userId);
+  const watermarkByThread = new Map<string, number>();
+  for (const r of reads ?? []) {
+    const row = r as { thread_id: string; last_read_at: string };
+    watermarkByThread.set(row.thread_id, new Date(row.last_read_at).getTime());
+  }
+
   const results = threads.map((t) => {
     const row = t as { id: string; user_lo: string; user_hi: string; updated_at: string; created_at: string };
     const otherId = row.user_lo === me.userId ? row.user_hi : row.user_lo;
     const preview = previewByThread.get(row.id);
+    // Unread = the latest message in this thread is from THE OTHER
+    // party AND landed after my watermark. I never have "unread" of
+    // my own messages.
+    const watermark = watermarkByThread.get(row.id) ?? 0;
+    const lastTs = preview ? new Date(preview.created_at).getTime() : 0;
+    const unread = !!preview && preview.sender_user_id !== me.userId && lastTs > watermark;
     return {
       id: row.id,
       with_user_id: otherId,
@@ -77,6 +96,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       last_message_at: preview?.created_at ?? row.created_at,
       last_message_preview: preview ? truncate(preview.body, 100) : null,
       last_message_was_mine: preview ? preview.sender_user_id === me.userId : null,
+      unread,
     };
   });
 
