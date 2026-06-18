@@ -11,6 +11,7 @@ import {
   User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard, Inbox,
 } from "lucide-react";
 import { useStore } from "@/store";
+import { useInboxUnread } from "@/lib/use-inbox-unread";
 import { cn } from "@/lib/utils";
 import { CommandPalette } from "@/components/command-palette";
 import { Companion } from "@/components/companion";
@@ -91,6 +92,10 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   const [mounted, setMounted] = useState(false);
   const { user, hydrated, streak } = useStore();
   const t = useT();
+  // Live unread badge for the Inbox nav item. Keyed on pathname so it
+  // refreshes as the user moves around (and clears after /studio/inbox
+  // marks everything read).
+  const inboxUnread = useInboxUnread(pathname ?? undefined);
 
   // Mount-once gate to avoid SSR/CSR hydration mismatches caused by
   // zustand-persist reading localStorage synchronously on the client.
@@ -160,7 +165,12 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
                     >
                       <n.icon className={cn("size-4 transition", active ? "text-emerald" : "group-hover:text-emerald")} />
                       <span>{n.label}</span>
-                      {active && <span className="absolute right-3 size-1.5 rounded-full bg-emerald" />}
+                      {n.href === "/studio/inbox" && inboxUnread > 0 && (
+                        <span className="ml-auto inline-flex items-center justify-center text-[10px] font-bold rounded-full bg-rust text-white min-w-[18px] h-[18px] px-1" aria-label={`${inboxUnread} unread`}>
+                          {inboxUnread > 99 ? "99+" : inboxUnread}
+                        </span>
+                      )}
+                      {active && n.href !== "/studio/inbox" && <span className="absolute right-3 size-1.5 rounded-full bg-emerald" />}
                     </Link>
                   );
                 })}
