@@ -26,6 +26,7 @@ const WorkspaceNotesPanel = dynamic(() => import("@/components/workspace-notes-p
 const WorkspaceTasksPanel = dynamic(() => import("@/components/workspace-tasks-panel").then((m) => m.WorkspaceTasksPanel), { ssr: false, loading: TabLoader });
 const WorkspaceAttachments = dynamic(() => import("@/components/workspace-attachments").then((m) => m.WorkspaceAttachments), { ssr: false, loading: TabLoader });
 const WorkspaceSagePanel = dynamic(() => import("@/components/workspace-sage-panel").then((m) => m.WorkspaceSagePanel), { ssr: false, loading: TabLoader });
+const WorkspaceDmDialog = dynamic(() => import("@/components/workspace-dm-dialog").then((m) => m.WorkspaceDmDialog), { ssr: false });
 import { ArrowLeft, Users, Plus, Loader2, Calendar, Sparkles, Activity, LinkIcon, Copy, Check, Trash2, X, ArrowRight, UserMinus, CheckCircle2, Clock, ShieldCheck, MessageSquare, FileText, LayoutDashboard, Wand2, KanbanSquare, Paperclip, Repeat, Search, Archive, CopyPlus, Brain } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -48,6 +49,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [dmWith, setDmWith] = useState<{ id: string; name: string } | null>(null);
   const [tab, setTab] = useState<"overview" | "tasks" | "discussion" | "notes" | "files" | "sage">("overview");
 
   // Cmd/Ctrl+K opens the in-workspace search. Bypasses when the user is
@@ -294,6 +296,15 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
                       <div className="text-sm font-medium truncate">{m.display_name || m.email || "Member"}</div>
                       <div className="text-[10px] text-muted">{m.role}{m.user_id === user?.id ? " · you" : ""}</div>
                     </div>
+                    {m.user_id !== user?.id && (
+                      <button
+                        onClick={() => setDmWith({ id: m.user_id, name: m.display_name || m.email || "Member" })}
+                        className="size-7 rounded-lg text-muted hover:text-emerald hover:bg-emerald/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                        title={`Message ${m.display_name || m.email || "this member"} privately`}
+                      >
+                        <MessageSquare className="size-3.5" />
+                      </button>
+                    )}
                     {isAdmin && m.role !== "owner" && m.user_id !== user?.id && (
                       <button
                         onClick={async () => {
@@ -336,6 +347,16 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
           onClose={() => setDuplicateOpen(false)}
           onDuplicated={(newId) => { setDuplicateOpen(false); router.push(`/studio/workspaces/${newId}`); }}
           workspaceId={id}
+        />
+      )}
+
+      {dmWith && (
+        <WorkspaceDmDialog
+          workspaceId={id}
+          withUserId={dmWith.id}
+          withName={dmWith.name}
+          accent={accent}
+          onClose={() => setDmWith(null)}
         />
       )}
 
