@@ -83,8 +83,9 @@ const NAV: NavItem[] = [
   { href: "/studio/analytics", label: "Analytics", icon: TrendingUp, group: "You" },
   { href: "/studio/settings", label: "Settings", icon: Settings, group: "You" },
 
-  { href: "/institution", label: "Institution View", icon: Building2, group: "Admin" },
-  { href: "/institution/cohorts", label: "Cohort Manager", icon: Users, group: "Admin" },
+  { href: "/studio/orgs", label: "Organizations", icon: Building2, group: "Admin" },
+  { href: "/studio/cohorts", label: "Cohorts", icon: Users, group: "Admin" },
+  { href: "/institution", label: "Partnerships", icon: Building2, group: "Admin" },
 ];
 
 export default function StudioLayout({ children }: { children: React.ReactNode }) {
