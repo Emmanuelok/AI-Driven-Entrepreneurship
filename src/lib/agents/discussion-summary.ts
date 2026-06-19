@@ -78,7 +78,7 @@ export async function discussionSummary(ctx: AgentContext): Promise<AgentResult>
       notification: {
         title: `No discussion to summarize`,
         body: `Nothing in the last ${Math.round(sinceMs / 3600_000)} hours.`,
-        url: "/studio/agent-runs",
+        url: `/studio/agent-runs/${ctx.runId}`,
       },
     };
   }

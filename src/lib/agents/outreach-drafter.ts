@@ -137,7 +137,7 @@ export async function outreachDrafter(ctx: AgentContext): Promise<AgentResult> {
     notification: {
       title: `Sage drafted a message to ${getStr(recipient, "display_name") || input.recipientSlug}`,
       body: draft.subject,
-      url: `/people/${input.recipientSlug}?draft=${ctx.runId}`,
+      url: `/studio/agent-runs/${ctx.runId}`,
     },
   };
 }

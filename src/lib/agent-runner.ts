@@ -143,7 +143,9 @@ export async function startAgentRun(args: {
       targetSlug: runId,
       title: result.notification?.title ?? `Sage finished: ${result.title ?? args.title}`,
       body: result.notification?.body,
-      url: result.notification?.url ?? "/studio/agent-runs",
+      // Deep-link to the new detail page so a tap on the bell or a
+      // device push lands on the actual run, not the list view.
+      url: result.notification?.url ?? `/studio/agent-runs/${runId}`,
     });
 
     return { id: runId, status: finalStatus };

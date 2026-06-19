@@ -209,6 +209,10 @@ export const profileApi = {
     call<{ run: AgentRun }>(`/api/v2/me/agent-runs/${id}`),
   listAgentRuns: () =>
     call<{ results: AgentRunSummary[] }>(`/api/v2/me/agent-runs`),
+  // DELETE on a run is "cancel-or-archive" depending on its status
+  // (the server route handles both with one verb).
+  deleteAgentRun: (id: string) =>
+    call(`/api/v2/me/agent-runs/${id}`, { method: "DELETE" }),
 };
 
 export type AgentStep = {

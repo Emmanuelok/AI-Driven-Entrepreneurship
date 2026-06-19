@@ -120,7 +120,7 @@ export async function venturePitchPolish(ctx: AgentContext): Promise<AgentResult
     notification: {
       title: `Sage polished your pitch`,
       body: polished.hook.slice(0, 160),
-      url: `/studio/agent-runs`,
+      url: `/studio/agent-runs/${ctx.runId}`,
     },
   };
 }

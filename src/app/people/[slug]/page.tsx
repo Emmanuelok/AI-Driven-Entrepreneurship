@@ -411,8 +411,9 @@ function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: ()
       setDraftStep(null);
       return;
     }
-    setDraftStep("Brief saved to /studio/agent-runs — open it for the full read.");
-    setTimeout(() => setDraftStep(null), 4500);
+    // Surface a direct link to the run itself rather than the index.
+    setDraftStep(`Brief ready — open it at /studio/agent-runs/${started.id}`);
+    setTimeout(() => setDraftStep(null), 6000);
   }
 
   // Reuse the existing send + sent flow below.

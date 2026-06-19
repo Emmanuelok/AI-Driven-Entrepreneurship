@@ -126,7 +126,7 @@ export async function researchBrief(ctx: AgentContext): Promise<AgentResult> {
     notification: {
       title: `Sage's brief on ${displayName} is ready`,
       body: brief.what.slice(0, 160),
-      url: "/studio/agent-runs",
+      url: `/studio/agent-runs/${ctx.runId}`,
     },
   };
 }

@@ -34,6 +34,12 @@ const AGENT_LABEL: Record<string, string> = {
 export default function AgentRunsPage() {
   const [runs, setRuns] = useState<AgentRunSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  // Filters — agent kind + status. Cheap to keep client-side because
+  // the API returns the last 40 runs already; we filter the visible
+  // set in memory rather than refetching. Search is text in title.
+  const [kindFilter, setKindFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [q, setQ] = useState("");
 
   async function load() {
     const r = await profileApi.listAgentRuns();
@@ -41,6 +47,17 @@ export default function AgentRunsPage() {
     setLoading(false);
   }
   useEffect(() => { void load(); }, []);
+
+  const visible = runs.filter((r) => {
+    if (kindFilter !== "all" && r.agent_kind !== kindFilter) return false;
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (q.trim() && !r.title.toLowerCase().includes(q.trim().toLowerCase())) return false;
+    return true;
+  });
+
+  // Available kinds derived from the rows so adding a 5th agent
+  // never requires touching the filter chip list.
+  const kinds = Array.from(new Set(runs.map((r) => r.agent_kind)));
 
   return (
     <div className="max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
@@ -56,6 +73,40 @@ export default function AgentRunsPage() {
         </p>
       </div>
 
+      {!loading && runs.length > 0 && (
+        <div className="mb-5 flex items-center gap-2 flex-wrap">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search runs…"
+            className="bg-surface-2 border border-border rounded-xl px-3 py-1.5 text-sm outline-none focus:border-emerald w-full max-w-[260px]"
+          />
+          <select
+            value={kindFilter}
+            onChange={(e) => setKindFilter(e.target.value)}
+            className="bg-surface-2 border border-border rounded-xl px-3 py-1.5 text-sm outline-none focus:border-emerald"
+          >
+            <option value="all">All agents</option>
+            {kinds.map((k) => (
+              <option key={k} value={k}>{AGENT_LABEL[k] ?? k}</option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-surface-2 border border-border rounded-xl px-3 py-1.5 text-sm outline-none focus:border-emerald"
+          >
+            <option value="all">All statuses</option>
+            <option value="completed">Done</option>
+            <option value="needs_approval">Awaiting you</option>
+            <option value="running">Running</option>
+            <option value="failed">Failed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <span className="text-xs text-muted">{visible.length} of {runs.length}</span>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="size-6 text-emerald animate-spin" /></div>
       ) : runs.length === 0 ? (
@@ -65,9 +116,13 @@ export default function AgentRunsPage() {
             No runs yet. Dispatch Sage from a public profile&apos;s contact composer (&quot;Let Sage draft this for you&quot;) to see your first run land here.
           </p>
         </Card>
+      ) : visible.length === 0 ? (
+        <Card className="p-10 text-center">
+          <p className="text-muted">No runs match those filters.</p>
+        </Card>
       ) : (
         <div className="space-y-3">
-          {runs.map((r) => (
+          {visible.map((r) => (
             <RunCard key={r.id} run={r} />
           ))}
         </div>
@@ -85,7 +140,9 @@ function RunCard({ run }: { run: AgentRunSummary }) {
     <Card className="p-5">
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
-          <h3 className="font-medium text-sm">{run.title}</h3>
+          <h3 className="font-medium text-sm">
+            <Link href={`/studio/agent-runs/${run.id}`} className="hover:text-emerald transition">{run.title}</Link>
+          </h3>
           <p className="text-[11px] text-muted mt-0.5">{agentLabel} · {formatDistanceToNow(new Date(run.created_at))} ago</p>
         </div>
         <Badge color={meta.color}>
