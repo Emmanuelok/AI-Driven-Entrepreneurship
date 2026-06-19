@@ -5,6 +5,7 @@ import Link from "next/link";
 import { profileApi, type ProfileSummary } from "@/lib/profile-api";
 import { ACCOUNT_TYPES, getAccountTypeDef, type AccountType } from "@/lib/account-types";
 import { Card, Button } from "@/components/ui";
+import { VerifiedBadgeBool } from "@/components/verified-badge";
 import { Users, Search, Loader2, ArrowRight } from "lucide-react";
 
 // Public people directory. Lists everyone who's opted into a public
@@ -138,7 +139,10 @@ function ProfileCard({ p }: { p: ProfileSummary }) {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="font-medium truncate group-hover:text-emerald transition">{p.display_name || "—"}</div>
+            <div className="font-medium truncate group-hover:text-emerald transition inline-flex items-center gap-1.5">
+              <span className="truncate">{p.display_name || "—"}</span>
+              <VerifiedBadgeBool verified={p.verified} size="xs" />
+            </div>
             <div className="text-[11px] text-muted truncate">
               {def.emoji} {def.label}{p.country ? ` · ${p.country}` : ""}
             </div>

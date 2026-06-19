@@ -5,6 +5,7 @@ import Link from "next/link";
 import { profileApi, type ProfileSummary } from "@/lib/profile-api";
 import { getAccountTypeDef, type AccountType } from "@/lib/account-types";
 import { Card } from "@/components/ui";
+import { VerifiedBadgeBool } from "@/components/verified-badge";
 import { Loader2, ArrowRight, BadgeCheck } from "lucide-react";
 
 // A live strip of REGISTERED stakeholders of a given account type,
@@ -94,7 +95,10 @@ export function RegisteredStakeholders({
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate group-hover:text-emerald transition">{p.display_name || "—"}</div>
+                    <div className="font-medium text-sm truncate group-hover:text-emerald transition inline-flex items-center gap-1">
+                      <span className="truncate">{p.display_name || "—"}</span>
+                      <VerifiedBadgeBool verified={p.verified} size="xs" />
+                    </div>
                     <div className="text-[11px] text-muted truncate">
                       {[p.city, p.country].filter(Boolean).join(", ") || def.label}
                     </div>

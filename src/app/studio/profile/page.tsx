@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { profileApi, type UserProfile } from "@/lib/profile-api";
+import { profileApi, type UserProfile, type Verification } from "@/lib/profile-api";
 import { ACCOUNT_TYPES, getAccountTypeDef, type AccountType } from "@/lib/account-types";
 import { Card, Button, Input, Textarea } from "@/components/ui";
-import { ArrowLeft, Save, Loader2, ExternalLink, CheckCircle2, AlertCircle, User as UserIcon } from "lucide-react";
+import { ArrowLeft, Save, Loader2, ExternalLink, CheckCircle2, AlertCircle, User as UserIcon, BadgeCheck, Mail } from "lucide-react";
 
 // Profile editor — the canonical surface where any user (any account
 // type) maintains their platform-wide profile.
@@ -176,6 +176,9 @@ export default function ProfileEditorPage() {
             </Labeled>
           </div>
         </Card>
+
+        {/* Trust + verification */}
+        <VerificationSection />
 
         {/* Discovery + contact policy */}
         <Card className="p-5">
@@ -386,4 +389,89 @@ function PersonaEditor({ profile, patchPersona }: { profile: UserProfile; patchP
     default:
       return null;
   }
+}
+
+// Trust / verification panel on the editor. Shows current verifications
+// (institution email = primary v2 path) and lets the user start a new
+// one. Sends a magic link to the chosen email; the /verify/[token]
+// landing page handles the claim.
+function VerificationSection() {
+  const [list, setList] = useState<Verification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+
+  async function load() {
+    const r = await profileApi.listMyVerifications();
+    if (r.ok) setList(r.results);
+    setLoading(false);
+  }
+  useEffect(() => { void load(); }, []);
+
+  const verifiedInstitution = list.find((v) => v.kind === "email_institution" && v.status === "verified");
+  const pendingInstitution = list.find((v) => v.kind === "email_institution" && v.status === "pending");
+
+  async function startInstitution() {
+    if (!email.trim() || busy) return;
+    setBusy(true); setErr(null); setSentTo(null);
+    const r = await profileApi.startInstitutionVerification(email.trim());
+    setBusy(false);
+    if (!r.ok) {
+      setErr(r.error === "not_institutional"
+        ? "That doesn't look institutional. Use the email your university or program gave you (e.g. ending in .edu, .ac.uk, .edu.gh)."
+        : "Couldn't send. Try again.");
+      return;
+    }
+    setSentTo(email.trim());
+    void load();
+  }
+
+  return (
+    <Card className="p-5">
+      <h2 className="text-sm font-medium mb-1 flex items-center gap-2">
+        <BadgeCheck className="size-4 text-emerald" /> Trust + verification
+      </h2>
+      <p className="text-xs text-muted mb-4">
+        Verified profiles carry a badge that other members can see. Founders are more likely to accept your outreach when you&apos;re verified.
+      </p>
+
+      {loading ? (
+        <div className="text-xs text-muted">Loading…</div>
+      ) : verifiedInstitution ? (
+        <div className="rounded-xl border border-emerald/30 bg-emerald/5 p-4">
+          <div className="flex items-center gap-2 text-sm text-emerald font-medium">
+            <BadgeCheck className="size-4" /> Institution email verified
+          </div>
+          <p className="text-xs text-muted mt-1">
+            <span className="text-foreground">{String(verifiedInstitution.evidence.email ?? "")}</span>
+            {verifiedInstitution.evidence.institutionLabel ? <> · {String(verifiedInstitution.evidence.institutionLabel)}</> : null}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {pendingInstitution && !sentTo && (
+            <p className="text-xs text-amber">
+              You have a pending verification for <span className="text-foreground">{String(pendingInstitution.evidence.email ?? "")}</span> — check that inbox.
+            </p>
+          )}
+          {sentTo && (
+            <div className="rounded-xl border border-emerald/30 bg-emerald/5 p-3 text-xs text-emerald">
+              Check your inbox at <span className="text-foreground font-mono">{sentTo}</span> — the link expires in 24 hours.
+            </div>
+          )}
+          <Labeled label="Institutional email" hint="Use the address your university, program, or organization issued you.">
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@yourschool.edu" />
+          </Labeled>
+          {err && <p className="text-xs text-rust">{err}</p>}
+          <div className="flex justify-end">
+            <Button size="sm" onClick={startInstitution} disabled={!email.trim() || busy}>
+              {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Mail className="size-3.5" />} Send verification email
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
 }

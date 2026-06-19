@@ -66,5 +66,33 @@ export async function GET(req: Request) {
   ]);
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
-  return Response.json({ ok: true, results: data ?? [], total: count ?? 0 });
+  // Annotate each row with its verified state so the directory cards
+  // can render the badge without a per-row RPC. We aggregate the
+  // signals in one batch — the inner expression maps user_id →
+  // boolean(verified) so the join is O(N) on the page size.
+  const rowsArr = (data ?? []) as { user_id: string }[];
+  const userIds = rowsArr.map((r) => r.user_id);
+  const verifiedByUser = new Map<string, boolean>();
+  if (userIds.length > 0) {
+    const [vRes, aRes] = await Promise.all([
+      sb.from("verifications").select("user_id, kind, status").in("user_id", userIds).eq("status", "verified"),
+      sb.from("peer_attestations").select("attested_user_id, attestor_user_id").in("attested_user_id", userIds),
+    ]);
+    const attCount = new Map<string, Set<string>>();
+    for (const a of (aRes.data ?? []) as { attested_user_id: string; attestor_user_id: string }[]) {
+      const set = attCount.get(a.attested_user_id) ?? new Set();
+      set.add(a.attestor_user_id);
+      attCount.set(a.attested_user_id, set);
+    }
+    const hasSystemVerify = new Map<string, boolean>();
+    for (const v of (vRes.data ?? []) as { user_id: string; kind: string }[]) {
+      hasSystemVerify.set(v.user_id, true);
+    }
+    for (const id of userIds) {
+      verifiedByUser.set(id, hasSystemVerify.get(id) === true || (attCount.get(id)?.size ?? 0) >= 3);
+    }
+  }
+  const results = rowsArr.map((r) => ({ ...r, verified: verifiedByUser.get(r.user_id) === true }));
+
+  return Response.json({ ok: true, results, total: count ?? 0 });
 }

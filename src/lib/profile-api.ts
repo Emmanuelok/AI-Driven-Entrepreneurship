@@ -31,7 +31,32 @@ export type UserProfile = {
 export type ProfileSummary = Pick<
   UserProfile,
   "user_id" | "slug" | "account_type" | "display_name" | "headline" | "country" | "city" | "avatar_url" | "persona_data" | "contact_policy"
->;
+> & { verified?: boolean };
+
+export type VerifiedState = {
+  institution_email: boolean;
+  id_check: boolean;
+  admin_verified: boolean;
+  attestation_count: number;
+  verified: boolean;
+};
+
+export type Attestation = {
+  id: string;
+  kind: "mentor" | "founder" | "investor" | "instructor" | "funder" | "collaborator";
+  body: string;
+  created_at: string;
+  attestor: { display_name: string; slug: string | null; account_type: string };
+};
+
+export type Verification = {
+  id: string;
+  kind: "email_institution" | "id_check" | "linkedin" | "admin";
+  status: "pending" | "verified" | "rejected" | "expired";
+  evidence: Record<string, unknown>;
+  verified_at: string | null;
+  created_at: string;
+};
 
 export type ContactRequest = {
   id: string;
@@ -87,8 +112,37 @@ export const profileApi = {
   patchMyProfile: (patch: Partial<UserProfile>) =>
     call<{ profile: UserProfile }>(`/api/v2/me/profile`, { method: "PATCH", body: JSON.stringify(patch) }),
 
-  // Public profile by slug.
-  getProfileBySlug: (slug: string) => call<{ profile: UserProfile }>(`/api/v2/profiles/${encodeURIComponent(slug)}`),
+  // Public profile by slug. v2 also returns the verified state and
+  // the recent peer attestations so the profile page renders trust
+  // signals next to the persona panel.
+  getProfileBySlug: (slug: string) =>
+    call<{ profile: UserProfile; verified: VerifiedState; attestations: Attestation[] }>(
+      `/api/v2/profiles/${encodeURIComponent(slug)}`,
+    ),
+
+  // ── Trust layer ──────────────────────────────────────────────────
+  listMyVerifications: () => call<{ results: Verification[] }>(`/api/v2/me/verifications`),
+  startInstitutionVerification: (email: string, institutionLabel?: string) =>
+    call<{ id: string; domain: string; institutionLabel: string; delivery: "live" | "local" }>(
+      `/api/v2/me/verifications`,
+      { method: "POST", body: JSON.stringify({ kind: "email_institution", email, institutionLabel }) },
+    ),
+  claimVerification: (token: string) =>
+    call<{ alreadyVerified?: boolean; institutionLabel?: string }>(
+      `/api/v2/me/verifications/${encodeURIComponent(token)}`,
+      { method: "POST", body: "{}" },
+    ),
+
+  attestProfile: (slug: string, kind: Attestation["kind"], body: string) =>
+    call<{ attestation: { id: string; body: string; created_at: string } }>(
+      `/api/v2/profiles/${encodeURIComponent(slug)}/attest`,
+      { method: "POST", body: JSON.stringify({ kind, body }) },
+    ),
+  unattestProfile: (slug: string, kind: Attestation["kind"]) =>
+    call(
+      `/api/v2/profiles/${encodeURIComponent(slug)}/attest?kind=${encodeURIComponent(kind)}`,
+      { method: "DELETE" },
+    ),
 
   // Directory listing with optional filters.
   listProfiles: (opts?: { type?: AccountType; country?: string; q?: string; limit?: number; offset?: number }) => {

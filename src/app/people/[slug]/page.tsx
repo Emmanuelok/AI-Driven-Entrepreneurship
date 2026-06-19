@@ -4,10 +4,11 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase";
-import { profileApi, type UserProfile } from "@/lib/profile-api";
+import { profileApi, type UserProfile, type VerifiedState, type Attestation } from "@/lib/profile-api";
 import { getAccountTypeDef } from "@/lib/account-types";
 import { Card, Badge, Button, Textarea, Input, Dialog } from "@/components/ui";
-import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2 } from "lucide-react";
+import { VerifiedBadge } from "@/components/verified-badge";
+import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2, BadgeCheck } from "lucide-react";
 
 // Public profile page rendered at /people/[slug]. Shows the same
 // fields the directory teases plus the persona-specific data
@@ -16,12 +17,23 @@ import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send
 export default function PublicProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [verified, setVerified] = useState<VerifiedState | undefined>(undefined);
+  const [attestations, setAttestations] = useState<Attestation[]>([]);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   // Real Supabase auth id of the viewer (null when signed out). Used to
   // decide whether to show the contact composer and to hide it on your
   // own profile.
   const [viewerId, setViewerId] = useState<string | null>(null);
+
+  async function reload() {
+    const r = await profileApi.getProfileBySlug(slug);
+    if (r.ok) {
+      setProfile(r.profile);
+      setVerified(r.verified);
+      setAttestations(r.attestations);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -35,8 +47,11 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
       } catch { /* anonymous viewer is fine */ }
       const r = await profileApi.getProfileBySlug(slug);
       if (cancelled) return;
-      if (r.ok) setProfile(r.profile);
-      else setMissing(true);
+      if (r.ok) {
+        setProfile(r.profile);
+        setVerified(r.verified);
+        setAttestations(r.attestations);
+      } else setMissing(true);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -67,8 +82,9 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
           <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-1 flex items-center gap-1.5">
             {def.emoji} {def.label}
           </p>
-          <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight inline-flex items-center gap-2 flex-wrap">
             {profile.display_name || "—"}
+            <VerifiedBadge state={verified} size="md" />
           </h1>
           {profile.headline && <p className="mt-2 text-lg text-muted leading-snug">{profile.headline}</p>}
           <div className="mt-3 flex flex-wrap gap-2 items-center">
@@ -113,6 +129,14 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
           </div>
         </Card>
       )}
+
+      <AttestationsSection
+        profile={profile}
+        attestations={attestations}
+        signedIn={!!viewerId}
+        isSelf={!!viewerId && viewerId === profile.user_id}
+        onChanged={reload}
+      />
 
       {profile.contact_policy !== "closed" && (
         <ContactSection
@@ -383,6 +407,110 @@ function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: ()
       <div className="flex justify-end">
         <Button onClick={send} disabled={!body.trim() || sending}>
           {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Send message
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Public peer-attestations panel. Visitors see every vouch; signed-in
+// non-owner viewers see a "Vouch for X" CTA that opens an inline
+// composer. Editing or revoking your own vouch happens through the
+// same composer (the API is upsert + delete).
+function AttestationsSection({ profile, attestations, signedIn, isSelf, onChanged }: { profile: UserProfile; attestations: Attestation[]; signedIn: boolean; isSelf: boolean; onChanged: () => void | Promise<void> }) {
+  const [open, setOpen] = useState(false);
+
+  if (attestations.length === 0 && (!signedIn || isSelf)) {
+    // Quietly skip the panel when there are no vouches AND the viewer
+    // can't add one — there's nothing to surface.
+    return null;
+  }
+
+  return (
+    <Card className="p-5 mt-5">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h3 className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5">
+          <BadgeCheck className="size-3 text-emerald" /> Vouched for by {attestations.length} {attestations.length === 1 ? "person" : "people"}
+        </h3>
+        {signedIn && !isSelf && (
+          <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+            Vouch for {profile.display_name?.split(" ")[0] || "this member"}
+          </Button>
+        )}
+      </div>
+      {attestations.length === 0 ? (
+        <p className="text-xs text-muted italic">No vouches yet. Be the first.</p>
+      ) : (
+        <ul className="space-y-3">
+          {attestations.map((a) => (
+            <li key={a.id} className="text-sm">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-foreground/90">
+                  {a.attestor.slug ? (
+                    <Link href={`/people/${a.attestor.slug}`} className="font-medium hover:text-emerald transition">{a.attestor.display_name}</Link>
+                  ) : (
+                    <span className="font-medium">{a.attestor.display_name}</span>
+                  )}
+                  <span className="text-muted"> · as {a.kind}</span>
+                </div>
+              </div>
+              <p className="text-muted leading-relaxed mt-1 whitespace-pre-wrap">{a.body}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+      <Dialog open={open} onClose={() => setOpen(false)} title={`Vouch for ${profile.display_name?.split(" ")[0] || "this member"}`}>
+        <AttestComposer profile={profile} onSaved={() => { setOpen(false); void onChanged(); }} />
+      </Dialog>
+    </Card>
+  );
+}
+
+function AttestComposer({ profile, onSaved }: { profile: UserProfile; onSaved: () => void }) {
+  const [kind, setKind] = useState<Attestation["kind"]>("mentor");
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true); setErr(null);
+    const r = await profileApi.attestProfile(profile.slug ?? "", kind, body.trim());
+    setBusy(false);
+    if (!r.ok) { setErr("Couldn't save. Try again."); return; }
+    onSaved();
+  }
+
+  const canSave = body.trim().length >= 8;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted leading-relaxed">
+        Specific is better. Mention what they did, when, and what changed because of it.
+      </p>
+      <label className="block">
+        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">As a</div>
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as Attestation["kind"])}
+          className="bg-surface-2 border border-border rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald w-full"
+        >
+          <option value="mentor">Mentor</option>
+          <option value="founder">Founder</option>
+          <option value="investor">Investor</option>
+          <option value="instructor">Instructor</option>
+          <option value="funder">Funder</option>
+          <option value="collaborator">Collaborator</option>
+        </select>
+      </label>
+      <label className="block">
+        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Your vouch</div>
+        <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="What they did, when, and what changed because of it." maxLength={600} />
+        <div className="text-[11px] text-muted mt-1">{body.length}/600</div>
+      </label>
+      {err && <p className="text-xs text-rust">{err}</p>}
+      <div className="flex justify-end">
+        <Button onClick={save} disabled={!canSave || busy}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Post vouch
         </Button>
       </div>
     </div>
