@@ -8,6 +8,7 @@ import { researchBrief } from "@/lib/agents/research-brief";
 import { discussionSummary } from "@/lib/agents/discussion-summary";
 import { venturePitchPolish } from "@/lib/agents/venture-pitch-polish";
 import { groundedQuery } from "@/lib/agents/grounded-query";
+import { workspaceGroundedQuery } from "@/lib/agents/workspace-grounded-query";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ const StartBody = z.object({
     "discussion_summary",
     "venture_pitch_polish",
     "grounded_query",
+    "workspace_grounded_query",
   ]),
   title: z.string().min(1).max(160).optional(),
   prompt: z.string().max(2000).optional(),
@@ -39,6 +41,7 @@ const AGENTS: Record<string, AgentFn> = {
   discussion_summary: discussionSummary,
   venture_pitch_polish: venturePitchPolish,
   grounded_query: groundedQuery,
+  workspace_grounded_query: workspaceGroundedQuery,
 };
 
 const DEFAULT_TITLES: Record<string, string> = {
@@ -47,6 +50,7 @@ const DEFAULT_TITLES: Record<string, string> = {
   discussion_summary: "Discussion digest",
   venture_pitch_polish: "Polish pitch",
   grounded_query: "Sage answer",
+  workspace_grounded_query: "Sage workspace answer",
 };
 
 async function resolveCaller(req: Request) {

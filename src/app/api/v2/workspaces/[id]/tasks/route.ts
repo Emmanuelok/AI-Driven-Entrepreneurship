@@ -4,6 +4,7 @@ import { authWorkspace, requireWorkspaceRole, bearerToken } from "@/lib/workspac
 import { parseBody } from "@/lib/parse-body";
 import { pushToUser } from "@/lib/push-to-user";
 import { nextOccurrence, validateRule, type RecurrenceRule } from "@/lib/recurrence";
+import { indexWorkspaceTask, unindexWorkspaceRow } from "@/lib/workspace-search-indexer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -130,6 +131,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await notifyAssignment(sb, id, body.assigneeUserId, body.title, dueAt ?? null);
   }
 
+  // Phase 63: index for semantic search.
+  void indexWorkspaceTask({
+    id: data.id,
+    workspace_id: data.workspace_id,
+    title: data.title,
+    detail: data.detail ?? "",
+    status: data.status,
+    assignee_name: data.assignee_name ?? null,
+  });
+
   return Response.json({ ok: true, task: data });
 }
 
@@ -224,6 +235,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { data, error } = await sb.from("workspace_tasks").update(update).eq("id", taskId).select("*").single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
+  // Phase 63: re-index after edit.
+  void indexWorkspaceTask({
+    id: (data as { id: string }).id,
+    workspace_id: (data as { workspace_id: string }).workspace_id,
+    title: (data as { title: string }).title,
+    detail: ((data as { detail?: string }).detail ?? ""),
+    status: (data as { status: string }).status,
+    assignee_name: (data as { assignee_name?: string | null }).assignee_name ?? null,
+  });
+
   if (patch.status === "done" && existing.status !== "done") {
     const note = advancedTo
       ? `Completed "${data!.title}" — next occurrence ${new Date(advancedTo).toUTCString()}`
@@ -259,6 +280,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
   const { error } = await sb.from("workspace_tasks").delete().eq("id", taskId).eq("workspace_id", id);
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Phase 63: drop from index.
+  void unindexWorkspaceRow(id, "task", taskId);
   return Response.json({ ok: true });
 }
 

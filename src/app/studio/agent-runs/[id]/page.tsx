@@ -28,6 +28,7 @@ const AGENT_LABEL: Record<string, string> = {
   discussion_summary: "Discussion digest",
   venture_pitch_polish: "Pitch polish",
   grounded_query: "Sage answer",
+  workspace_grounded_query: "Workspace Sage",
 };
 
 export default function AgentRunDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -71,7 +72,7 @@ export default function AgentRunDetailPage({ params }: { params: Promise<{ id: s
     setBusy(true);
     const r = await profileApi.startAgentRun({
       // The kind is a string at runtime; the API accepts the union.
-      agent_kind: run.agent_kind as "outreach_drafter" | "research_brief" | "discussion_summary" | "venture_pitch_polish" | "grounded_query",
+      agent_kind: run.agent_kind as "outreach_drafter" | "research_brief" | "discussion_summary" | "venture_pitch_polish" | "grounded_query" | "workspace_grounded_query",
       title: `${run.title} (re-run)`,
       prompt: run.prompt,
       input: run.input,
@@ -313,7 +314,8 @@ function OutputPreview({ agentKind, output }: { agentKind: string; output: Recor
         </Card>
       );
     }
-    case "grounded_query": {
+    case "grounded_query":
+    case "workspace_grounded_query": {
       // Sage's answer + cited sources. The list of citations the LLM
       // had vs the subset it actually used is rendered separately.
       const query = String(output.query ?? "");

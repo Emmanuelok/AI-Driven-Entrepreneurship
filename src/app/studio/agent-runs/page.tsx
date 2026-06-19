@@ -30,6 +30,7 @@ const AGENT_LABEL: Record<string, string> = {
   discussion_summary: "Discussion digest",
   venture_pitch_polish: "Pitch polish",
   grounded_query: "Sage answer",
+  workspace_grounded_query: "Workspace Sage",
 };
 
 export default function AgentRunsPage() {
@@ -191,6 +192,7 @@ function AgentOutputPreview({ agentKind, output }: { agentKind: string; output: 
     case "venture_pitch_polish":
       return <PitchPolishPreview output={output} />;
     case "grounded_query":
+    case "workspace_grounded_query":
       return <GroundedQueryPreview output={output} />;
     default:
       return (

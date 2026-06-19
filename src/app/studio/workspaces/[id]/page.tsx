@@ -17,6 +17,7 @@ import { useDmInbox } from "@/lib/use-dm-inbox";
 import { WorkspaceSynthesisCard } from "@/components/workspace-synthesis-card";
 import { WorkspaceInsightsCard } from "@/components/workspace-insights-card";
 import { WorkspaceSearchDialog } from "@/components/workspace-search-dialog";
+import { WorkspaceAskSageDialog } from "@/components/workspace-ask-sage-dialog";
 import { WorkspaceActivityList } from "@/components/workspace-activity-list";
 import { WorkspaceCalendarSubscribeCard } from "@/components/workspace-calendar-subscribe-card";
 
@@ -52,6 +53,7 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
   const [inviteOpen, setInviteOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [askSageOpen, setAskSageOpen] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [dmWith, setDmWith] = useState<{ id: string; name: string } | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -155,6 +157,14 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
               <Search className="size-3.5" />
               <span className="hidden sm:inline">Search</span>
               <kbd className="hidden sm:inline text-[10px] uppercase tracking-widest text-muted px-1.5 py-0.5 border border-border rounded">⌘K</kbd>
+            </button>
+            <button
+              onClick={() => setAskSageOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald/30 text-emerald hover:bg-emerald/10 transition text-sm"
+              title="Ask Sage a question grounded in this workspace's content"
+            >
+              <Brain className="size-3.5" />
+              <span className="hidden sm:inline">Ask Sage</span>
             </button>
             {isAdmin && !isArchived && (
               <Button onClick={() => setInviteOpen(true)}>
@@ -411,6 +421,14 @@ export default function WorkspaceRoom({ params }: { params: Promise<{ id: string
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
         onJump={(t) => setTab(t)}
+      />
+
+      <WorkspaceAskSageDialog
+        open={askSageOpen}
+        onClose={() => setAskSageOpen(false)}
+        workspaceId={id}
+        workspaceTitle={ws.workspace.title}
+        isAdmin={isAdmin}
       />
 
       {inviteOpen && (

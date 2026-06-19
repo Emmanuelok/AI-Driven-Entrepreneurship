@@ -2,6 +2,7 @@ import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authWorkspace, requireWorkspaceRole, bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
+import { indexWorkspaceDoc, unindexWorkspaceRow } from "@/lib/workspace-search-indexer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,6 +82,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .select("*")
     .single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Phase 63: re-index after save. Title or body change → new
+  // embedding. Best-effort, fire-and-forget.
+  void indexWorkspaceDoc({
+    id: data.id,
+    workspace_id: data.workspace_id,
+    title: data.title,
+    body: data.body ?? "",
+    updated_at: data.updated_at,
+  });
+
   return Response.json({ ok: true, doc: data });
 }
 
@@ -96,6 +108,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
   const { error } = await sb.from("workspace_docs").delete().eq("id", docId).eq("workspace_id", id);
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Phase 63: remove from index so the deleted doc stops surfacing
+  // in Sage's RAG answers.
+  void unindexWorkspaceRow(id, "doc", docId);
+
   return Response.json({ ok: true });
 }
 

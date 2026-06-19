@@ -2,6 +2,7 @@ import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authWorkspace, requireWorkspaceRole, bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
+import { indexWorkspaceDoc } from "@/lib/workspace-search-indexer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,6 +50,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .select("id, workspace_id, title, body, updated_by_name, version, updated_at, created_at")
     .single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Phase 63: index for workspace semantic search. A freshly-created
+  // doc only has the title; subsequent PATCHes re-index with the body.
+  void indexWorkspaceDoc({
+    id: data.id,
+    workspace_id: data.workspace_id,
+    title: data.title,
+    body: data.body ?? "",
+    updated_at: data.updated_at,
+  });
 
   await sb.from("workspace_activity").insert({
     workspace_id: id,

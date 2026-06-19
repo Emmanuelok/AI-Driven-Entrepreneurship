@@ -7,6 +7,7 @@ import { resolveMentions } from "@/lib/mentions";
 import { summonsSage, buildTranscript } from "@/lib/workspace-discussion";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 import { aiGuard } from "@/lib/ai-guard";
+import { indexWorkspaceMessage } from "@/lib/workspace-search-indexer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -116,6 +117,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .select("id, workspace_id, user_id, author_name, body, is_agent, mentions, pinned_at, pinned_by, created_at")
     .single();
   if (error || !inserted) return Response.json({ ok: false, error: error?.message ?? "insert_failed" }, { status: 500 });
+
+  // Phase 63: index the new message for workspace semantic search.
+  // Fire-and-forget — the indexer is best-effort and never blocks
+  // the user's write.
+  void indexWorkspaceMessage({
+    id: inserted.id,
+    workspace_id: inserted.workspace_id,
+    body: inserted.body,
+    author_name: inserted.author_name,
+    is_agent: inserted.is_agent,
+    created_at: inserted.created_at,
+  });
 
   // Notify mentioned members (excluding the author).
   const wsTitle = await workspaceTitle(sb, id);

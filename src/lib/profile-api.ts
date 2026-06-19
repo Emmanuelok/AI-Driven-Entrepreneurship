@@ -204,7 +204,8 @@ export const profileApi = {
       | "research_brief"
       | "discussion_summary"
       | "venture_pitch_polish"
-      | "grounded_query";
+      | "grounded_query"
+      | "workspace_grounded_query";
     title?: string;
     prompt?: string;
     input: Record<string, unknown>;

@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { authWorkspace, requireWorkspaceRole, bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
 import { nextOccurrence, validateRule, describeRule, type RecurrenceRule } from "@/lib/recurrence";
+import { indexWorkspaceDeadline, unindexWorkspaceRow } from "@/lib/workspace-search-indexer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,6 +105,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     body: `due ${due.toISOString()} · set by ${setByRole}`,
   });
 
+  // Phase 63: index for semantic search.
+  void indexWorkspaceDeadline({
+    id: data.id, workspace_id: data.workspace_id,
+    title: data.title, detail: data.detail ?? "",
+    due_at: data.due_at, status: data.status,
+    set_by_role: data.set_by_role ?? null,
+  });
+
   return Response.json({ ok: true, deadline: data });
 }
 
@@ -168,6 +177,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { error } = await sb.from("workspace_deadlines").update(update).eq("id", deadlineId);
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
+  // Phase 63: re-index after patch. We re-read the row since update()
+  // here doesn't .select() back.
+  const { data: refreshed } = await sb
+    .from("workspace_deadlines")
+    .select("id, workspace_id, title, detail, due_at, status, set_by_role")
+    .eq("id", deadlineId)
+    .maybeSingle();
+  if (refreshed) {
+    const r = refreshed as { id: string; workspace_id: string; title: string; detail: string | null; due_at: string; status: string; set_by_role: string | null };
+    void indexWorkspaceDeadline({
+      id: r.id, workspace_id: r.workspace_id,
+      title: r.title, detail: r.detail ?? "",
+      due_at: r.due_at, status: r.status,
+      set_by_role: r.set_by_role,
+    });
+  }
+
   if (patch.status === "done") {
     const note = advancedTo
       ? `Closed "${existing.title}" — next occurrence ${new Date(advancedTo).toUTCString()}`
@@ -213,5 +239,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
   const { error } = await sb.from("workspace_deadlines").delete().eq("id", deadlineId);
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Phase 63: drop from index.
+  void unindexWorkspaceRow(id, "deadline", deadlineId);
+
   return Response.json({ ok: true });
 }
