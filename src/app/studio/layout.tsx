@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard, Inbox,
+  User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard, Inbox, Sparkles,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { useInboxUnread } from "@/lib/use-inbox-unread";
@@ -45,6 +45,7 @@ const NAV: NavItem[] = [
   { href: "/studio/tutor", label: "Quick chat", icon: MessageSquare, group: "Workspace" },
   { href: "/studio/coaches", label: "AI Coaches", icon: MessageSquare, group: "Workspace" },
   { href: "/studio/agents", label: "AI Agents", icon: Bot, group: "Workspace" },
+  { href: "/studio/agent-runs", label: "Sage runs", icon: Sparkles, group: "Workspace" },
 
   { href: "/studio/learn", label: "Learning Tracks", icon: Compass, group: "Learn" },
   { href: "/studio/lab", label: "Practice Lab", icon: FlaskConical, group: "Learn" },

@@ -196,4 +196,40 @@ export const profileApi = {
         }),
       },
     ),
+
+  // ── Agentic Sage ─────────────────────────────────────────────────
+  startAgentRun: (body: { agent_kind: "outreach_drafter"; title?: string; prompt?: string; input: Record<string, unknown> }) =>
+    call<{ id: string; status: string }>(`/api/v2/me/agent-runs`, { method: "POST", body: JSON.stringify(body) }),
+  getAgentRun: (id: string) =>
+    call<{ run: AgentRun }>(`/api/v2/me/agent-runs/${id}`),
+  listAgentRuns: () =>
+    call<{ results: AgentRunSummary[] }>(`/api/v2/me/agent-runs`),
+};
+
+export type AgentStep = {
+  label: string;
+  status: "running" | "done" | "failed";
+  started_at: string;
+  finished_at?: string;
+  data?: unknown;
+};
+
+export type AgentRunSummary = {
+  id: string;
+  agent_kind: string;
+  title: string;
+  status: "pending" | "running" | "needs_approval" | "completed" | "failed" | "cancelled";
+  output: Record<string, unknown> | null;
+  steps: AgentStep[];
+  error: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  approved_at: string | null;
+  created_at: string;
+};
+
+export type AgentRun = AgentRunSummary & {
+  user_id: string;
+  prompt: string;
+  input: Record<string, unknown>;
 };

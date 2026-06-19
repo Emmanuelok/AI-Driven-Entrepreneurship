@@ -8,7 +8,7 @@ import { profileApi, type UserProfile, type VerifiedState, type Attestation } fr
 import { getAccountTypeDef } from "@/lib/account-types";
 import { Card, Badge, Button, Textarea, Input, Dialog } from "@/components/ui";
 import { VerifiedBadge } from "@/components/verified-badge";
-import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2, BadgeCheck } from "lucide-react";
+import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2, BadgeCheck, Bot, Sparkles } from "lucide-react";
 
 // Public profile page rendered at /people/[slug]. Shows the same
 // fields the directory teases plus the persona-specific data
@@ -348,6 +348,50 @@ function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: ()
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  // Agentic Sage: drafting state. The agent populates subject + body
+  // when it completes; the user edits and sends from there. Polling
+  // is short-lived because outreach drafter is foreground-executed.
+  const [drafting, setDrafting] = useState(false);
+  const [draftIntent, setDraftIntent] = useState("");
+  const [draftErr, setDraftErr] = useState<string | null>(null);
+  const [draftStep, setDraftStep] = useState<string | null>(null);
+
+  async function draftWithSage() {
+    if (drafting) return;
+    setDrafting(true);
+    setDraftErr(null);
+    setDraftStep("Asking Sage to draft this…");
+    const started = await profileApi.startAgentRun({
+      agent_kind: "outreach_drafter",
+      title: `Draft for ${profile.display_name?.split(" ")[0] || profile.slug}`,
+      input: {
+        recipientSlug: profile.slug,
+        intent: draftIntent.trim() || subject.trim() || "",
+        length: "medium",
+      },
+    });
+    if (!started.ok) {
+      setDraftErr("Sage couldn't start. Try again or write it yourself.");
+      setDrafting(false);
+      setDraftStep(null);
+      return;
+    }
+    // The outreach drafter runs synchronously inside the request — by
+    // the time startAgentRun returns, the row is already terminal
+    // (needs_approval) and the output is set. Fetch once.
+    const run = await profileApi.getAgentRun(started.id);
+    setDrafting(false);
+    setDraftStep(null);
+    if (!run.ok || !run.run.output) {
+      setDraftErr("Sage didn't return a draft. Try again.");
+      return;
+    }
+    const out = run.run.output as { subject?: string; body?: string };
+    if (out.subject) setSubject(out.subject);
+    if (out.body) setBody(out.body);
+  }
+
+  // Reuse the existing send + sent flow below.
 
   async function send() {
     if (!body.trim() || sending) return;
@@ -394,6 +438,31 @@ function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: ()
       <p className="text-xs text-muted leading-relaxed">
         Keep it specific — who you are, why you&apos;re reaching out, and what you&apos;re hoping for. A clear, short ask gets answered.
       </p>
+
+      {/* Agentic Sage: one-shot draft. Sage reads both profiles and
+          drafts a starting point. You edit and send — Sage never
+          sends anything itself. */}
+      <Card className="p-3 border-dashed bg-emerald/5">
+        <div className="flex items-center gap-2 mb-2">
+          <Bot className="size-4 text-emerald" />
+          <span className="text-xs font-medium">Let Sage draft this for you</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            value={draftIntent}
+            onChange={(e) => setDraftIntent(e.target.value)}
+            placeholder="What do you want? e.g. 30-min call on distribution"
+            className="flex-1"
+            disabled={drafting}
+          />
+          <Button size="sm" variant="secondary" onClick={draftWithSage} disabled={drafting}>
+            {drafting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />} Draft
+          </Button>
+        </div>
+        {draftStep && <p className="text-[11px] text-muted mt-1.5">{draftStep}</p>}
+        {draftErr && <p className="text-[11px] text-rust mt-1.5">{draftErr}</p>}
+      </Card>
+
       <label className="block">
         <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Subject (optional)</div>
         <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Quick question on distribution in Ghana" maxLength={160} />

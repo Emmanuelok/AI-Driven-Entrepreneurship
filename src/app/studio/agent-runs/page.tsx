@@ -1,0 +1,139 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { profileApi, type AgentRunSummary } from "@/lib/profile-api";
+import { Card, Badge, Button } from "@/components/ui";
+import { formatDistanceToNow } from "date-fns";
+import { Bot, Loader2, CheckCircle2, AlertCircle, Clock, ArrowRight, Sparkles, Hourglass } from "lucide-react";
+
+// Sage's run log. Every time Sage is dispatched to do something on
+// your behalf (draft outreach, summarize a thread, prep a fundraise
+// pack), it shows up here with the trace of what it did.
+//
+// v2.0 ships foreground execution — by the time a run lands here it's
+// usually already terminal. v2.1 wires background queueing + retries
+// and this surface becomes a real status board for in-flight work.
+
+const STATUS_BADGE: Record<AgentRunSummary["status"], { color: "amber" | "emerald" | "rust" | "muted" | "indigo"; label: string; Icon: typeof Clock }> = {
+  pending: { color: "muted", label: "Queued", Icon: Hourglass },
+  running: { color: "amber", label: "Running", Icon: Loader2 },
+  needs_approval: { color: "indigo", label: "Awaiting you", Icon: Sparkles },
+  completed: { color: "emerald", label: "Done", Icon: CheckCircle2 },
+  failed: { color: "rust", label: "Failed", Icon: AlertCircle },
+  cancelled: { color: "muted", label: "Cancelled", Icon: AlertCircle },
+};
+
+const AGENT_LABEL: Record<string, string> = {
+  outreach_drafter: "Outreach drafter",
+};
+
+export default function AgentRunsPage() {
+  const [runs, setRuns] = useState<AgentRunSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    const r = await profileApi.listAgentRuns();
+    if (r.ok) setRuns(r.results);
+    setLoading(false);
+  }
+  useEffect(() => { void load(); }, []);
+
+  return (
+    <div className="max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
+      <div className="mb-8">
+        <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
+          <Bot className="size-3.5" /> Sage runs
+        </p>
+        <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
+          What Sage has done for you.
+        </h1>
+        <p className="mt-3 text-muted max-w-2xl leading-relaxed">
+          Every run carries the trace of what Sage saw, what it did, and what it produced. Drafts wait for your approval before anything leaves the platform.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20"><Loader2 className="size-6 text-emerald animate-spin" /></div>
+      ) : runs.length === 0 ? (
+        <Card className="p-10 text-center">
+          <Bot className="size-10 text-emerald mx-auto mb-3" />
+          <p className="text-muted max-w-md mx-auto leading-relaxed">
+            No runs yet. Dispatch Sage from a public profile&apos;s contact composer (&quot;Let Sage draft this for you&quot;) to see your first run land here.
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {runs.map((r) => (
+            <RunCard key={r.id} run={r} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RunCard({ run }: { run: AgentRunSummary }) {
+  const meta = STATUS_BADGE[run.status];
+  const Icon = meta.Icon;
+  const agentLabel = AGENT_LABEL[run.agent_kind] ?? run.agent_kind;
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div>
+          <h3 className="font-medium text-sm">{run.title}</h3>
+          <p className="text-[11px] text-muted mt-0.5">{agentLabel} · {formatDistanceToNow(new Date(run.created_at))} ago</p>
+        </div>
+        <Badge color={meta.color}>
+          <span className="inline-flex items-center gap-1"><Icon className={`size-2.5 ${run.status === "running" ? "animate-spin" : ""}`} /> {meta.label}</span>
+        </Badge>
+      </div>
+
+      {run.status === "failed" && run.error && (
+        <p className="text-xs text-rust mt-2">{run.error}</p>
+      )}
+
+      {run.output && run.status === "needs_approval" && run.agent_kind === "outreach_drafter" && (
+        <OutreachOutputPreview output={run.output as Record<string, unknown>} />
+      )}
+
+      {run.steps.length > 0 && (
+        <details className="mt-3 group">
+          <summary className="text-[11px] text-muted cursor-pointer hover:text-foreground transition">
+            Show Sage&apos;s trace ({run.steps.length} step{run.steps.length === 1 ? "" : "s"})
+          </summary>
+          <ol className="mt-2 space-y-1 text-[11px] text-muted">
+            {run.steps.map((s, i) => (
+              <li key={i} className="flex items-center gap-2">
+                {s.status === "done" ? <CheckCircle2 className="size-3 text-emerald" /> :
+                  s.status === "failed" ? <AlertCircle className="size-3 text-rust" /> :
+                  <Loader2 className="size-3 text-amber animate-spin" />}
+                <span>{s.label}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </Card>
+  );
+}
+
+function OutreachOutputPreview({ output }: { output: Record<string, unknown> }) {
+  const recipientSlug = String(output.recipientSlug ?? "");
+  const subject = String(output.subject ?? "");
+  const body = String(output.body ?? "");
+  return (
+    <div className="mt-3 rounded-xl border border-emerald/20 bg-emerald/5 p-3 space-y-2">
+      {subject && <div className="text-xs text-muted">Subject: <span className="text-foreground">{subject}</span></div>}
+      <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap line-clamp-6">{body}</p>
+      {recipientSlug && (
+        <div className="flex justify-end">
+          <Link href={`/people/${recipientSlug}`}>
+            <Button size="sm" variant="secondary">Open profile to send <ArrowRight className="size-3" /></Button>
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
