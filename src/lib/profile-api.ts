@@ -219,6 +219,63 @@ export const profileApi = {
   // (the server route handles both with one verb).
   deleteAgentRun: (id: string) =>
     call(`/api/v2/me/agent-runs/${id}`, { method: "DELETE" }),
+
+  // ── Mentor sessions (Phase 64) ───────────────────────────────────
+  listMentorSessions: () =>
+    call<{ results: MentorSession[] }>(`/api/v2/mentor-sessions`),
+  requestMentorSession: (body: {
+    mentorSlug: string;
+    topic: string;
+    durationMinutes: 15 | 30 | 45 | 60 | 90;
+    founderNotes?: string;
+  }) =>
+    call<{ session: MentorSession }>(`/api/v2/mentor-sessions`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getMentorSession: (id: string) =>
+    call<{ session: MentorSession }>(`/api/v2/mentor-sessions/${id}`),
+  patchMentorSession: (id: string, body: Partial<{
+    status: "accepted" | "completed" | "cancelled" | "refunded";
+    founder_notes: string;
+    mentor_notes: string;
+    scheduled_at: string;
+    review: { rating: number; body?: string };
+  }>) =>
+    call<{ session: MentorSession }>(`/api/v2/mentor-sessions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  mentorSessionCheckout: (id: string) =>
+    call<{ url?: string; sessionId?: string; alreadyPaid?: boolean }>(
+      `/api/v2/mentor-sessions/${id}/checkout`,
+      { method: "POST", body: "{}" },
+    ),
+};
+
+export type MentorSession = {
+  id: string;
+  mentor_user_id: string;
+  founder_user_id: string;
+  status: "requested" | "accepted" | "paid" | "completed" | "reviewed" | "cancelled" | "refunded";
+  duration_minutes: 15 | 30 | 45 | 60 | 90;
+  scheduled_at: string | null;
+  topic: string;
+  founder_notes: string;
+  mentor_notes: string;
+  price_cents: number;
+  currency: string;
+  application_fee_pct: number;
+  paid_at: string | null;
+  accepted_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  refunded_at: string | null;
+  review_rating: number | null;
+  review_body: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type AgentStep = {

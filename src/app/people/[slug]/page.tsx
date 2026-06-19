@@ -138,6 +138,16 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
         onChanged={reload}
       />
 
+      {/* Phase 64: paid mentor session booking. Renders only when the
+          profile is a mentor with an hourly rate set. */}
+      {profile.account_type === "mentor" && (
+        <BookMentorSection
+          profile={profile}
+          isSelf={!!viewerId && viewerId === profile.user_id}
+          signedIn={!!viewerId}
+        />
+      )}
+
       {profile.contact_policy !== "closed" && (
         <ContactSection
           profile={profile}
@@ -608,6 +618,136 @@ function AttestComposer({ profile, onSaved }: { profile: UserProfile; onSaved: (
       <div className="flex justify-end">
         <Button onClick={save} disabled={!canSave || busy}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} Post vouch
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Phase 64: book a paid mentor session ───
+   Reads the mentor's persona_data.hourlyRate; surfaces a "Book a
+   session" CTA when a rate is set AND the mentor has a Stripe Connect
+   account onboarded. Hides on your own profile. Opens a dialog with
+   topic + duration + notes that POSTs to /api/v2/mentor-sessions. */
+function BookMentorSection({ profile, isSelf, signedIn }: { profile: UserProfile; isSelf: boolean; signedIn: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  // Hourly rate lives on persona_data — we don't render the CTA when
+  // the mentor hasn't priced their sessions yet. The Stripe-readiness
+  // check happens server-side at request time.
+  const hourly = Number((profile.persona_data as { hourlyRate?: unknown }).hourlyRate);
+  const hasRate = Number.isFinite(hourly) && hourly > 0;
+  if (isSelf) return null;
+  if (!hasRate) return null;
+
+  return (
+    <Card className="p-5 mt-5 bg-gradient-to-br from-emerald/5 to-amber/5">
+      <h3 className="font-medium mb-2 flex items-center gap-2">
+        <Sparkles className="size-4 text-emerald" /> Book a paid session
+      </h3>
+      <p className="text-sm text-muted leading-relaxed mb-3">
+        {profile.display_name?.split(" ")[0] || "This mentor"} charges <strong className="text-foreground">${hourly.toFixed(0)}/hr</strong>. Sessions are 15–90 minutes, accepted in advance, paid via Stripe.
+      </p>
+      {signedIn ? (
+        <Button size="sm" onClick={() => setOpen(true)}><Sparkles className="size-3.5" /> Request a session</Button>
+      ) : (
+        <Link href="/sign-in"><Button size="sm">Sign in to request</Button></Link>
+      )}
+      <Dialog open={open} onClose={() => setOpen(false)} title={`Request a session with ${profile.display_name?.split(" ")[0] || "this mentor"}`}>
+        <BookMentorForm profile={profile} hourlyRate={hourly} onSent={() => setOpen(false)} />
+      </Dialog>
+    </Card>
+  );
+}
+
+function BookMentorForm({ profile, hourlyRate, onSent }: { profile: UserProfile; hourlyRate: number; onSent: () => void }) {
+  const [duration, setDuration] = useState<15 | 30 | 45 | 60 | 90>(30);
+  const [topic, setTopic] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [sentId, setSentId] = useState<string | null>(null);
+
+  const priceCents = Math.round(hourlyRate * 100 * duration / 60);
+
+  async function submit() {
+    if (!topic.trim() || busy) return;
+    setBusy(true); setErr(null);
+    const r = await profileApi.requestMentorSession({
+      mentorSlug: profile.slug ?? "",
+      topic: topic.trim(),
+      durationMinutes: duration,
+      founderNotes: notes.trim() || undefined,
+    });
+    setBusy(false);
+    if (!r.ok) {
+      const map: Record<string, string> = {
+        mentor_not_onboarded: "This mentor hasn't set up payments yet.",
+        mentor_no_rate: "This mentor hasn't set an hourly rate yet.",
+        not_a_mentor: "This profile isn't a mentor account.",
+        mentor_closed_to_contact: "This mentor isn't accepting contact right now.",
+      };
+      setErr(map[r.error] ?? "Couldn't send the request. Try again.");
+      return;
+    }
+    setSentId(r.session.id);
+    setTimeout(onSent, 2200);
+  }
+
+  if (sentId) {
+    return (
+      <div className="text-center py-6">
+        <div className="size-14 mx-auto rounded-full bg-emerald/15 flex items-center justify-center mb-3">
+          <CheckCircle2 className="size-7 text-emerald" />
+        </div>
+        <h3 className="font-[family-name:var(--font-display)] text-lg font-semibold">Request sent</h3>
+        <p className="mt-1.5 text-sm text-muted">
+          {profile.display_name?.split(" ")[0] || "They"}&apos;ll review and either accept or decline. You&apos;ll be notified — you pay only when they accept.
+        </p>
+        <Link href={`/studio/mentor-sessions/${sentId}`}><Button size="sm" className="mt-4">Open the session</Button></Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted leading-relaxed">
+        You won&apos;t pay until they accept. The price is locked from their hourly rate at request time, so a rate edit later doesn&apos;t change your contract.
+      </p>
+      <label className="block">
+        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Duration</div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {([15, 30, 45, 60, 90] as const).map((d) => {
+            const active = duration === d;
+            return (
+              <button
+                key={d}
+                onClick={() => setDuration(d)}
+                className={`px-3 py-1.5 rounded-full border text-sm transition ${active ? "border-emerald bg-emerald/10 text-emerald" : "border-border text-muted hover:text-foreground"}`}
+              >
+                {d} min
+              </button>
+            );
+          })}
+        </div>
+      </label>
+      <label className="block">
+        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">What do you want to talk about?</div>
+        <Textarea value={topic} onChange={(e) => setTopic(e.target.value)} rows={4} placeholder="Be specific — sectors, stage, the one decision you're stuck on…" maxLength={2000} />
+        <div className="text-[11px] text-muted mt-1">{topic.length}/2000 · min 8</div>
+      </label>
+      <label className="block">
+        <div className="text-xs uppercase tracking-widest text-muted mb-1.5">Anything else (optional)</div>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Times that work for you, your timezone, etc." maxLength={2000} />
+      </label>
+      <div className="rounded-xl border border-emerald/20 bg-emerald/5 p-3 text-sm flex items-center justify-between">
+        <span className="text-muted">Total at acceptance:</span>
+        <span className="text-foreground font-mono font-medium">${(priceCents / 100).toFixed(2)}</span>
+      </div>
+      {err && <p className="text-xs text-rust">{err}</p>}
+      <div className="flex justify-end">
+        <Button onClick={submit} disabled={topic.trim().length < 8 || busy}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />} Send request
         </Button>
       </div>
     </div>

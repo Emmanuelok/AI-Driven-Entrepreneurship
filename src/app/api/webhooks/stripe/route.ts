@@ -52,8 +52,19 @@ export async function POST(req: Request) {
       const studentId = session.metadata?.sankofa_student_id;
       const buildSlug = session.metadata?.sankofa_build_slug;
       const buyerId = session.metadata?.sankofa_buyer_id;
+      const mentorSessionId = session.metadata?.sankofa_mentor_session_id;
 
-      if (cohortId && studentId) {
+      if (mentorSessionId) {
+        // Phase 64: flip the mentor session to 'paid'. We bypass the
+        // canTransitionMentorSession gate here because the webhook IS
+        // the 'system' actor permitted to drive this transition.
+        await sb.from("mentor_sessions").update({
+          status: "paid",
+          paid_at: new Date().toISOString(),
+          stripe_session_id: session.id,
+          stripe_payment_intent_id: paymentIntentId,
+        }).eq("id", mentorSessionId).eq("status", "accepted");
+      } else if (cohortId && studentId) {
         await sb.from("cohort_enrollments").upsert({
           cohort_id: cohortId,
           user_id: studentId,
@@ -114,6 +125,13 @@ export async function POST(req: Request) {
         // Also remove access on the underlying purchase if it's still there.
         await sb.from("cohort_enrollments").delete().eq("stripe_payment_intent_id", piId);
         await sb.from("build_purchases").delete().eq("stripe_payment_intent_id", piId);
+        // Phase 64: mark mentor sessions refunded so the founder's UI
+        // shows the correct state. We match by payment_intent_id —
+        // the session row carries it after the original Checkout.
+        await sb.from("mentor_sessions").update({
+          status: "refunded",
+          refunded_at: new Date().toISOString(),
+        }).eq("stripe_payment_intent_id", piId).neq("status", "refunded");
       }
     }
   } catch (e) {
