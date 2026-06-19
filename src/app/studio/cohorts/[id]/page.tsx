@@ -322,6 +322,10 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
         </Card>
       )}
 
+      {/* v2 curriculum adoption card — instructor can pick a track
+          from the library; students see the adopted track + modules. */}
+      <CohortCurriculumCard cohortId={id} isInstructor={isInstructor} />
+
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
         {/* Assignments column */}
         <div>
@@ -799,4 +803,161 @@ function computeCohortCalendarProgress(start: string | null | undefined, end: st
   const totalWeeks = Math.max(1, Math.round((e - s) / (7 * 86_400_000)));
   const weekIndex = Math.max(0, Math.min(totalWeeks - 1, Math.floor(elapsed / (7 * 86_400_000))));
   return { weekIndex, totalWeeks };
+}
+
+/* ─── Phase 57: cohort ↔ curriculum-track adoption ───
+   When no track is adopted, instructors get a "Pick a track" picker
+   sourced from the library API; students see "No curriculum yet."
+   When adopted, both sides see the track's modules with the
+   instructor able to Detach. */
+function CohortCurriculumCard({ cohortId, isInstructor }: { cohortId: string; isInstructor: boolean }) {
+  const [loading, setLoading] = useState(true);
+  const [adopted, setAdopted] = useState<{
+    link: { track_id: string; started_at: string | null; customizations: Record<string, unknown>; created_at: string };
+    track: { id: string; slug: string; title: string; tagline: string; level: string; duration_hours: number | null; modules: Array<{ id: string; order: number; title: string; summary: string; kind: string; duration_min: number }> };
+  } | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [library, setLibrary] = useState<Array<{ id: string; slug: string; title: string; tagline: string; level: string; modules: Array<unknown> }>>([]);
+  const [picking, setPicking] = useState<string | null>(null);
+
+  async function loadAdopted() {
+    const sb = supabaseBrowser();
+    if (!sb) { setLoading(false); return; }
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { setLoading(false); return; }
+    const res = await fetch(`/api/v2/cohorts/${cohortId}/curriculum`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const data = await res.json();
+    if (data.ok) setAdopted(data.adopted);
+    setLoading(false);
+  }
+  useEffect(() => { void loadAdopted(); }, [cohortId]);
+
+  async function loadLibrary() {
+    const sb = supabaseBrowser();
+    if (!sb) return;
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return;
+    const res = await fetch(`/api/v2/curriculum/tracks`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const data = await res.json();
+    if (data.ok) setLibrary([...(data.mine ?? []), ...(data.public ?? [])]);
+  }
+
+  async function adopt(trackId: string) {
+    setPicking(trackId);
+    const sb = supabaseBrowser();
+    if (!sb) { setPicking(null); return; }
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { setPicking(null); return; }
+    await fetch(`/api/v2/cohorts/${cohortId}/curriculum`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ trackId }),
+    });
+    setPicking(null);
+    setPickOpen(false);
+    await loadAdopted();
+  }
+
+  async function detach() {
+    if (!confirm("Detach this curriculum from the cohort? Student progress on the track stays in their personal history.")) return;
+    const sb = supabaseBrowser();
+    if (!sb) return;
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return;
+    await fetch(`/api/v2/cohorts/${cohortId}/curriculum`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    await loadAdopted();
+  }
+
+  if (loading) return null;
+
+  if (!adopted) {
+    return (
+      <Card className="p-5 mb-6 bg-gradient-to-br from-emerald/5 to-amber/5">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="font-medium flex items-center gap-2"><BookOpen className="size-4 text-emerald" /> No curriculum adopted</h3>
+            <p className="text-xs text-muted mt-1 leading-relaxed max-w-2xl">
+              Cohorts can adopt a curriculum track to give students a structured week-by-week plan. Tracks are forkable — pick one from the library and edit your fork if you want changes.
+            </p>
+          </div>
+          {isInstructor && (
+            <Button size="sm" onClick={() => { setPickOpen(true); void loadLibrary(); }}>
+              <Plus className="size-4" /> Adopt a track
+            </Button>
+          )}
+        </div>
+
+        <Dialog open={pickOpen} onClose={() => setPickOpen(false)} title="Adopt a curriculum track">
+          <div className="space-y-3">
+            <p className="text-xs text-muted leading-relaxed">
+              Pick a track from your library or the public library. Cohort members will see its modules as their learning path.
+            </p>
+            {library.length === 0 ? (
+              <p className="text-sm text-muted italic">No tracks visible yet. <Link href="/studio/curriculum" className="text-emerald hover:underline">Open the library →</Link></p>
+            ) : (
+              <ul className="space-y-2 max-h-[50vh] overflow-y-auto">
+                {library.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      onClick={() => void adopt(t.id)}
+                      disabled={picking === t.id}
+                      className="w-full text-left p-3 rounded-xl border border-border hover:border-emerald/40 hover:bg-emerald/5 transition disabled:opacity-50"
+                    >
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-medium">{t.title}</span>
+                        <Badge color="muted">{t.level}</Badge>
+                        <span className="text-[11px] text-muted ml-auto">{(t.modules ?? []).length} modules</span>
+                      </div>
+                      {t.tagline && <p className="text-xs text-muted leading-relaxed line-clamp-2">{t.tagline}</p>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Dialog>
+      </Card>
+    );
+  }
+
+  // Adopted: render track header + modules list.
+  const track = adopted.track;
+  const modules = [...track.modules].sort((a, b) => a.order - b.order);
+  return (
+    <Card className="p-5 mb-6">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-emerald mb-1 flex items-center gap-1.5">
+            <BookOpen className="size-3" /> Adopted track
+          </p>
+          <h3 className="font-medium">
+            <Link href={`/studio/curriculum/${track.slug}`} className="hover:text-emerald transition">{track.title}</Link>
+          </h3>
+          {track.tagline && <p className="text-xs text-muted mt-0.5 leading-relaxed">{track.tagline}</p>}
+        </div>
+        {isInstructor && (
+          <button onClick={detach} className="text-xs text-muted hover:text-rust transition inline-flex items-center gap-1">
+            <Trash2 className="size-3" /> Detach
+          </button>
+        )}
+      </div>
+      <ol className="space-y-1 text-sm">
+        {modules.map((m, i) => (
+          <li key={m.id} className="flex items-center gap-3 py-1">
+            <div className="size-5 rounded-md bg-surface-2 border border-border flex items-center justify-center text-[10px] text-muted">{i + 1}</div>
+            <span className="flex-1">{m.title}</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted">{m.kind}</span>
+            <span className="text-[11px] text-muted">{m.duration_min} min</span>
+          </li>
+        ))}
+      </ol>
+    </Card>
+  );
 }

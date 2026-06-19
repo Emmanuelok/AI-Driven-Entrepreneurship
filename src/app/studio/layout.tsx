@@ -8,7 +8,7 @@ import {
   Users, Wallet, Award, BookMarked, Building2, Settings, Menu,
   TrendingUp, Folder, MessageSquare, Map, Lightbulb, Bot, Trophy, Network,
   FileText, Notebook, Target, Paintbrush, Briefcase, Search, GraduationCap,
-  User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard, Inbox, Sparkles,
+  User, Timer, Zap, Dna, Mail, Hammer, Workflow, Contact, IdCard, Inbox, Sparkles, BookOpen,
 } from "lucide-react";
 import { useStore } from "@/store";
 import { useInboxUnread } from "@/lib/use-inbox-unread";
@@ -85,6 +85,7 @@ const NAV: NavItem[] = [
 
   { href: "/studio/orgs", label: "Organizations", icon: Building2, group: "Admin" },
   { href: "/studio/cohorts", label: "Cohorts", icon: Users, group: "Admin" },
+  { href: "/studio/curriculum", label: "Curriculum library", icon: BookOpen, group: "Admin" },
   { href: "/institution", label: "Partnerships", icon: Building2, group: "Admin" },
 ];
 

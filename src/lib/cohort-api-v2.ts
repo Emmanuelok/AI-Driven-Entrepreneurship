@@ -2,6 +2,7 @@
 
 import { supabaseBrowser } from "@/lib/supabase";
 import type { CohortStatus, CohortKind, CohortVisibility, CohortMemberState } from "@/lib/cohort-state";
+import type { CurriculumTrack, Module, TrackLevel } from "@/lib/curriculum-track";
 
 // v2 additions to the cohort surface. The original cohort routes are
 // untyped (raw fetch); this file types the v2 endpoints and the new
@@ -165,5 +166,64 @@ export const cohortApiV2 = {
   detachWorkspace: (cohortId: string, workspaceId: string) =>
     call(`/api/v2/cohorts/${cohortId}/workspaces?workspaceId=${encodeURIComponent(workspaceId)}`, {
       method: "DELETE",
+    }),
+
+  // ── Curriculum (Phase 57) ────────────────────────────────────────
+  getCurriculum: (cohortId: string) =>
+    call<{
+      adopted: { link: { track_id: string; started_at: string | null; customizations: Record<string, unknown>; created_at: string }; track: CurriculumTrack } | null;
+    }>(`/api/v2/cohorts/${cohortId}/curriculum`),
+  adoptTrack: (cohortId: string, trackId: string, startedAt?: string) =>
+    call(`/api/v2/cohorts/${cohortId}/curriculum`, {
+      method: "POST",
+      body: JSON.stringify({ trackId, startedAt }),
+    }),
+  detachCurriculum: (cohortId: string) =>
+    call(`/api/v2/cohorts/${cohortId}/curriculum`, { method: "DELETE" }),
+};
+
+// Library API (Phase 57). Distinct from cohortApiV2 because tracks
+// live outside any single cohort — they're discoverable, forkable
+// assets in their own right.
+export const curriculumApi = {
+  list: () =>
+    call<{ mine: CurriculumTrack[]; public: CurriculumTrack[] }>(`/api/v2/curriculum/tracks`),
+  create: (body: {
+    title: string;
+    tagline?: string;
+    description?: string;
+    pillar?: string;
+    level?: TrackLevel;
+    duration_hours?: number;
+    organization_id?: string | null;
+    modules?: Module[];
+  }) =>
+    call<{ track: CurriculumTrack }>(`/api/v2/curriculum/tracks`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  get: (idOrSlug: string) =>
+    call<{ track: CurriculumTrack }>(`/api/v2/curriculum/tracks/${encodeURIComponent(idOrSlug)}`),
+  patch: (idOrSlug: string, body: Partial<{
+    title: string;
+    tagline: string;
+    description: string;
+    pillar: string | null;
+    level: TrackLevel;
+    duration_hours: number | null;
+    modules: Module[];
+    is_published: boolean;
+    is_public: boolean;
+  }>) =>
+    call<{ track: CurriculumTrack }>(`/api/v2/curriculum/tracks/${encodeURIComponent(idOrSlug)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  delete: (idOrSlug: string) =>
+    call(`/api/v2/curriculum/tracks/${encodeURIComponent(idOrSlug)}`, { method: "DELETE" }),
+  fork: (idOrSlug: string, opts?: { organization_id?: string | null; title_override?: string }) =>
+    call<{ track: CurriculumTrack }>(`/api/v2/curriculum/tracks/${encodeURIComponent(idOrSlug)}/fork`, {
+      method: "POST",
+      body: JSON.stringify(opts ?? {}),
     }),
 };
