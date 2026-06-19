@@ -9,7 +9,7 @@ import { statusLabel, type CohortStatus, type CohortKind } from "@/lib/cohort-st
 import { Card, Button, Input, Textarea, Dialog, Badge } from "@/components/ui";
 import { VerifiedBadgeBool } from "@/components/verified-badge";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft, Loader2, Building2, Users, Settings as SettingsIcon, Plus, Copy, Check, Trash2, AlertCircle, ExternalLink, LayoutDashboard, MailPlus, Globe, BadgeCheck, Archive, GraduationCap } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, Users, Settings as SettingsIcon, Plus, Copy, Check, Trash2, AlertCircle, ExternalLink, LayoutDashboard, MailPlus, Globe, BadgeCheck, Archive, GraduationCap, TrendingUp, Activity, Flame } from "lucide-react";
 
 // /studio/orgs/[id] — the admin dashboard for an organization.
 //
@@ -18,7 +18,7 @@ import { ArrowLeft, Loader2, Building2, Users, Settings as SettingsIcon, Plus, C
 // staff + instructor add Members; admins add Invites + Settings;
 // owner adds the delete button to Settings.
 
-type Tab = "overview" | "cohorts" | "members" | "invites" | "settings";
+type Tab = "overview" | "cohorts" | "analytics" | "members" | "invites" | "settings";
 
 export default function OrgDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -49,6 +49,7 @@ export default function OrgDashboardPage({ params }: { params: Promise<{ id: str
   const tabs = ([
     { id: "overview" as const, label: "Overview", show: true, Icon: LayoutDashboard },
     { id: "cohorts" as const, label: "Cohorts", show: true, Icon: GraduationCap },
+    { id: "analytics" as const, label: "Analytics", show: true, Icon: TrendingUp },
     { id: "members" as const, label: "Members", show: true, Icon: Users },
     { id: "invites" as const, label: "Invites", show: canInvite, Icon: MailPlus },
     { id: "settings" as const, label: "Settings", show: canSettings, Icon: SettingsIcon },
@@ -114,6 +115,7 @@ export default function OrgDashboardPage({ params }: { params: Promise<{ id: str
 
       {tab === "overview" && <OverviewTab org={org} />}
       {tab === "cohorts" && <CohortsTab orgId={org.id} myRole={myRole!} />}
+      {tab === "analytics" && <AnalyticsTab orgId={org.id} />}
       {tab === "members" && <MembersTab orgId={org.id} myRole={myRole!} ownerId={org.owner_user_id} />}
       {tab === "invites" && canInvite && <InvitesTab orgId={org.id} />}
       {tab === "settings" && canSettings && (
@@ -662,5 +664,138 @@ function NewCohortForm({ orgId, onCreated }: { orgId: string; onCreated: (cohort
         </Button>
       </div>
     </div>
+  );
+}
+
+/* ─── Analytics tab (Phase 58) ───
+   Org-level rollup: cohort status mix, student counts, completion
+   rate, at-risk cohorts, per-cohort momentum. All numbers come from
+   the pure computeOrgRollup() aggregator on the server. */
+function AnalyticsTab({ orgId }: { orgId: string }) {
+  const [rollup, setRollup] = useState<import("@/lib/org-analytics").OrgRollup | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const r = await orgApi.analytics(orgId);
+      if (r.ok) setRollup(r.rollup);
+      setLoading(false);
+    })();
+  }, [orgId]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-16"><Loader2 className="size-6 text-emerald animate-spin" /></div>;
+  }
+  if (!rollup) {
+    return <Card className="p-8 text-center"><p className="text-muted">Couldn&apos;t load analytics.</p></Card>;
+  }
+
+  const t = rollup.totals;
+  return (
+    <div className="space-y-5">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Kpi label="Cohorts running" value={t.cohortsRunning} hint={`${t.cohorts} total`} color="emerald" />
+        <Kpi label="Active students" value={t.students - t.completedStudents - t.droppedStudents} hint={`${t.students} ever enrolled`} color="amber" />
+        <Kpi label="Completion rate" value={`${t.completionRatePct}%`} hint={`${t.completedStudents} completed`} color="indigo" />
+        <Kpi label="Avg cohort fill" value={t.avgCohortFillPct == null ? "—" : `${t.avgCohortFillPct}%`} hint={t.avgCohortFillPct == null ? "no capacity set" : "of capacity"} color="rust" />
+      </div>
+
+      {/* Status mix */}
+      <Card className="p-5">
+        <h2 className="text-sm font-medium mb-3 flex items-center gap-2"><Activity className="size-4 text-emerald" /> Cohort status mix</h2>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <StatusChip label="Running" value={t.cohortsRunning} total={t.cohorts} color="emerald" />
+          <StatusChip label="Open" value={t.cohortsOpen} total={t.cohorts} color="amber" />
+          <StatusChip label="Ended" value={t.cohortsEnded} total={t.cohorts} color="indigo" />
+          <StatusChip label="Draft / archived" value={t.cohortsDraftOrArchived} total={t.cohorts} color="muted" />
+        </div>
+      </Card>
+
+      {/* At-risk cohorts */}
+      {rollup.atRiskCohorts.length > 0 && (
+        <Card className="p-5 border-amber/30 bg-amber/5">
+          <h2 className="text-sm font-medium mb-3 flex items-center gap-2 text-amber"><Flame className="size-4" /> Cohorts that need attention</h2>
+          <p className="text-xs text-muted leading-relaxed mb-3">
+            Active students who haven&apos;t made progress in 14+ days. Reach out, check in, or move them to dropped if they&apos;ve left silently.
+          </p>
+          <ul className="space-y-2">
+            {rollup.atRiskCohorts.map((c) => (
+              <li key={c.id}>
+                <Link href={`/studio/cohorts/${c.id}`} className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-border hover:border-amber/40 hover:bg-amber/5 transition">
+                  <span className="text-sm">{c.name}</span>
+                  <span className="text-xs text-amber font-mono">{c.atRiskCount} at risk</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* Per-cohort table */}
+      <Card className="p-5">
+        <h2 className="text-sm font-medium mb-3">All cohorts</h2>
+        {rollup.cohorts.length === 0 ? (
+          <p className="text-sm text-muted italic">No cohorts yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
+              <thead className="text-[10px] uppercase tracking-widest text-muted">
+                <tr>
+                  <th className="text-left py-2">Cohort</th>
+                  <th className="text-left">Status</th>
+                  <th className="text-right">Active</th>
+                  <th className="text-right">Invited</th>
+                  <th className="text-right">Completed</th>
+                  <th className="text-right">Dropped</th>
+                  <th className="text-right">Fill</th>
+                  <th className="text-right">Momentum 7d</th>
+                  <th className="text-right">At risk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rollup.cohorts.map((c) => (
+                  <tr key={c.id} className="border-t border-border hover:bg-surface-2/40 transition">
+                    <td className="py-2.5">
+                      <Link href={`/studio/cohorts/${c.id}`} className="hover:text-emerald transition">{c.name}</Link>
+                    </td>
+                    <td><Badge color={c.status === "running" ? "emerald" : c.status === "open" ? "amber" : c.status === "ended" ? "indigo" : "muted"}>{c.status}</Badge></td>
+                    <td className="text-right font-mono">{c.studentsActive}</td>
+                    <td className="text-right text-muted">{c.studentsInvited || "—"}</td>
+                    <td className="text-right text-emerald">{c.studentsCompleted || "—"}</td>
+                    <td className="text-right text-rust">{c.studentsDropped || "—"}</td>
+                    <td className="text-right">{c.fillPct == null ? "—" : `${Math.round(c.fillPct * 100)}%`}</td>
+                    <td className="text-right font-mono">{c.momentumLast7Days}</td>
+                    <td className={`text-right font-mono ${c.atRiskCount > 0 ? "text-amber" : "text-muted"}`}>{c.atRiskCount || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Kpi({ label, value, hint, color }: { label: string; value: number | string; hint?: string; color: "emerald" | "amber" | "indigo" | "rust" }) {
+  const COLOR: Record<string, string> = { emerald: "text-emerald", amber: "text-amber", indigo: "text-indigo", rust: "text-rust" };
+  return (
+    <Card className="p-4">
+      <div className="text-[10px] uppercase tracking-widest text-muted">{label}</div>
+      <div className={`font-[family-name:var(--font-display)] text-2xl font-semibold ${COLOR[color] ?? "text-foreground"}`}>{value}</div>
+      {hint && <div className="text-[11px] text-muted mt-0.5">{hint}</div>}
+    </Card>
+  );
+}
+
+function StatusChip({ label, value, total, color }: { label: string; value: number; total: number; color: "emerald" | "amber" | "indigo" | "muted" }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-surface-2 text-xs">
+      <Badge color={color}>{label}</Badge>
+      <span className="text-foreground font-mono">{value}</span>
+      <span className="text-muted">{pct}%</span>
+    </span>
   );
 }

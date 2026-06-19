@@ -161,6 +161,10 @@ export const orgApi = {
       `/api/v2/organizations/accept-invite`,
       { method: "POST", body: JSON.stringify({ token }) },
     ),
+
+  // Analytics rollup (Phase 58)
+  analytics: (id: string) =>
+    call<{ rollup: import("@/lib/org-analytics").OrgRollup }>(`/api/v2/organizations/${id}/analytics`),
 };
 
 // Pure mirror of hasOrganizationRole from organization-auth.ts but
