@@ -21,7 +21,25 @@ import { CohortAnalytics } from "@/components/cohort-analytics";
 import { ConnectionsPanel } from "@/components/connections-panel";
 import { CohortDiscussions } from "@/components/cohort-discussions";
 
-type Cohort = { id: string; owner_id: string; name: string; description: string | null; institution: string | null; created_at: string; updated_at: string };
+type Cohort = {
+  id: string;
+  owner_id: string;
+  name: string;
+  description: string | null;
+  institution: string | null;
+  created_at: string;
+  updated_at: string;
+  // v2 fields (0048_cohort_lifecycle) — all optional in the row reads
+  // so this type compiles whether the migration has run yet or not.
+  slug?: string | null;
+  status?: "draft" | "open" | "running" | "ended" | "archived";
+  kind?: "course" | "program" | "accelerator" | "bootcamp" | "study_group" | "other";
+  start_date?: string | null;
+  end_date?: string | null;
+  capacity?: number | null;
+  visibility?: "private" | "link" | "public";
+  organization_id?: string | null;
+};
 type Member = { user_id: string; role: "owner" | "instructor" | "student"; email: string | null; display_name: string | null; joined_at: string };
 type Invite = { id: string; email: string; role: string; expires_at: string; created_at: string };
 type Assignment = { id: string; kind: "lesson" | "track" | "problem" | "build" | "venture" | "free"; target_id: string | null; title: string; description: string | null; due_at: string | null; created_at: string; created_by: string };
@@ -185,6 +203,9 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
           </p>
           <h1 className="font-[family-name:var(--font-display)] text-3xl sm:text-4xl font-semibold leading-tight">{cohort.name}</h1>
           {cohort.institution && <div className="mt-2 text-sm text-muted flex items-center gap-1.5"><Building2 className="size-3.5" /> {cohort.institution}</div>}
+          {/* v2 lifecycle strip — only renders once the migration has
+              landed and we have status/dates to surface. */}
+          <CohortLifecycleHeader cohort={cohort} isInstructor={isInstructor} onChanged={refresh} />
           {cohort.description && <p className="mt-3 text-sm text-muted max-w-2xl">{cohort.description}</p>}
         </div>
         <div className="flex gap-2 shrink-0">
@@ -680,4 +701,102 @@ function Legend({ status, label }: { status: ProgressStatus; label: string }) {
       {label}
     </span>
   );
+}
+
+/* ─── v2 lifecycle header strip ───
+   Renders the status badge, schedule, capacity, and (for instructors)
+   a quick "Move to next status" button + a Bulk Invite button. Lives
+   below the existing header so we don't disturb the price/invite/
+   assignment buttons above. */
+function CohortLifecycleHeader({
+  cohort, isInstructor, onChanged,
+}: {
+  cohort: { status?: string; start_date?: string | null; end_date?: string | null; capacity?: number | null; slug?: string | null; visibility?: string };
+  isInstructor: boolean;
+  onChanged: () => void | Promise<void>;
+}) {
+  const [transitioning, setTransitioning] = useState<string | null>(null);
+  if (!cohort.status) return null; // migration not yet applied
+
+  const next = validNextStatusesPublic(cohort.status as CohortStatusV2);
+  const calendar = computeCohortCalendarProgress(cohort.start_date, cohort.end_date);
+  const seatsLeft = cohort.capacity != null ? Math.max(0, cohort.capacity) : null;
+
+  const STATUS_COLOR: Record<string, "muted" | "emerald" | "amber" | "indigo"> = {
+    draft: "muted", open: "amber", running: "emerald", ended: "indigo", archived: "muted",
+  };
+
+  async function moveTo(nextStatus: CohortStatusV2) {
+    setTransitioning(nextStatus);
+    const sb = supabaseBrowser();
+    if (!sb) { setTransitioning(null); return; }
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { setTransitioning(null); return; }
+    await fetch(`/api/v2/cohorts/${(cohort as { id?: string }).id ?? ""}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ status: nextStatus }),
+    }).catch(() => {});
+    await onChanged();
+    setTransitioning(null);
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <Badge color={STATUS_COLOR[cohort.status] ?? "muted"}>{cohort.status}</Badge>
+      {calendar && (
+        <Badge color="muted">Week {calendar.weekIndex + 1} of {calendar.totalWeeks}</Badge>
+      )}
+      {cohort.capacity != null && (
+        <Badge color="muted">capacity {cohort.capacity}</Badge>
+      )}
+      {cohort.visibility === "public" && cohort.slug && (
+        <Link href={`/c/${cohort.slug}`} target="_blank" className="text-xs text-emerald hover:underline">
+          Public page →
+        </Link>
+      )}
+      {isInstructor && next.length > 0 && (
+        <div className="ml-2 flex items-center gap-1.5">
+          {next.map((n) => (
+            <button
+              key={n}
+              onClick={() => void moveTo(n)}
+              disabled={transitioning === n}
+              className="text-[11px] px-2.5 py-1 rounded-full border border-emerald/40 text-emerald hover:bg-emerald/10 transition disabled:opacity-40"
+            >
+              {transitioning === n ? "…" : `Move to ${n}`}
+            </button>
+          ))}
+        </div>
+      )}
+      {seatsLeft != null && <span aria-hidden className="hidden">{seatsLeft}</span>}
+    </div>
+  );
+}
+
+// Inline a tiny copy of the status machine so this big page doesn't
+// need an extra import. The list MUST match canTransitionStatus's
+// allowlist in src/lib/cohort-state.ts.
+type CohortStatusV2 = "draft" | "open" | "running" | "ended" | "archived";
+function validNextStatusesPublic(from: CohortStatusV2): CohortStatusV2[] {
+  const map: Record<CohortStatusV2, CohortStatusV2[]> = {
+    draft:    ["open", "archived"],
+    open:     ["running", "draft", "archived"],
+    running:  ["ended", "open"],
+    ended:    ["archived", "running"],
+    archived: ["draft"],
+  };
+  return map[from] ?? [];
+}
+
+function computeCohortCalendarProgress(start: string | null | undefined, end: string | null | undefined): { weekIndex: number; totalWeeks: number } | null {
+  if (!start || !end) return null;
+  const s = new Date(start + "T00:00:00Z").getTime();
+  const e = new Date(end + "T00:00:00Z").getTime();
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) return null;
+  const now = Date.now();
+  const elapsed = Math.max(0, Math.min(e - s, now - s));
+  const totalWeeks = Math.max(1, Math.round((e - s) / (7 * 86_400_000)));
+  const weekIndex = Math.max(0, Math.min(totalWeeks - 1, Math.floor(elapsed / (7 * 86_400_000))));
+  return { weekIndex, totalWeeks };
 }

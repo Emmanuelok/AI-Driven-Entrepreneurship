@@ -4,10 +4,12 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { orgApi, clientHasOrgRole, type Organization, type OrganizationMember, type OrganizationInvite, type OrganizationKind, type OrganizationRole } from "@/lib/org-api";
+import { cohortApiV2, type CohortRow } from "@/lib/cohort-api-v2";
+import { statusLabel, type CohortStatus, type CohortKind } from "@/lib/cohort-state";
 import { Card, Button, Input, Textarea, Dialog, Badge } from "@/components/ui";
 import { VerifiedBadgeBool } from "@/components/verified-badge";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft, Loader2, Building2, Users, Settings as SettingsIcon, Plus, Copy, Check, Trash2, AlertCircle, ExternalLink, LayoutDashboard, MailPlus, Globe, BadgeCheck, Archive } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, Users, Settings as SettingsIcon, Plus, Copy, Check, Trash2, AlertCircle, ExternalLink, LayoutDashboard, MailPlus, Globe, BadgeCheck, Archive, GraduationCap } from "lucide-react";
 
 // /studio/orgs/[id] — the admin dashboard for an organization.
 //
@@ -16,7 +18,7 @@ import { ArrowLeft, Loader2, Building2, Users, Settings as SettingsIcon, Plus, C
 // staff + instructor add Members; admins add Invites + Settings;
 // owner adds the delete button to Settings.
 
-type Tab = "overview" | "members" | "invites" | "settings";
+type Tab = "overview" | "cohorts" | "members" | "invites" | "settings";
 
 export default function OrgDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -46,6 +48,7 @@ export default function OrgDashboardPage({ params }: { params: Promise<{ id: str
 
   const tabs = ([
     { id: "overview" as const, label: "Overview", show: true, Icon: LayoutDashboard },
+    { id: "cohorts" as const, label: "Cohorts", show: true, Icon: GraduationCap },
     { id: "members" as const, label: "Members", show: true, Icon: Users },
     { id: "invites" as const, label: "Invites", show: canInvite, Icon: MailPlus },
     { id: "settings" as const, label: "Settings", show: canSettings, Icon: SettingsIcon },
@@ -110,6 +113,7 @@ export default function OrgDashboardPage({ params }: { params: Promise<{ id: str
       </div>
 
       {tab === "overview" && <OverviewTab org={org} />}
+      {tab === "cohorts" && <CohortsTab orgId={org.id} myRole={myRole!} />}
       {tab === "members" && <MembersTab orgId={org.id} myRole={myRole!} ownerId={org.owner_user_id} />}
       {tab === "invites" && canInvite && <InvitesTab orgId={org.id} />}
       {tab === "settings" && canSettings && (
@@ -152,11 +156,10 @@ function OverviewTab({ org }: { org: Organization }) {
         )}
       </Card>
       <Card className="p-5 lg:col-span-3 bg-gradient-to-br from-emerald/5 to-amber/5">
-        <h2 className="text-sm font-medium mb-2">Cohorts under this organization</h2>
-        <p className="text-xs text-muted leading-relaxed mb-4">
-          Run cohorts under this organization to give them your brand, share admin staff, and roll their progress up to the org dashboard.
+        <h2 className="text-sm font-medium mb-2 flex items-center gap-2"><GraduationCap className="size-4 text-emerald" /> Cohorts under this organization</h2>
+        <p className="text-xs text-muted leading-relaxed">
+          Run cohorts under this organization to give them your brand, share admin staff, and roll their progress up to the org dashboard. Switch to the Cohorts tab to create one and manage lifecycle.
         </p>
-        <p className="text-xs text-muted italic">Cohorts are stitched into the org in Phase 56.</p>
       </Card>
     </div>
   );
@@ -511,5 +514,153 @@ function Labeled({ label, hint, children }: { label: string; hint?: string; chil
       {children}
       {hint && <p className="text-[11px] text-muted mt-1">{hint}</p>}
     </label>
+  );
+}
+
+/* ─── Cohorts tab ─── */
+function CohortsTab({ orgId, myRole }: { orgId: string; myRole: OrganizationRole }) {
+  const canCreate = clientHasOrgRole(myRole, "instructor");
+  return <CohortsTabInner orgId={orgId} canCreate={canCreate} />;
+}
+
+function CohortsTabInner({ orgId, canCreate }: { orgId: string; canCreate: boolean }) {
+  const [rows, setRows] = useState<Array<CohortRow & { _counts: { students: number; instructors: number } }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+
+  async function load() {
+    const r = await cohortApiV2.listByOrg(orgId);
+    if (r.ok) setRows(r.results);
+    setLoading(false);
+  }
+  useEffect(() => { void load(); }, [orgId]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-16"><Loader2 className="size-6 text-emerald animate-spin" /></div>;
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <div>
+          <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">Cohorts</h2>
+          <p className="text-sm text-muted mt-0.5">{rows.length} cohort{rows.length === 1 ? "" : "s"} under this organization</p>
+        </div>
+        {canCreate && (
+          <Button onClick={() => setCreating(true)}><Plus className="size-4" /> New cohort</Button>
+        )}
+      </div>
+
+      {rows.length === 0 ? (
+        <Card className="p-8 text-center">
+          <GraduationCap className="size-8 text-emerald mx-auto mb-3" />
+          <p className="text-muted leading-relaxed max-w-md mx-auto mb-4">
+            No cohorts here yet. Create your first one — a 12-week course, an accelerator batch, a fellowship intake — and invite students by email.
+          </p>
+          {canCreate && <Button onClick={() => setCreating(true)}><Plus className="size-4" /> Create the first cohort</Button>}
+        </Card>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {rows.map((c) => <CohortCard key={c.id} cohort={c} />)}
+        </div>
+      )}
+
+      <Dialog open={creating} onClose={() => setCreating(false)} title="New cohort">
+        <NewCohortForm orgId={orgId} onCreated={(cohortId) => { setCreating(false); void load(); window.location.href = `/studio/cohorts/${cohortId}`; }} />
+      </Dialog>
+    </>
+  );
+}
+
+function CohortCard({ cohort }: { cohort: CohortRow & { _counts: { students: number; instructors: number } } }) {
+  const STATUS_COLOR: Record<CohortStatus, "muted" | "emerald" | "amber" | "indigo" | "rust"> = {
+    draft: "muted", open: "amber", running: "emerald", ended: "indigo", archived: "muted",
+  };
+  return (
+    <Link href={`/studio/cohorts/${cohort.id}`} className="block group">
+      <Card className="p-5 h-full hover:border-emerald/40 transition flex flex-col">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <Badge color={STATUS_COLOR[cohort.status]}>{statusLabel(cohort.status)}</Badge>
+          <span className="text-[10px] uppercase tracking-widest text-muted">{cohort.kind}</span>
+        </div>
+        <h3 className="font-medium leading-tight group-hover:text-emerald transition">{cohort.name}</h3>
+        {cohort.description && <p className="mt-1 text-xs text-muted leading-relaxed line-clamp-2">{cohort.description}</p>}
+        <div className="mt-auto pt-3 flex items-center justify-between text-[11px] text-muted">
+          <span className="inline-flex items-center gap-1"><Users className="size-3" />{cohort._counts.students} student{cohort._counts.students === 1 ? "" : "s"}</span>
+          {cohort.start_date && cohort.end_date && (
+            <span>{cohort.start_date} → {cohort.end_date}</span>
+          )}
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+function NewCohortForm({ orgId, onCreated }: { orgId: string; onCreated: (cohortId: string) => void }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [kind, setKind] = useState<CohortKind>("course");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    setErr(null);
+    const r = await cohortApiV2.create({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      organizationId: orgId,
+      kind,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      capacity: capacity ? Number(capacity) : undefined,
+      status: "draft",
+    });
+    setBusy(false);
+    if (!r.ok) { setErr(r.error); return; }
+    onCreated(r.cohortId);
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted leading-relaxed">
+        Cohorts start as <strong>Draft</strong>. Move to <strong>Open</strong> when you&apos;re ready to accept students, then <strong>Running</strong> when classes begin.
+      </p>
+      <Labeled label="Cohort name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. KNUST · W26 venture cohort" autoFocus /></Labeled>
+      <Labeled label="What it is" hint="One or two sentences.">
+        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} />
+      </Labeled>
+      <Labeled label="Kind">
+        <select
+          value={kind}
+          onChange={(e) => setKind(e.target.value as CohortKind)}
+          className="bg-surface-2 border border-border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald w-full"
+        >
+          <option value="course">Course</option>
+          <option value="program">Program</option>
+          <option value="accelerator">Accelerator</option>
+          <option value="bootcamp">Bootcamp</option>
+          <option value="study_group">Study group</option>
+          <option value="other">Other</option>
+        </select>
+      </Labeled>
+      <div className="grid grid-cols-2 gap-3">
+        <Labeled label="Start date"><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></Labeled>
+        <Labeled label="End date"><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></Labeled>
+      </div>
+      <Labeled label="Capacity" hint="Optional — max students. Leave blank for uncapped.">
+        <Input type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="e.g. 30" min={1} />
+      </Labeled>
+      {err && <p className="text-xs text-rust">{err}</p>}
+      <div className="flex justify-end">
+        <Button onClick={submit} disabled={!name.trim() || busy}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />} Create cohort
+        </Button>
+      </div>
+    </div>
   );
 }
