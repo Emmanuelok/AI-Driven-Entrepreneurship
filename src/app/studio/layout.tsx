@@ -60,6 +60,7 @@ const NAV: NavItem[] = [
   { href: "/studio/atlas", label: "Atlas", icon: Map, group: "Build" },
   { href: "/studio/problems", label: "Problem Hub", icon: Globe2, group: "Build" },
 
+  { href: "/search", label: "Search everything", icon: Search, group: "Network" },
   { href: "/people", label: "People directory", icon: Contact, group: "Network" },
   { href: "/studio/mentors", label: "Mentors", icon: Users, group: "Network" },
   { href: "/studio/funding", label: "Funding", icon: Wallet, group: "Network" },

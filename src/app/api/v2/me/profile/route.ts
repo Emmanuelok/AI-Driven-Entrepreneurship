@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
 import { slugifyName } from "@/lib/account-types";
+import { indexProfile, unindexProfile } from "@/lib/public-search-indexer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -136,6 +137,30 @@ export async function PATCH(req: Request) {
     }
     return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
+
+  // Public search index sync. If the profile is now public (or just
+  // flipped to public) we index it; if it just flipped to private we
+  // remove it. The full row from the DB is what gets indexed so the
+  // body composition sees every persisted field, not just the patch.
+  const row = data as {
+    user_id: string; slug: string | null; account_type: string;
+    display_name: string; headline: string; bio: string;
+    country: string; city: string; primary_language: string;
+    persona_data: Record<string, unknown>; is_public: boolean;
+  };
+  if (row.slug) {
+    if (row.is_public) {
+      void indexProfile({
+        user_id: row.user_id, slug: row.slug, account_type: row.account_type,
+        display_name: row.display_name, headline: row.headline, bio: row.bio,
+        country: row.country, city: row.city, primary_language: row.primary_language,
+        persona_data: row.persona_data ?? {},
+      });
+    } else {
+      void unindexProfile(row.slug);
+    }
+  }
+
   return Response.json({ ok: true, profile: data });
 }
 

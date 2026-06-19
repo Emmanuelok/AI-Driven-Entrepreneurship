@@ -65,6 +65,7 @@ function Nav() {
           <a href="#voices" className="hover:text-foreground transition">Voices</a>
           <Link href="/studio/atlas" className="hover:text-foreground transition">Atlas</Link>
           <Link href="/people" className="hover:text-foreground transition">People</Link>
+          <Link href="/search" className="hover:text-foreground transition">Search</Link>
           <Link href="/sign-in" className="hover:text-foreground transition">Sign in</Link>
         </nav>
         <Link href="/studio" className="flex items-center gap-1.5 bg-emerald text-black font-medium text-sm px-4 py-2 rounded-full hover:bg-amber transition shadow-lg shadow-emerald/30">

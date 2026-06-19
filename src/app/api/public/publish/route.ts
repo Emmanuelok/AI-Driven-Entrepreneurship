@@ -1,4 +1,5 @@
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { indexVenture, unindexVenture } from "@/lib/public-search-indexer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,6 +93,15 @@ export async function POST(req: Request) {
   });
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
+  // Public search index sync.
+  void indexVenture({
+    slug,
+    payload: body.payload as Record<string, unknown>,
+    sectors: cleanSectors,
+    stage: cleanStage,
+    region: cleanRegion,
+  });
+
   const origin = new URL(req.url).origin;
   return Response.json({ ok: true, slug, url: `${origin}/v/${slug}` });
 }
@@ -115,5 +125,6 @@ export async function DELETE(req: Request) {
   if (!slug) return Response.json({ ok: false, error: "missing slug" }, { status: 400 });
 
   await sb.from("public_ventures").delete().eq("slug", slug).eq("owner_id", u.user.id);
+  void unindexVenture(slug);
   return Response.json({ ok: true });
 }
