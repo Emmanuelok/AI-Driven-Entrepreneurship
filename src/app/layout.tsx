@@ -15,10 +15,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Sankofa Studio — Learn. Build. Solve Africa.",
+  title: {
+    default: "Sankofa Studio — Learn. Build. Solve Africa.",
+    template: "%s · Sankofa Studio",
+  },
   description:
     "The AI-driven learning + venture studio that takes tertiary students from classroom to creator. Master STEM, code, entrepreneurship — and ship ventures that solve real problems across Africa and the developing world.",
-  metadataBase: new URL("https://sankofa.studio"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://sankofa.studio"),
   applicationName: "Sankofa Studio",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -30,6 +33,21 @@ export const metadata: Metadata = {
     title: "Sankofa Studio",
     description: "From classroom to creator — AI-powered learning + venture studio for African problem-solvers.",
     type: "website",
+    siteName: "Sankofa Studio",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sankofa Studio",
+    description: "From classroom to creator — AI-powered learning + venture studio for African problem-solvers.",
+  },
+  // RSS auto-discovery: subscribers' readers pick this up from the
+  // <link rel="alternate"> tag Next emits when other.* is set.
+  alternates: {
+    types: {
+      "application/rss+xml": [
+        { title: "Sankofa Studio — latest ventures", url: "/feed.xml" },
+      ],
+    },
   },
 };
 
