@@ -2,8 +2,11 @@ import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
-import { startAgentRun } from "@/lib/agent-runner";
+import { startAgentRun, type AgentFn } from "@/lib/agent-runner";
 import { outreachDrafter } from "@/lib/agents/outreach-drafter";
+import { researchBrief } from "@/lib/agents/research-brief";
+import { discussionSummary } from "@/lib/agents/discussion-summary";
+import { venturePitchPolish } from "@/lib/agents/venture-pitch-polish";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,12 +16,34 @@ export const dynamic = "force-dynamic";
 // v2.1 will background-queue these once we wire a real worker.
 // GET  — list the caller's runs (latest 40).
 
+// Adding a new agent is a 3-step change: add the kind to the enum,
+// import the agent function, register it in AGENTS. Everything else
+// (runner, notifications, history page) routes automatically.
 const StartBody = z.object({
-  agent_kind: z.enum(["outreach_drafter"]),
+  agent_kind: z.enum([
+    "outreach_drafter",
+    "research_brief",
+    "discussion_summary",
+    "venture_pitch_polish",
+  ]),
   title: z.string().min(1).max(160).optional(),
   prompt: z.string().max(2000).optional(),
   input: z.record(z.string(), z.unknown()),
 });
+
+const AGENTS: Record<string, AgentFn> = {
+  outreach_drafter: outreachDrafter,
+  research_brief: researchBrief,
+  discussion_summary: discussionSummary,
+  venture_pitch_polish: venturePitchPolish,
+};
+
+const DEFAULT_TITLES: Record<string, string> = {
+  outreach_drafter: "Draft outreach",
+  research_brief: "Research brief",
+  discussion_summary: "Discussion digest",
+  venture_pitch_polish: "Polish pitch",
+};
 
 async function resolveCaller(req: Request) {
   const token = bearerToken(req);
@@ -54,15 +79,13 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const { agent_kind, title, prompt, input } = parsed.data;
 
-  // Route to the right agent function. Adding new agents is a one-line
-  // entry here + a module under lib/agents/.
-  const fn = agent_kind === "outreach_drafter" ? outreachDrafter : null;
+  const fn = AGENTS[agent_kind];
   if (!fn) return Response.json({ ok: false, error: "unknown_agent" }, { status: 400 });
 
   const res = await startAgentRun({
     userId: user.id,
     agentKind: agent_kind,
-    title: title ?? "New Sage run",
+    title: title ?? DEFAULT_TITLES[agent_kind] ?? "New Sage run",
     prompt,
     input,
     fn,

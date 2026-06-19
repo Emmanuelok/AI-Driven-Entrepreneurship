@@ -9,6 +9,7 @@ import { MentionAutocompleteTextarea, type MentionCandidate } from "@/components
 import { Markdown } from "@/components/markdown";
 import type { WorkspaceMember } from "@/lib/workspace-api";
 import { buildMentionCandidates } from "@/lib/workspace-mentions";
+import { profileApi } from "@/lib/profile-api";
 import { Send, Sparkles, Brain, Loader2, SmilePlus, Check, Pin, PinOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -229,6 +230,8 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent, isAdmin
         </div>
       )}
 
+      <DigestStrip workspaceId={workspaceId} messageCount={messages.length} />
+
       <div className={`border-t border-border p-3 ${typing.length > 0 ? "" : "mt-0"}`}>
         <div className="flex items-end gap-2">
           <div className="flex-1">
@@ -255,6 +258,55 @@ export function WorkspaceDiscussionPanel({ workspaceId, members, accent, isAdmin
         </div>
         <p className="mt-1.5 text-[10px] text-muted px-1">Enter to send · Shift+Enter for a new line · @ to mention</p>
       </div>
+    </div>
+  );
+}
+
+/* ─── Sage's discussion digest dispatch strip ───
+   Sits between the messages list and the composer. Catch-up button
+   for anyone returning from a few days off. Defaults to the last 72
+   hours; the dispatched run lands in /studio/agent-runs. */
+function DigestStrip({ workspaceId, messageCount }: { workspaceId: string; messageCount: number }) {
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+
+  async function summarize() {
+    if (busy) return;
+    setBusy(true);
+    setHint("Sage is reading…");
+    const r = await profileApi.startAgentRun({
+      agent_kind: "discussion_summary",
+      title: "Discussion digest",
+      input: { workspaceId, sinceHours: 72 },
+    });
+    setBusy(false);
+    if (!r.ok) {
+      setHint("Couldn't start. Try again later.");
+      setTimeout(() => setHint(null), 3000);
+      return;
+    }
+    setHint("Digest saved — open /studio/agent-runs for the full read.");
+    setTimeout(() => setHint(null), 4500);
+  }
+
+  // Nothing to summarize — hide the strip when the thread is empty
+  // so the panel stays clean.
+  if (messageCount === 0) return null;
+
+  return (
+    <div className="px-3 py-1.5 border-t border-border/40 bg-surface-2/30 flex items-center justify-between gap-3 text-[11px]">
+      {hint ? (
+        <span className="text-muted">{hint}</span>
+      ) : (
+        <span className="text-muted">Catching up? Get Sage&apos;s 72-hour digest of decisions, action items, and open questions.</span>
+      )}
+      <button
+        onClick={summarize}
+        disabled={busy}
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-emerald/30 text-emerald hover:bg-emerald/10 transition disabled:opacity-40"
+      >
+        {busy ? "…" : "Sage digest"}
+      </button>
     </div>
   );
 }

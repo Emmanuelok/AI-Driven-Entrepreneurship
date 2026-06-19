@@ -26,6 +26,9 @@ const STATUS_BADGE: Record<AgentRunSummary["status"], { color: "amber" | "emeral
 
 const AGENT_LABEL: Record<string, string> = {
   outreach_drafter: "Outreach drafter",
+  research_brief: "Research brief",
+  discussion_summary: "Discussion digest",
+  venture_pitch_polish: "Pitch polish",
 };
 
 export default function AgentRunsPage() {
@@ -94,8 +97,8 @@ function RunCard({ run }: { run: AgentRunSummary }) {
         <p className="text-xs text-rust mt-2">{run.error}</p>
       )}
 
-      {run.output && run.status === "needs_approval" && run.agent_kind === "outreach_drafter" && (
-        <OutreachOutputPreview output={run.output as Record<string, unknown>} />
+      {run.output && (run.status === "needs_approval" || run.status === "completed") && (
+        <AgentOutputPreview agentKind={run.agent_kind} output={run.output as Record<string, unknown>} />
       )}
 
       {run.steps.length > 0 && (
@@ -119,6 +122,25 @@ function RunCard({ run }: { run: AgentRunSummary }) {
   );
 }
 
+function AgentOutputPreview({ agentKind, output }: { agentKind: string; output: Record<string, unknown> }) {
+  switch (agentKind) {
+    case "outreach_drafter":
+      return <OutreachOutputPreview output={output} />;
+    case "research_brief":
+      return <ResearchBriefPreview output={output} />;
+    case "discussion_summary":
+      return <DiscussionSummaryPreview output={output} />;
+    case "venture_pitch_polish":
+      return <PitchPolishPreview output={output} />;
+    default:
+      return (
+        <pre className="mt-3 rounded-xl border border-border bg-surface-2/40 p-3 text-[11px] text-muted overflow-x-auto">
+          {JSON.stringify(output, null, 2)}
+        </pre>
+      );
+  }
+}
+
 function OutreachOutputPreview({ output }: { output: Record<string, unknown> }) {
   const recipientSlug = String(output.recipientSlug ?? "");
   const subject = String(output.subject ?? "");
@@ -131,6 +153,137 @@ function OutreachOutputPreview({ output }: { output: Record<string, unknown> }) 
         <div className="flex justify-end">
           <Link href={`/people/${recipientSlug}`}>
             <Button size="sm" variant="secondary">Open profile to send <ArrowRight className="size-3" /></Button>
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResearchBriefPreview({ output }: { output: Record<string, unknown> }) {
+  const what = String(output.what ?? "");
+  const whyNow = output.why_now == null ? null : String(output.why_now);
+  const starters = Array.isArray(output.starters) ? (output.starters as string[]).filter((s) => typeof s === "string") : [];
+  const avoid = Array.isArray(output.avoid) ? (output.avoid as string[]).filter((s) => typeof s === "string") : [];
+  const subjectSlug = output.subjectSlug ? String(output.subjectSlug) : null;
+  return (
+    <div className="mt-3 rounded-xl border border-emerald/20 bg-emerald/5 p-4 space-y-3">
+      {what && <p className="text-sm leading-relaxed">{what}</p>}
+      {whyNow && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">Why now</div>
+          <p className="text-sm text-foreground/90 leading-relaxed">{whyNow}</p>
+        </div>
+      )}
+      {starters.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">Conversation starters</div>
+          <ul className="space-y-1 text-sm">
+            {starters.map((s, i) => (<li key={i} className="leading-relaxed">• {s}</li>))}
+          </ul>
+        </div>
+      )}
+      {avoid.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-amber mb-1">Don&apos;t lead with</div>
+          <ul className="space-y-1 text-sm text-muted">
+            {avoid.map((s, i) => (<li key={i} className="leading-relaxed">• {s}</li>))}
+          </ul>
+        </div>
+      )}
+      {subjectSlug && (
+        <div className="flex justify-end pt-1">
+          <Link href={`/people/${subjectSlug}`}>
+            <Button size="sm" variant="secondary">Open profile <ArrowRight className="size-3" /></Button>
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiscussionSummaryPreview({ output }: { output: Record<string, unknown> }) {
+  const decisions = Array.isArray(output.decisions) ? (output.decisions as string[]) : [];
+  const open = Array.isArray(output.open_questions) ? (output.open_questions as string[]) : [];
+  const items = Array.isArray(output.action_items) ? (output.action_items as Array<{ who: string; what: string; when: string | null }>) : [];
+  const mentions = Array.isArray(output.mentions) ? (output.mentions as Array<{ name: string; contribution: string }>) : [];
+  const total = decisions.length + open.length + items.length + mentions.length;
+  return (
+    <div className="mt-3 rounded-xl border border-emerald/20 bg-emerald/5 p-4 space-y-3">
+      {total === 0 && <p className="text-sm text-muted italic">Nothing material to surface in the window.</p>}
+      {decisions.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">Decisions</div>
+          <ul className="space-y-1 text-sm">{decisions.map((d, i) => (<li key={i}>• {d}</li>))}</ul>
+        </div>
+      )}
+      {items.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-amber mb-1">Action items</div>
+          <ul className="space-y-1.5 text-sm">
+            {items.map((a, i) => (
+              <li key={i} className="leading-relaxed">
+                <strong className="text-foreground">{a.who}</strong>: {a.what}
+                {a.when && <span className="text-muted"> · {a.when}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {open.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-indigo mb-1">Open questions</div>
+          <ul className="space-y-1 text-sm">{open.map((q, i) => (<li key={i}>• {q}</li>))}</ul>
+        </div>
+      )}
+      {mentions.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-muted mb-1">Who contributed</div>
+          <ul className="space-y-1 text-sm text-muted">
+            {mentions.map((m, i) => (<li key={i}><strong className="text-foreground">{m.name}</strong> — {m.contribution}</li>))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PitchPolishPreview({ output }: { output: Record<string, unknown> }) {
+  const hook = String(output.hook ?? "");
+  const problem = String(output.problem ?? "");
+  const solution = String(output.solution ?? "");
+  const ask = String(output.ask ?? "");
+  const ventureSlug = output.ventureSlug ? String(output.ventureSlug) : null;
+  return (
+    <div className="mt-3 rounded-xl border border-emerald/20 bg-emerald/5 p-4 space-y-3">
+      {hook && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">Hook</div>
+          <p className="text-sm leading-relaxed">{hook}</p>
+        </div>
+      )}
+      {problem && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">Problem</div>
+          <p className="text-sm leading-relaxed">{problem}</p>
+        </div>
+      )}
+      {solution && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">Solution</div>
+          <p className="text-sm leading-relaxed">{solution}</p>
+        </div>
+      )}
+      {ask && (
+        <div>
+          <div className="text-[10px] uppercase tracking-widest text-amber mb-1">Ask</div>
+          <p className="text-sm leading-relaxed">{ask}</p>
+        </div>
+      )}
+      {ventureSlug && (
+        <div className="flex justify-end pt-1">
+          <Link href={`/v/${ventureSlug}`}>
+            <Button size="sm" variant="secondary">Open venture <ArrowRight className="size-3" /></Button>
           </Link>
         </div>
       )}

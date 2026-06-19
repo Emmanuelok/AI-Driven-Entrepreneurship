@@ -230,9 +230,14 @@ ${u.metrics}`;
               </p>
             )}
           </div>
-          <Button variant={launch.published ? "secondary" : "primary"} onClick={togglePublish}>
-            {launch.published ? "Unpublish" : "Publish profile"}
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {launch.published && launch.slug && (
+              <SagePolishButton slug={launch.slug} />
+            )}
+            <Button variant={launch.published ? "secondary" : "primary"} onClick={togglePublish}>
+              {launch.published ? "Unpublish" : "Publish profile"}
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -355,6 +360,50 @@ function Section({ title, body }: { title: string; body: string }) {
     <div>
       <div className="text-[10px] uppercase tracking-widest text-emerald mb-1">{title}</div>
       <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed">{body}</p>
+    </div>
+  );
+}
+
+/* ─── Sage's pitch-polish dispatch ───
+   Founder is the only one who can run it (the agent server-side
+   checks owner_id). The polished pitch lands in /studio/agent-runs
+   as a needs_approval run with hook/problem/solution/ask — the
+   founder edits + republishes. We don't auto-apply. */
+function SagePolishButton({ slug }: { slug: string }) {
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+
+  async function run() {
+    if (busy) return;
+    setBusy(true);
+    setHint("Sage is reading the venture…");
+    const { profileApi } = await import("@/lib/profile-api");
+    const r = await profileApi.startAgentRun({
+      agent_kind: "venture_pitch_polish",
+      title: `Polish pitch · ${slug}`,
+      input: { ventureSlug: slug },
+    });
+    setBusy(false);
+    if (!r.ok) {
+      setHint("Couldn't start. Try again.");
+      setTimeout(() => setHint(null), 3000);
+      return;
+    }
+    setHint("Polish saved — review at /studio/agent-runs and republish if you want it.");
+    setTimeout(() => setHint(null), 5000);
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={run}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-emerald/40 text-emerald text-sm hover:bg-emerald/10 transition disabled:opacity-40"
+        title="Sage reads the venture and produces a polished pitch (hook + problem + solution + ask). You decide whether to republish."
+      >
+        ✨ Polish with Sage
+      </button>
+      {hint && <span className="text-[11px] text-muted">{hint}</span>}
     </div>
   );
 }

@@ -198,7 +198,12 @@ export const profileApi = {
     ),
 
   // ── Agentic Sage ─────────────────────────────────────────────────
-  startAgentRun: (body: { agent_kind: "outreach_drafter"; title?: string; prompt?: string; input: Record<string, unknown> }) =>
+  startAgentRun: (body: {
+    agent_kind: "outreach_drafter" | "research_brief" | "discussion_summary" | "venture_pitch_polish";
+    title?: string;
+    prompt?: string;
+    input: Record<string, unknown>;
+  }) =>
     call<{ id: string; status: string }>(`/api/v2/me/agent-runs`, { method: "POST", body: JSON.stringify(body) }),
   getAgentRun: (id: string) =>
     call<{ run: AgentRun }>(`/api/v2/me/agent-runs/${id}`),

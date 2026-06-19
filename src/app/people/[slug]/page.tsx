@@ -391,6 +391,30 @@ function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: ()
     if (out.body) setBody(out.body);
   }
 
+  // Dispatch the research-brief agent for the same recipient. The
+  // brief lands in /studio/agent-runs (terminal) and we surface a
+  // hint pointing the user there. We don't fold it into the compose
+  // dialog — briefs are reference material, not draft text.
+  async function researchWithSage() {
+    if (drafting) return;
+    setDrafting(true);
+    setDraftErr(null);
+    setDraftStep("Sage is reading the profile…");
+    const started = await profileApi.startAgentRun({
+      agent_kind: "research_brief",
+      title: `Brief on ${profile.display_name?.split(" ")[0] || profile.slug}`,
+      input: { subjectSlug: profile.slug, purpose: draftIntent.trim() || subject.trim() || undefined },
+    });
+    setDrafting(false);
+    if (!started.ok) {
+      setDraftErr("Sage couldn't start. Try again.");
+      setDraftStep(null);
+      return;
+    }
+    setDraftStep("Brief saved to /studio/agent-runs — open it for the full read.");
+    setTimeout(() => setDraftStep(null), 4500);
+  }
+
   // Reuse the existing send + sent flow below.
 
   async function send() {
@@ -445,7 +469,7 @@ function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: ()
       <Card className="p-3 border-dashed bg-emerald/5">
         <div className="flex items-center gap-2 mb-2">
           <Bot className="size-4 text-emerald" />
-          <span className="text-xs font-medium">Let Sage draft this for you</span>
+          <span className="text-xs font-medium">Let Sage help</span>
         </div>
         <div className="flex items-center gap-2">
           <Input
@@ -455,8 +479,11 @@ function ContactComposer({ profile, onSent }: { profile: UserProfile; onSent: ()
             className="flex-1"
             disabled={drafting}
           />
-          <Button size="sm" variant="secondary" onClick={draftWithSage} disabled={drafting}>
+          <Button size="sm" variant="secondary" onClick={draftWithSage} disabled={drafting} title="Drafts a message you can edit + send">
             {drafting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />} Draft
+          </Button>
+          <Button size="sm" variant="ghost" onClick={researchWithSage} disabled={drafting} title="Sage reads this profile and produces a research brief">
+            <Bot className="size-3.5" /> Brief
           </Button>
         </div>
         {draftStep && <p className="text-[11px] text-muted mt-1.5">{draftStep}</p>}
