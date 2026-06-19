@@ -2,6 +2,7 @@ import { z } from "zod";
 import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
+import { createNotification } from "@/lib/notifications-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,6 +110,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .select("id, status, reply_body, responded_at, invite_id, invite_workspace_id")
     .single();
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
+
+  // Notify the sender about the response — accepted/declined only.
+  // Archive is silent (the sender doesn't need to know you cleared
+  // your inbox). When a workspace invite was attached, we surface that
+  // in the body so the bell preview itself hints at the next step.
+  if (status === "accepted" || status === "declined") {
+    // Look up the recipient's display_name once so the notification
+    // says "Ama Lovelace accepted your request" rather than the email
+    // fallback we'd otherwise show.
+    const { data: meProfile } = await sb
+      .from("user_profiles")
+      .select("display_name")
+      .eq("user_id", me)
+      .maybeSingle();
+    const recipientName = (meProfile as { display_name?: string } | null)?.display_name || "A member";
+    const verb = status === "accepted" ? "accepted" : "declined";
+    const inviteHint = mintedInvite ? " — and invited you to a workspace" : "";
+    void createNotification({
+      userId: row.from_user_id,
+      actorId: me,
+      actorName: recipientName,
+      kind: "contact_response",
+      targetKind: "contact",
+      title: `${recipientName} ${verb} your request${inviteHint}`,
+      body: reply_body ? reply_body.slice(0, 200) : undefined,
+      url: mintedInvite ? `/i/${mintedInvite.token}` : "/studio/inbox",
+    });
+  }
 
   return Response.json({ ok: true, request: data, invite: mintedInvite });
 }

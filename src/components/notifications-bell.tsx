@@ -2,16 +2,25 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Bell, Hand, MessageCircle, GitFork, Sparkles, Check, Trash2 } from "lucide-react";
+import { Bell, Hand, MessageCircle, GitFork, Sparkles, Check, Trash2, Mail, MailCheck, Users, BadgeCheck, Bot, AtSign } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useStore } from "@/store";
 import { formatDistanceToNow } from "date-fns";
 
+// Kinds the bell knows how to icon. The server's NotificationKind
+// union (lib/notifications-server.ts) is the source of truth — keep
+// these in sync when adding a new event type. Unknown kinds fall
+// back to Bell.
+type NotifKind =
+  | "clap" | "comment" | "fork" | "system"
+  | "contact_request" | "contact_response" | "workspace_invite"
+  | "verification" | "agent_complete" | "mention";
+
 type CloudNotif = {
   id: string;
-  kind: "clap" | "comment" | "fork" | "system";
+  kind: NotifKind;
   actor_name: string | null;
-  target_kind: "build" | "venture" | null;
+  target_kind: string | null;
   target_slug: string | null;
   title: string;
   body: string | null;
@@ -22,7 +31,7 @@ type CloudNotif = {
 
 type Merged = {
   id: string;
-  kind: CloudNotif["kind"] | "local";
+  kind: NotifKind | "local";
   title: string;
   body?: string;
   url?: string;
@@ -32,7 +41,19 @@ type Merged = {
   localId?: string;
 };
 
-const KIND_ICON = { clap: Hand, comment: MessageCircle, fork: GitFork, system: Sparkles, local: Bell } as const;
+const KIND_ICON: Record<string, typeof Bell> = {
+  clap: Hand,
+  comment: MessageCircle,
+  fork: GitFork,
+  system: Sparkles,
+  contact_request: Mail,
+  contact_response: MailCheck,
+  workspace_invite: Users,
+  verification: BadgeCheck,
+  agent_complete: Bot,
+  mention: AtSign,
+  local: Bell,
+};
 
 // Topbar notifications bell. Merges:
 //   - Cloud notifications (forks, claps, comments on the user's published

@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
 import { canContact, contactBlockReason, institutionsMatch, type ContactPolicy } from "@/lib/contact-policy";
+import { createNotification } from "@/lib/notifications-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,6 +90,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     }
     return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
+
+  // Light the bell for the recipient — they see it in-app and (if
+  // they've subscribed) get a web-push. Fire-and-forget so a slow
+  // notification dispatch doesn't stall the request response.
+  void createNotification({
+    userId: r.user_id,
+    actorId: senderId,
+    actorName: sp.display_name || u.user.email?.split("@")[0] || "A member",
+    kind: "contact_request",
+    targetKind: "contact",
+    title: `${sp.display_name || "Someone"} wants to connect`,
+    body: subject || body.slice(0, 160),
+    url: "/studio/inbox",
+  });
 
   return Response.json({ ok: true, request: data });
 }
