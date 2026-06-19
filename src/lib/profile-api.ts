@@ -199,7 +199,12 @@ export const profileApi = {
 
   // ── Agentic Sage ─────────────────────────────────────────────────
   startAgentRun: (body: {
-    agent_kind: "outreach_drafter" | "research_brief" | "discussion_summary" | "venture_pitch_polish";
+    agent_kind:
+      | "outreach_drafter"
+      | "research_brief"
+      | "discussion_summary"
+      | "venture_pitch_polish"
+      | "grounded_query";
     title?: string;
     prompt?: string;
     input: Record<string, unknown>;

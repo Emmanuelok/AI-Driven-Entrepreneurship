@@ -41,6 +41,7 @@ const NAV: NavItem[] = [
   { href: "/studio/path", label: "Your Path", icon: GraduationCap, group: "Workspace" },
   { href: "/studio/focus", label: "Focus mode", icon: Timer, group: "Workspace" },
   { href: "/studio/sage", label: "Sit with Sage", icon: Brain, group: "Workspace" },
+  { href: "/studio/sage/ask", label: "Ask Sage anything", icon: Bot, group: "Workspace" },
   { href: "/studio/letters", label: "Letters from Sage", icon: Mail, group: "Workspace" },
   { href: "/studio/tutor", label: "Quick chat", icon: MessageSquare, group: "Workspace" },
   { href: "/studio/coaches", label: "AI Coaches", icon: MessageSquare, group: "Workspace" },

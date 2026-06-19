@@ -27,6 +27,7 @@ const AGENT_LABEL: Record<string, string> = {
   research_brief: "Research brief",
   discussion_summary: "Discussion digest",
   venture_pitch_polish: "Pitch polish",
+  grounded_query: "Sage answer",
 };
 
 export default function AgentRunDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -70,7 +71,7 @@ export default function AgentRunDetailPage({ params }: { params: Promise<{ id: s
     setBusy(true);
     const r = await profileApi.startAgentRun({
       // The kind is a string at runtime; the API accepts the union.
-      agent_kind: run.agent_kind as "outreach_drafter" | "research_brief" | "discussion_summary" | "venture_pitch_polish",
+      agent_kind: run.agent_kind as "outreach_drafter" | "research_brief" | "discussion_summary" | "venture_pitch_polish" | "grounded_query",
       title: `${run.title} (re-run)`,
       prompt: run.prompt,
       input: run.input,
@@ -307,6 +308,41 @@ function OutputPreview({ agentKind, output }: { agentKind: string; output: Recor
           {ventureSlug && (
             <div className="flex justify-end pt-2 border-t border-emerald/15">
               <Link href={`/v/${ventureSlug}`}><Button size="sm">Open venture <ArrowRight className="size-3" /></Button></Link>
+            </div>
+          )}
+        </Card>
+      );
+    }
+    case "grounded_query": {
+      // Sage's answer + cited sources. The list of citations the LLM
+      // had vs the subset it actually used is rendered separately.
+      const query = String(output.query ?? "");
+      const answer = String(output.answer ?? "");
+      const citations = Array.isArray(output.citations) ? (output.citations as Array<{ index: number; title: string; href: string; entity_kind: string; similarity: number }>) : [];
+      const used = Array.isArray(output.used_citations) ? (output.used_citations as Array<{ index: number; title: string; href: string; entity_kind: string; similarity: number }>) : [];
+      return (
+        <Card className="p-5 mt-5 border-emerald/30 bg-emerald/5 space-y-3">
+          {query && (
+            <div className="text-xs text-muted">
+              <span className="uppercase tracking-widest text-emerald">Question · </span>
+              <span className="text-foreground">{query}</span>
+            </div>
+          )}
+          <p className="text-sm text-foreground/95 leading-relaxed whitespace-pre-wrap">{answer}</p>
+          {used.length > 0 && (
+            <div className="pt-3 border-t border-emerald/15">
+              <div className="text-[10px] uppercase tracking-widest text-emerald mb-2">Cited sources ({used.length})</div>
+              <ul className="space-y-1">
+                {citations.filter((c) => used.some((u) => u.index === c.index)).map((c) => (
+                  <li key={c.index} className="text-xs">
+                    <Link href={c.href} className="inline-flex items-center gap-2 text-foreground hover:text-emerald transition">
+                      <span className="inline-flex items-center justify-center min-w-[18px] h-[16px] rounded-md bg-emerald/15 text-[9px] font-mono text-emerald">{c.index}</span>
+                      <span className="truncate">{c.title}</span>
+                      <span className="text-[10px] text-muted">· {c.entity_kind} · {Math.round(c.similarity * 100)}%</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </Card>

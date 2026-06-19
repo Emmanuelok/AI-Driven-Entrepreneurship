@@ -29,6 +29,7 @@ const AGENT_LABEL: Record<string, string> = {
   research_brief: "Research brief",
   discussion_summary: "Discussion digest",
   venture_pitch_polish: "Pitch polish",
+  grounded_query: "Sage answer",
 };
 
 export default function AgentRunsPage() {
@@ -189,6 +190,8 @@ function AgentOutputPreview({ agentKind, output }: { agentKind: string; output: 
       return <DiscussionSummaryPreview output={output} />;
     case "venture_pitch_polish":
       return <PitchPolishPreview output={output} />;
+    case "grounded_query":
+      return <GroundedQueryPreview output={output} />;
     default:
       return (
         <pre className="mt-3 rounded-xl border border-border bg-surface-2/40 p-3 text-[11px] text-muted overflow-x-auto">
@@ -343,6 +346,21 @@ function PitchPolishPreview({ output }: { output: Record<string, unknown> }) {
             <Button size="sm" variant="secondary">Open venture <ArrowRight className="size-3" /></Button>
           </Link>
         </div>
+      )}
+    </div>
+  );
+}
+
+function GroundedQueryPreview({ output }: { output: Record<string, unknown> }) {
+  const query = String(output.query ?? "");
+  const answer = String(output.answer ?? "");
+  const used = Array.isArray(output.used_citations) ? (output.used_citations as Array<{ index: number; title: string; href: string; entity_kind: string }>) : [];
+  return (
+    <div className="mt-3 rounded-xl border border-emerald/20 bg-emerald/5 p-3.5 space-y-2">
+      {query && <div className="text-[11px] text-muted">Q: <span className="text-foreground">{query.slice(0, 120)}</span></div>}
+      <p className="text-sm text-foreground/90 leading-relaxed line-clamp-4 whitespace-pre-wrap">{answer}</p>
+      {used.length > 0 && (
+        <div className="text-[10px] text-muted">{used.length} cited source{used.length === 1 ? "" : "s"}</div>
       )}
     </div>
   );

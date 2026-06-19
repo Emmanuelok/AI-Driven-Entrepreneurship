@@ -7,6 +7,7 @@ import { outreachDrafter } from "@/lib/agents/outreach-drafter";
 import { researchBrief } from "@/lib/agents/research-brief";
 import { discussionSummary } from "@/lib/agents/discussion-summary";
 import { venturePitchPolish } from "@/lib/agents/venture-pitch-polish";
+import { groundedQuery } from "@/lib/agents/grounded-query";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ const StartBody = z.object({
     "research_brief",
     "discussion_summary",
     "venture_pitch_polish",
+    "grounded_query",
   ]),
   title: z.string().min(1).max(160).optional(),
   prompt: z.string().max(2000).optional(),
@@ -36,6 +38,7 @@ const AGENTS: Record<string, AgentFn> = {
   research_brief: researchBrief,
   discussion_summary: discussionSummary,
   venture_pitch_polish: venturePitchPolish,
+  grounded_query: groundedQuery,
 };
 
 const DEFAULT_TITLES: Record<string, string> = {
@@ -43,6 +46,7 @@ const DEFAULT_TITLES: Record<string, string> = {
   research_brief: "Research brief",
   discussion_summary: "Discussion digest",
   venture_pitch_polish: "Polish pitch",
+  grounded_query: "Sage answer",
 };
 
 async function resolveCaller(req: Request) {
