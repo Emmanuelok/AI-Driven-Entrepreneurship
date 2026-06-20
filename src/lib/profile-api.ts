@@ -314,6 +314,17 @@ export const profileApi = {
       `/api/v2/profiles/${encodeURIComponent(slug)}/mentor-reviews`,
     ),
 
+  // Mentor earnings + engagement dashboard (Phase 71). Caller's own
+  // money across both rails + reputation + upcoming.
+  getMentorDashboard: () =>
+    call<{
+      earnings: import("@/lib/mentor-earnings").MentorEarnings;
+      reputation: import("@/lib/mentor-reviews").MentorReputation;
+      upcoming: Array<{ kind: "session" | "office_hours"; id: string; title: string; at: string; status: string; filled?: number }>;
+      sellerReady: boolean;
+      counts: { sessions: number; offerings: number; seats: number };
+    }>(`/api/v2/me/mentor-dashboard`),
+
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
     const params = new URLSearchParams();

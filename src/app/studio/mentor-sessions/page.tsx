@@ -53,16 +53,21 @@ export default function MentorSessionsPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
-      <div className="mb-7">
-        <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
-          <GraduationCap className="size-3.5" /> Mentor sessions
-        </p>
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
-          Paid sessions, both sides.
-        </h1>
-        <p className="mt-3 text-muted max-w-2xl leading-relaxed">
-          Sessions you&apos;ve requested as a founder + sessions founders have requested from you as a mentor. Money moves only after both sides agree.
-        </p>
+      <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
+            <GraduationCap className="size-3.5" /> Mentor sessions
+          </p>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
+            Paid sessions, both sides.
+          </h1>
+          <p className="mt-3 text-muted max-w-2xl leading-relaxed">
+            Sessions you&apos;ve requested as a founder + sessions founders have requested from you as a mentor. Money moves only after both sides agree.
+          </p>
+        </div>
+        <Link href="/studio/mentor-dashboard">
+          <Button variant="secondary">Earnings dashboard</Button>
+        </Link>
       </div>
 
       {!loading && rows.length > 0 && (
