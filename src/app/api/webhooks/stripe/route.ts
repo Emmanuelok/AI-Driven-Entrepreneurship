@@ -53,6 +53,7 @@ export async function POST(req: Request) {
       const buildSlug = session.metadata?.sankofa_build_slug;
       const buyerId = session.metadata?.sankofa_buyer_id;
       const mentorSessionId = session.metadata?.sankofa_mentor_session_id;
+      const officeHoursSeatId = session.metadata?.sankofa_office_hours_seat_id;
 
       if (mentorSessionId) {
         // Phase 64: flip the mentor session to 'paid'. We bypass the
@@ -64,6 +65,16 @@ export async function POST(req: Request) {
           stripe_session_id: session.id,
           stripe_payment_intent_id: paymentIntentId,
         }).eq("id", mentorSessionId).eq("status", "accepted");
+      } else if (officeHoursSeatId) {
+        // Phase 67: flip the office-hours seat to 'paid'. The
+        // canTransitionSeat gate allows this only via the 'system'
+        // actor, which is exactly what this webhook is.
+        await sb.from("mentor_office_hours_seats").update({
+          status: "paid",
+          paid_at: new Date().toISOString(),
+          stripe_session_id: session.id,
+          stripe_payment_intent_id: paymentIntentId,
+        }).eq("id", officeHoursSeatId).eq("status", "pending");
       } else if (cohortId && studentId) {
         await sb.from("cohort_enrollments").upsert({
           cohort_id: cohortId,
@@ -129,6 +140,11 @@ export async function POST(req: Request) {
         // shows the correct state. We match by payment_intent_id —
         // the session row carries it after the original Checkout.
         await sb.from("mentor_sessions").update({
+          status: "refunded",
+          refunded_at: new Date().toISOString(),
+        }).eq("stripe_payment_intent_id", piId).neq("status", "refunded");
+        // Phase 67: same for office-hours seats.
+        await sb.from("mentor_office_hours_seats").update({
           status: "refunded",
           refunded_at: new Date().toISOString(),
         }).eq("stripe_payment_intent_id", piId).neq("status", "refunded");

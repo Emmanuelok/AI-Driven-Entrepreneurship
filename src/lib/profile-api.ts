@@ -301,6 +301,117 @@ export const profileApi = {
       `/api/v2/ventures/${encodeURIComponent(slug)}/dataroom/grants?grantId=${encodeURIComponent(grantId)}`,
       { method: "DELETE" },
     ),
+
+  // ── Mentor office hours (Phase 67) ───────────────────────────────
+  listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.mentorSlug) params.set("mentorSlug", opts.mentorSlug);
+    if (opts?.q) params.set("q", opts.q);
+    if (opts?.mine) params.set("mine", "1");
+    if (opts?.upcoming === false) params.set("upcoming", "0");
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return call<{ results: OfficeHoursListRow[] }>(`/api/v2/mentor-office-hours${qs ? `?${qs}` : ""}`);
+  },
+  createOfficeHours: (body: {
+    title: string;
+    description?: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    capacity: number;
+    pricePerSeatCents: number;
+    locationUrl?: string;
+  }) =>
+    call<{ offering: OfficeHoursRow }>(`/api/v2/mentor-office-hours`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  getOfficeHours: (id: string) =>
+    call<{
+      offering: OfficeHoursRow & { filled_count: number };
+      mentor: { user_id: string; display_name: string; slug: string | null; avatar_url: string | null; headline: string; country: string; city: string } | null;
+      mySeat: OfficeHoursSeatRow | null;
+      roster: Array<OfficeHoursSeatRow & { founder: { display_name: string; slug: string | null; avatar_url: string | null } }>;
+      viewer: "mentor" | "attendee" | "authed" | "anonymous";
+    }>(`/api/v2/mentor-office-hours/${id}`),
+  patchOfficeHours: (id: string, body: Partial<{
+    title: string;
+    description: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    capacity: number;
+    pricePerSeatCents: number;
+    locationUrl: string;
+  }>) =>
+    call<{ offering: OfficeHoursRow }>(`/api/v2/mentor-office-hours/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  cancelOfficeHours: (id: string) =>
+    call<{ refunded: number }>(`/api/v2/mentor-office-hours/${id}/cancel`, {
+      method: "POST",
+      body: "{}",
+    }),
+  bookOfficeHoursSeat: (id: string, body?: { question?: string }) =>
+    call<{ seat: OfficeHoursSeatRow }>(`/api/v2/mentor-office-hours/${id}/book`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  checkoutOfficeHoursSeat: (id: string, seatId: string) =>
+    call<{ url?: string; sessionId?: string; alreadyPaid?: boolean }>(
+      `/api/v2/mentor-office-hours/${id}/seats/${seatId}/checkout`,
+      { method: "POST", body: "{}" },
+    ),
+  updateOfficeHoursSeat: (
+    id: string,
+    seatId: string,
+    body: { action: "cancel" } | { action: "attended" } | { action: "refund" } | { action: "review"; rating: number; body?: string },
+  ) =>
+    call(`/api/v2/mentor-office-hours/${id}/seats/${seatId}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+};
+
+export type OfficeHoursRow = {
+  id: string;
+  mentor_user_id: string;
+  title: string;
+  description: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  capacity: number;
+  price_per_seat_cents: number;
+  currency: string;
+  application_fee_pct: number;
+  location_url: string;
+  status: "open" | "cancelled" | "completed";
+  cancelled_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type OfficeHoursListRow = OfficeHoursRow & {
+  filled_count: number;
+  mentor: { display_name: string; slug: string | null; avatar_url: string | null } | null;
+};
+
+export type OfficeHoursSeatRow = {
+  id: string;
+  office_hours_id?: string;
+  founder_user_id: string;
+  status: "pending" | "paid" | "cancelled" | "refunded" | "attended";
+  founder_question: string;
+  paid_at: string | null;
+  refunded_at: string | null;
+  cancelled_at: string | null;
+  attended: boolean;
+  review_rating: number | null;
+  review_body: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type DataroomItem = {
