@@ -5,11 +5,12 @@ import Link from "next/link";
 import { profileApi } from "@/lib/profile-api";
 import type { FundraisingVenture } from "@/app/api/v2/me/fundraising/route";
 import { temperatureMeta, engagementNudge } from "@/lib/dataroom-engagement";
+import { demandNudge } from "@/lib/saved-search";
 import { useStore } from "@/store";
 import { Card, Badge, Button } from "@/components/ui";
 import {
   Flame, ArrowLeft, Loader2, Eye, EyeOff, Users, TrendingUp, Lock,
-  AlertCircle, Sparkles, ArrowRight, ShieldCheck, Clock, CheckCircle2,
+  AlertCircle, Sparkles, ArrowRight, ShieldCheck, Clock, CheckCircle2, Radar, Bell,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -21,7 +22,7 @@ import { formatDistanceToNow } from "date-fns";
 export default function FundraisingPage() {
   const { ventures: localVentures } = useStore();
   const [ventures, setVentures] = useState<FundraisingVenture[]>([]);
-  const [totals, setTotals] = useState<{ ventures: number; grants: number; activeGrants: number; views: number; hot: number; cold: number } | null>(null);
+  const [totals, setTotals] = useState<{ ventures: number; grants: number; activeGrants: number; views: number; hot: number; cold: number; watching: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -78,7 +79,8 @@ export default function FundraisingPage() {
       </header>
 
       {totals && totals.ventures > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+          <MiniStat label="Watching" value={totals.watching} icon={<Radar className="size-4" />} accent="amber" />
           <MiniStat label="Investors" value={totals.grants} icon={<Users className="size-4" />} accent="emerald" />
           <MiniStat label="Active" value={totals.activeGrants} icon={<ShieldCheck className="size-4" />} accent="indigo" />
           <MiniStat label="Hot" value={totals.hot} icon={<Flame className="size-4" />} accent="amber" />
@@ -144,6 +146,21 @@ function VentureBlock({ v, readiness }: { v: FundraisingVenture; readiness: { re
           </span>
         )}
       </div>
+
+      {/* Investor demand (Phase 76) — aggregate-only, no identities. */}
+      {v.demand.investorCount > 0 && (
+        <div className="mt-3 rounded-xl border border-amber/30 bg-amber/5 p-3 flex items-start gap-2">
+          <Radar className="size-4 text-amber mt-0.5 shrink-0" />
+          <div className="text-xs text-fg leading-relaxed">
+            {demandNudge(v.demand)}
+            {v.demand.alertingInvestorCount > 0 && (
+              <span className="inline-flex items-center gap-1 ml-1 text-amber">
+                <Bell className="size-3" /> {v.demand.alertingInvestorCount} alerting
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Investor list */}
       {v.investors.length > 0 && (

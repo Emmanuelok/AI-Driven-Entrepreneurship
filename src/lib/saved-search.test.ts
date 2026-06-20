@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeCriteria, hasAnyFilter, matchVenture, filterMatchingVentures,
   summarizeCriteria, stageLabel, suggestTitle,
+  computeVentureDemand, demandNudge,
   EMPTY_CRITERIA, VALID_STAGES,
-  type MatchableVenture, type SearchCriteria,
+  type MatchableVenture, type SearchCriteria, type InvestorSearchRef,
 } from "./saved-search";
 
 function venture(over: Partial<MatchableVenture> = {}): MatchableVenture {
@@ -215,5 +216,84 @@ describe("suggestTitle", () => {
     const c: SearchCriteria = { ...EMPTY_CRITERIA, sectors: ["climate", "fintech", "agritech", "edtech", "logistics", "marketplace", "saas"] };
     const t = suggestTitle(c);
     expect(t.length).toBeLessThanOrEqual(80);
+  });
+});
+
+// ── computeVentureDemand ──────────────────────────────────────────
+
+describe("computeVentureDemand", () => {
+  function ref(over: Partial<InvestorSearchRef> = {}): InvestorSearchRef {
+    return {
+      userId: "inv1",
+      criteria: { ...EMPTY_CRITERIA, sectors: ["fintech"] },
+      alerting: true,
+      ...over,
+    };
+  }
+
+  it("counts zero demand against an empty search list", () => {
+    const d = computeVentureDemand(venture(), []);
+    expect(d.investorCount).toBe(0);
+    expect(d.alertingInvestorCount).toBe(0);
+    expect(d.matchingSearchCount).toBe(0);
+  });
+
+  it("counts a matching search", () => {
+    const d = computeVentureDemand(venture(), [ref()]);
+    expect(d.investorCount).toBe(1);
+    expect(d.alertingInvestorCount).toBe(1);
+    expect(d.matchingSearchCount).toBe(1);
+  });
+
+  it("dedupes distinct searches by the same investor", () => {
+    const d = computeVentureDemand(venture(), [
+      ref({ userId: "inv1", criteria: { ...EMPTY_CRITERIA, sectors: ["fintech"] } }),
+      ref({ userId: "inv1", criteria: { ...EMPTY_CRITERIA, region: "Nigeria" } }),
+    ]);
+    expect(d.investorCount).toBe(1);
+    expect(d.matchingSearchCount).toBe(2);
+  });
+
+  it("separates alerting vs non-alerting investors", () => {
+    const d = computeVentureDemand(venture(), [
+      ref({ userId: "a", alerting: true }),
+      ref({ userId: "b", alerting: false }),
+    ]);
+    expect(d.investorCount).toBe(2);
+    expect(d.alertingInvestorCount).toBe(1);
+  });
+
+  it("ignores non-matching searches", () => {
+    const d = computeVentureDemand(venture(), [
+      ref({ userId: "a", criteria: { ...EMPTY_CRITERIA, sectors: ["agritech"] } }),
+    ]);
+    expect(d.investorCount).toBe(0);
+  });
+
+  it("ignores 'all ventures' (no-filter) searches so they don't inflate demand", () => {
+    const d = computeVentureDemand(venture(), [
+      ref({ userId: "a", criteria: { ...EMPTY_CRITERIA } }),
+    ]);
+    expect(d.investorCount).toBe(0);
+    expect(d.matchingSearchCount).toBe(0);
+  });
+
+  it("never exposes investor identities (shape is counts only)", () => {
+    const d = computeVentureDemand(venture(), [ref()]);
+    expect(Object.keys(d).sort()).toEqual(["alertingInvestorCount", "investorCount", "matchingSearchCount"]);
+  });
+});
+
+describe("demandNudge", () => {
+  it("guides when there's no demand", () => {
+    expect(demandNudge({ investorCount: 0, alertingInvestorCount: 0, matchingSearchCount: 0 })).toContain("No investors");
+  });
+  it("highlights alerting investors when present", () => {
+    expect(demandNudge({ investorCount: 3, alertingInvestorCount: 2, matchingSearchCount: 4 })).toContain("alerted");
+  });
+  it("falls back to a plain count when none are alerting", () => {
+    const msg = demandNudge({ investorCount: 2, alertingInvestorCount: 0, matchingSearchCount: 2 });
+    expect(msg).toContain("2 investors");
+    expect(msg).not.toContain("alerted");
   });
 });

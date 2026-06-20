@@ -330,7 +330,7 @@ export const profileApi = {
   getFundraising: () =>
     call<{
       ventures: import("@/app/api/v2/me/fundraising/route").FundraisingVenture[];
-      totals: { ventures: number; grants: number; activeGrants: number; views: number; hot: number; cold: number };
+      totals: { ventures: number; grants: number; activeGrants: number; views: number; hot: number; cold: number; watching: number };
     }>(`/api/v2/me/fundraising`),
 
   // Personal digest (Phase 73). Preview composes without sending;

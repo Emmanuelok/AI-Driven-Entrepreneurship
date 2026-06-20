@@ -220,6 +220,65 @@ function raiseLabel(c: SearchCriteria): string {
   return "raising now";
 }
 
+// ── Investor demand (Phase 76) ──────────────────────────────────────
+//
+// The founder-facing inverse of a saved search: given a venture and a
+// set of investor saved searches, how many DISTINCT investors are
+// watching for something this venture matches? Returns only a count +
+// a coarse breakdown — never investor identities — so a founder can't
+// enumerate who's watching, only that demand exists.
+
+export type InvestorSearchRef = {
+  // The investor who owns the search. Used only to dedupe — never
+  // returned to the founder.
+  userId: string;
+  criteria: SearchCriteria;
+  // Whether this search has weekly alerts on. A founder cares more
+  // about investors who'll be actively pinged.
+  alerting: boolean;
+};
+
+export type VentureDemand = {
+  // Distinct investors with at least one matching search.
+  investorCount: number;
+  // Of those, how many have weekly alerts on (will be emailed when
+  // this venture surfaces in their next run).
+  alertingInvestorCount: number;
+  // Total matching searches (an investor may have several).
+  matchingSearchCount: number;
+};
+
+export function computeVentureDemand(venture: MatchableVenture, searches: InvestorSearchRef[]): VentureDemand {
+  const investors = new Set<string>();
+  const alertingInvestors = new Set<string>();
+  let matchingSearchCount = 0;
+
+  for (const s of searches) {
+    // An "all ventures" search (no filter) shouldn't count as demand —
+    // it's not a thesis, it'd match everything and inflate the signal.
+    if (!hasAnyFilter(s.criteria)) continue;
+    if (!matchVenture(venture, s.criteria)) continue;
+    matchingSearchCount += 1;
+    investors.add(s.userId);
+    if (s.alerting) alertingInvestors.add(s.userId);
+  }
+
+  return {
+    investorCount: investors.size,
+    alertingInvestorCount: alertingInvestors.size,
+    matchingSearchCount,
+  };
+}
+
+// A short human nudge for the founder based on the demand signal.
+export function demandNudge(d: VentureDemand): string {
+  if (d.investorCount === 0) return "No investors are watching this space yet — publishing and tagging your sector helps.";
+  if (d.alertingInvestorCount > 0) {
+    return `${d.investorCount} investor${d.investorCount === 1 ? " is" : "s are"} watching your space — ${d.alertingInvestorCount} get${d.alertingInvestorCount === 1 ? "s" : ""} alerted when ventures like yours publish.`;
+  }
+  return `${d.investorCount} investor${d.investorCount === 1 ? " has" : "s have"} a saved search your venture matches.`;
+}
+
 // ── Title suggestions ──────────────────────────────────────────────
 
 // Suggest a title for a saved search when the user hasn't provided one.

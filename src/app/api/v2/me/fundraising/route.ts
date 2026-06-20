@@ -4,6 +4,10 @@ import {
   aggregateVentureEngagement, scoreInvestor,
   type GrantSignal, type VentureEngagement, type ScoredInvestor,
 } from "@/lib/dataroom-engagement";
+import {
+  normalizeCriteria, computeVentureDemand,
+  type InvestorSearchRef, type MatchableVenture, type VentureDemand, type Stage,
+} from "@/lib/saved-search";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +41,7 @@ export type FundraisingVenture = {
   gatedItemCount: number;
   engagement: VentureEngagement;
   investors: Array<ScoredInvestor & { displayName: string; slug: string | null }>;
+  demand: VentureDemand;
 };
 
 export async function GET(req: Request) {
@@ -52,24 +57,32 @@ export async function GET(req: Request) {
   const userId = u.user.id;
   const now = new Date();
 
-  // The caller's published ventures.
+  // The caller's published ventures. We pull the structured filter
+  // columns too so we can compute investor demand (Phase 76).
   const { data: venturesData } = await sb
     .from("public_ventures")
-    .select("slug, payload, is_raising, raising_amount_usd")
+    .select("slug, payload, is_raising, raising_amount_usd, sectors, stage, region, updated_at")
     .eq("owner_id", userId);
-  const ventures = (venturesData ?? []) as Array<{ slug: string; payload: Record<string, unknown>; is_raising: boolean; raising_amount_usd: number | null }>;
+  const ventures = (venturesData ?? []) as Array<{ slug: string; payload: Record<string, unknown>; is_raising: boolean; raising_amount_usd: number | null; sectors: string[] | null; stage: string | null; region: string | null; updated_at: string }>;
   if (ventures.length === 0) return Response.json({ ok: true, ventures: [], totals: emptyTotals() });
 
   const slugs = ventures.map((v) => v.slug);
 
-  // Grants + gated item counts across all of them, in parallel.
-  const [grantsRes, itemsRes] = await Promise.all([
+  // Grants + gated item counts + every alerting saved search (for the
+  // demand signal) across all of them, in parallel.
+  const [grantsRes, itemsRes, searchesRes] = await Promise.all([
     sb.from("venture_dataroom_grants")
       .select("venture_slug, granted_to_user_id, granted_at, expires_at, revoked_at, first_viewed_at, last_viewed_at, view_count")
       .in("venture_slug", slugs),
     sb.from("venture_dataroom_items")
       .select("venture_slug, visibility")
       .in("venture_slug", slugs),
+    // All saved searches except the founder's own (a founder watching
+    // their own space shouldn't count as external demand). Capped.
+    sb.from("investor_saved_searches")
+      .select("user_id, criteria, alert_cadence")
+      .neq("user_id", userId)
+      .limit(5000),
   ]);
 
   const grants = (grantsRes.data ?? []) as GrantRow[];
@@ -92,6 +105,14 @@ export async function GET(req: Request) {
   for (const it of (itemsRes.data ?? []) as Array<{ venture_slug: string; visibility: string }>) {
     if (it.visibility === "gated") gatedCount.set(it.venture_slug, (gatedCount.get(it.venture_slug) ?? 0) + 1);
   }
+
+  // Normalize every external saved search once, for the demand signal.
+  const searchRefs: InvestorSearchRef[] = ((searchesRes.data ?? []) as Array<{ user_id: string; criteria: unknown; alert_cadence: string }>)
+    .map((s) => ({
+      userId: s.user_id,
+      criteria: normalizeCriteria(s.criteria),
+      alerting: s.alert_cadence === "weekly",
+    }));
 
   // Group grants by venture.
   const grantsBySlug = new Map<string, GrantRow[]>();
@@ -122,7 +143,21 @@ export async function GET(req: Request) {
       // Most-engaged first: hot, then warm, then cold, then expired/revoked.
       .sort((a, b) => tempRank(a.temperature) - tempRank(b.temperature) || b.viewCount - a.viewCount);
 
-    const payload = v.payload as { title?: string; name?: string };
+    const payload = v.payload as { title?: string; name?: string; tagline?: string };
+    // Investor demand: how many external investors have a saved search
+    // this venture matches. Aggregate-only — no identities leak.
+    const matchable: MatchableVenture = {
+      slug: v.slug,
+      title: String(payload.title ?? payload.name ?? v.slug),
+      tagline: String(payload.tagline ?? ""),
+      sectors: v.sectors ?? [],
+      stage: (v.stage ?? null) as Stage | null,
+      is_raising: v.is_raising,
+      raising_amount_usd: v.raising_amount_usd,
+      region: v.region,
+      updated_at: v.updated_at,
+    };
+    const demand = computeVentureDemand(matchable, searchRefs);
     return {
       slug: v.slug,
       title: String(payload.title ?? payload.name ?? v.slug),
@@ -131,12 +166,17 @@ export async function GET(req: Request) {
       gatedItemCount: gatedCount.get(v.slug) ?? 0,
       engagement,
       investors,
+      demand,
     };
   })
   // Surface ventures with the most engagement first.
   .sort((a, b) => b.engagement.totalGrants - a.engagement.totalGrants);
 
-  // Portfolio totals across all ventures.
+  // Portfolio totals across all ventures. `watching` is the max demand
+  // across ventures rather than a sum — the same investor may watch
+  // multiple of the founder's ventures, so summing would double-count;
+  // the headline "N investors watching your space" reads cleanest as
+  // the strongest single-venture signal.
   const totals = result.reduce((acc, v) => ({
     ventures: acc.ventures + 1,
     grants: acc.grants + v.engagement.totalGrants,
@@ -144,13 +184,14 @@ export async function GET(req: Request) {
     views: acc.views + v.engagement.totalViews,
     hot: acc.hot + v.engagement.hotCount,
     cold: acc.cold + v.engagement.coldCount,
+    watching: Math.max(acc.watching, v.demand.investorCount),
   }), emptyTotals());
 
   return Response.json({ ok: true, ventures: result, totals });
 }
 
 function emptyTotals() {
-  return { ventures: 0, grants: 0, activeGrants: 0, views: 0, hot: 0, cold: 0 };
+  return { ventures: 0, grants: 0, activeGrants: 0, views: 0, hot: 0, cold: 0, watching: 0 };
 }
 
 function tempRank(t: ScoredInvestor["temperature"]): number {
