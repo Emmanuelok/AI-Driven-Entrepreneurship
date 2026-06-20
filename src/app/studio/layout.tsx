@@ -83,6 +83,7 @@ const NAV: NavItem[] = [
 
   { href: "/studio/profile", label: "My Profile", icon: IdCard, group: "You" },
   { href: "/studio/inbox", label: "Inbox", icon: Inbox, group: "You" },
+  { href: "/studio/digest", label: "My digest", icon: Mail, group: "You" },
   { href: "/studio/portfolio", label: "Portfolio", icon: Folder, group: "You" },
   { href: "/studio/credentials", label: "Credentials", icon: Award, group: "You" },
   { href: "/studio/connections", label: "Connections", icon: Network, group: "You" },

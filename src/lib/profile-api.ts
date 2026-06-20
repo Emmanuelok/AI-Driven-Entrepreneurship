@@ -333,6 +333,16 @@ export const profileApi = {
       totals: { ventures: number; grants: number; activeGrants: number; views: number; hot: number; cold: number };
     }>(`/api/v2/me/fundraising`),
 
+  // Personal digest (Phase 73). Preview composes without sending;
+  // send emails the digest to the caller's own account email.
+  previewDigest: (days = 7) =>
+    call<{ digest: import("@/lib/digest").Digest }>(`/api/v2/me/digest?days=${days}`),
+  sendDigest: (days = 7) =>
+    call<{ sent: boolean; mode?: "live" | "local"; reason?: string; digest: import("@/lib/digest").Digest }>(
+      `/api/v2/me/digest?days=${days}`,
+      { method: "POST", body: "{}" },
+    ),
+
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
     const params = new URLSearchParams();
