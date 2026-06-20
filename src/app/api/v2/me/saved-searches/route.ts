@@ -34,6 +34,7 @@ export type SavedSearchRow = {
   title: string;
   criteria: SearchCriteria;
   alert_cadence: "off" | "weekly" | "instant";
+  is_public: boolean;
   last_run_at: string | null;
   last_alert_at: string | null;
   match_count_total: number;
@@ -48,7 +49,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await sb
     .from("investor_saved_searches")
-    .select("id, title, criteria, alert_cadence, last_run_at, last_alert_at, match_count_total, created_at, updated_at")
+    .select("id, title, criteria, alert_cadence, is_public, last_run_at, last_alert_at, match_count_total, created_at, updated_at")
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false })
     .limit(50);

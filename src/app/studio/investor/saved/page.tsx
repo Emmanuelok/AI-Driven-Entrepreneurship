@@ -8,7 +8,7 @@ import { summarizeCriteria, hasAnyFilter, stageLabel, VALID_STAGES } from "@/lib
 import { Card, Badge, Button, Input, Dialog } from "@/components/ui";
 import {
   Bookmark, ArrowLeft, Loader2, Sparkles, Play, Trash2, Pencil,
-  Bell, BellOff, Flame, Globe2, AlertCircle, ArrowRight,
+  Bell, BellOff, Flame, Globe2, AlertCircle, ArrowRight, Eye, EyeOff,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -53,6 +53,14 @@ export default function SavedSearchesPage() {
     setBusyId(s.id);
     const next = s.alert_cadence === "off" ? "weekly" : "off";
     const r = await profileApi.patchSavedSearch(s.id, { alertCadence: next });
+    setBusyId(null);
+    if (!r.ok) { setErr(r.error || "Save failed"); return; }
+    setRows((rs) => rs.map((x) => x.id === s.id ? r.search : x));
+  }
+
+  async function togglePublic(s: SavedSearch) {
+    setBusyId(s.id);
+    const r = await profileApi.patchSavedSearch(s.id, { isPublic: !s.is_public });
     setBusyId(null);
     if (!r.ok) { setErr(r.error || "Save failed"); return; }
     setRows((rs) => rs.map((x) => x.id === s.id ? r.search : x));
@@ -113,6 +121,7 @@ export default function SavedSearchesPage() {
                     {s.alert_cadence === "weekly"
                       ? <Badge color="emerald"><Bell className="size-3 mr-1" /> Weekly alerts</Badge>
                       : <Badge color="muted"><BellOff className="size-3 mr-1" /> Alerts paused</Badge>}
+                    {s.is_public && <Badge color="indigo"><Eye className="size-3 mr-1" /> On thesis</Badge>}
                   </div>
                   <p className="text-xs text-muted mt-1">{summarizeCriteria(s.criteria)}</p>
                   <div className="text-[11px] text-muted mt-2 flex flex-wrap gap-3">
@@ -128,6 +137,9 @@ export default function SavedSearchesPage() {
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => toggleCadence(s)} disabled={busyId === s.id} aria-label="Toggle alerts">
                     {s.alert_cadence === "weekly" ? <BellOff className="size-4" /> : <Bell className="size-4" />}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => togglePublic(s)} disabled={busyId === s.id} aria-label="Toggle on thesis" title={s.is_public ? "Hide from your thesis page" : "Show on your thesis page as an active mandate"}>
+                    {s.is_public ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(s)} aria-label="Edit"><Pencil className="size-4" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(s)} disabled={busyId === s.id} aria-label="Delete"><Trash2 className="size-4" /></Button>

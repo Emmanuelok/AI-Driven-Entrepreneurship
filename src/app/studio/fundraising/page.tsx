@@ -10,7 +10,7 @@ import { useStore } from "@/store";
 import { Card, Badge, Button } from "@/components/ui";
 import {
   Flame, ArrowLeft, Loader2, Eye, EyeOff, Users, TrendingUp, Lock,
-  AlertCircle, Sparkles, ArrowRight, ShieldCheck, Clock, CheckCircle2, Radar, Bell,
+  AlertCircle, Sparkles, ArrowRight, ShieldCheck, Clock, CheckCircle2, Radar, Bell, Mail,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -191,10 +191,67 @@ function VentureBlock({ v, readiness }: { v: FundraisingVenture; readiness: { re
         </div>
       )}
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex gap-2 flex-wrap">
         <Link href={`/v/${v.slug}/dataroom`}><Button size="sm" variant="secondary"><Eye className="size-3.5" /> View room</Button></Link>
+        <MatchingInvestors slug={v.slug} />
       </div>
     </Card>
+  );
+}
+
+// Lazy "investors to pitch" — fetches matching published theses only
+// when the founder expands it (keeps the page load light).
+function MatchingInvestors({ slug }: { slug: string }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [results, setResults] = useState<Array<{ slug: string | null; displayName: string; country: string; headline: string; summary: string; checkRange: string | null; acceptsColdPitch: boolean; score: number }>>([]);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !loaded) {
+      setLoading(true);
+      const r = await profileApi.matchingInvestors(slug);
+      setLoading(false);
+      setLoaded(true);
+      if (r.ok) setResults(r.results);
+    }
+  }
+
+  return (
+    <div className="w-full">
+      <Button size="sm" variant="ghost" onClick={toggle}>
+        <Radar className="size-3.5" /> {open ? "Hide" : "Find"} investors to pitch
+      </Button>
+      {open && (
+        <div className="mt-3">
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-muted"><Loader2 className="size-3.5 animate-spin" /> Matching theses…</div>
+          ) : results.length === 0 ? (
+            <p className="text-xs text-muted">No published investor theses match this venture yet. <Link href="/investors" className="text-emerald hover:underline">Browse all investors</Link>.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-2">
+              {results.map((inv) => (
+                <Link key={inv.slug ?? inv.displayName} href={inv.slug ? `/investors/${inv.slug}` : "#"} className="block">
+                  <div className="rounded-lg border border-border p-3 hover:border-emerald/40 transition">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{inv.displayName}</span>
+                      <Badge color={inv.score >= 60 ? "emerald" : "amber"}>{inv.score}% fit</Badge>
+                    </div>
+                    {inv.headline && <p className="text-[11px] text-muted line-clamp-1 mt-0.5">{inv.headline}</p>}
+                    <div className="text-[10px] text-muted mt-1 flex flex-wrap gap-2">
+                      {inv.checkRange && <span>{inv.checkRange}</span>}
+                      {inv.acceptsColdPitch && <span className="text-emerald inline-flex items-center gap-0.5"><Mail className="size-2.5" /> open</span>}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -400,6 +400,7 @@ export const profileApi = {
     title: string;
     criteria: Partial<import("@/lib/saved-search").SearchCriteria>;
     alertCadence: "off" | "weekly" | "instant";
+    isPublic: boolean;
   }>) =>
     call<{ search: SavedSearch }>(`/api/v2/me/saved-searches/${id}`, {
       method: "PATCH",
@@ -418,6 +419,47 @@ export const profileApi = {
       criteria: import("@/lib/saved-search").SearchCriteria;
     }>(`/api/v2/me/saved-searches/${id}/run${qs ? `?${qs}` : ""}`, { method: "POST", body: "{}" });
   },
+
+  // ── Investor thesis (Phase 77) ──────────────────────────────────
+  getMyThesis: () =>
+    call<{
+      thesis: import("@/lib/investor-thesis").InvestorThesis;
+      completeness: number;
+      canPublish: boolean;
+      missing: string[];
+    }>(`/api/v2/me/thesis`),
+  putMyThesis: (thesis: import("@/lib/investor-thesis").InvestorThesis) =>
+    call<{
+      thesis: import("@/lib/investor-thesis").InvestorThesis;
+      completeness: number;
+      canPublish: boolean;
+      missing: string[];
+      publishBlocked?: boolean;
+    }>(`/api/v2/me/thesis`, { method: "PUT", body: JSON.stringify({ thesis }) }),
+  listInvestors: (opts?: { sector?: string; stage?: string; q?: string; coldPitch?: boolean; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.sector) params.set("sector", opts.sector);
+    if (opts?.stage) params.set("stage", opts.stage);
+    if (opts?.q) params.set("q", opts.q);
+    if (opts?.coldPitch) params.set("coldPitch", "1");
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    if (opts?.offset) params.set("offset", String(opts.offset));
+    const qs = params.toString();
+    return call<{ results: import("@/app/api/v2/investors/route").InvestorCard[]; total: number }>(`/api/v2/investors${qs ? `?${qs}` : ""}`);
+  },
+  getInvestorThesis: (slug: string) =>
+    call<{
+      investor: { userId: string; slug: string | null; displayName: string; avatarUrl: string | null; country: string; city: string; profileHeadline: string; bio: string; contactPolicy: string };
+      thesis: import("@/lib/investor-thesis").InvestorThesis;
+      summary: string;
+      checkRange: string | null;
+      publicMandates: Array<{ id: string; title: string; summary: string }>;
+    }>(`/api/v2/investors/${encodeURIComponent(slug)}`),
+  matchingInvestors: (ventureSlug: string) =>
+    call<{
+      venture: { slug: string; title: string };
+      results: Array<{ slug: string | null; displayName: string; avatarUrl: string | null; country: string; headline: string; summary: string; checkRange: string | null; acceptsColdPitch: boolean; score: number }>;
+    }>(`/api/v2/ventures/${encodeURIComponent(ventureSlug)}/matching-investors`),
 
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
@@ -548,6 +590,7 @@ export type SavedSearch = {
   title: string;
   criteria: import("@/lib/saved-search").SearchCriteria;
   alert_cadence: "off" | "weekly" | "instant";
+  is_public: boolean;
   last_run_at: string | null;
   last_alert_at: string | null;
   match_count_total: number;

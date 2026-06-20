@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, Button, Badge } from "@/components/ui";
-import { Briefcase, ArrowLeft, ArrowRight, Loader2, Search, Filter, Flame, Eye, Globe2, ShieldCheck, Bookmark, Check } from "lucide-react";
+import { Briefcase, ArrowLeft, ArrowRight, Loader2, Search, Filter, Flame, Eye, Globe2, ShieldCheck, Bookmark, Check, Target } from "lucide-react";
 import { profileApi } from "@/lib/profile-api";
 import { hasAnyFilter, suggestTitle, type SearchCriteria } from "@/lib/saved-search";
 import type { VentureCard } from "@/app/api/v2/ventures/browse/route";
@@ -92,6 +92,9 @@ export default function InvestorPortalPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Link href="/studio/investor/thesis">
+            <Button variant="secondary"><Target className="size-4" /> My thesis</Button>
+          </Link>
           <Link href="/studio/investor/saved">
             <Button variant="secondary"><Bookmark className="size-4" /> Saved searches</Button>
           </Link>

@@ -15,6 +15,8 @@ const PatchBody = z.object({
   title: z.string().min(1).max(80).optional(),
   criteria: z.unknown().optional(),
   alertCadence: z.enum(["off", "weekly", "instant"]).optional(),
+  // Phase 77: mark this search a public mandate on the thesis page.
+  isPublic: z.boolean().optional(),
 });
 
 async function gate(req: Request, id: string) {
@@ -52,6 +54,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.title !== undefined) patch.title = body.title.trim().slice(0, 80);
   if (body.criteria !== undefined) patch.criteria = normalizeCriteria(body.criteria as Record<string, unknown>);
   if (body.alertCadence !== undefined) patch.alert_cadence = body.alertCadence;
+  if (body.isPublic !== undefined) patch.is_public = body.isPublic;
   if (Object.keys(patch).length === 0) return Response.json({ ok: true, noop: true });
 
   const { data, error } = await sb
