@@ -3,6 +3,7 @@ import { supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { bearerToken } from "@/lib/workspace-auth";
 import { parseBody } from "@/lib/parse-body";
 import { resolveViewerAccess, canViewItem } from "@/lib/dataroom-access";
+import { createNotification } from "@/lib/notifications-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,9 +102,36 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   }>;
   const visibleItems = items.filter((it) => canViewItem(access, it.visibility));
 
-  // Record a view for the granted viewer (not the owner).
+  // Record a view for the granted viewer (not the owner). If this is
+  // the FIRST view of the room by this investor, notify the founder
+  // so they can follow up while the room is hot — we detect it via
+  // the existing grant row's first_viewed_at, which the RPC bumps
+  // atomically. We notify pre-RPC based on the pre-view state.
   if (access.state === "granted" && viewerUserId) {
+    const myGrant = grants.find((g) => g.granted_to_user_id === viewerUserId);
+    const isFirstView = myGrant && myGrant.first_viewed_at === null;
     void sb.rpc("record_dataroom_view", { _venture_slug: slug, _viewer_user_id: viewerUserId });
+
+    if (isFirstView) {
+      // Resolve the viewer's display name for the founder's notification.
+      const { data: viewer } = await sb
+        .from("user_profiles")
+        .select("display_name, slug")
+        .eq("user_id", viewerUserId)
+        .maybeSingle();
+      const viewerName = (viewer as { display_name?: string; slug: string | null } | null)?.display_name ?? "An investor";
+      const ventureTitle = String((v.payload as { title?: string }).title ?? v.slug);
+      void createNotification({
+        userId: v.owner_id,
+        actorId: viewerUserId,
+        kind: "verification",
+        targetKind: "venture",
+        targetSlug: v.slug,
+        title: `${viewerName} opened your dataroom`,
+        body: `First view of ${ventureTitle}.`,
+        url: `/v/${v.slug}/dataroom`,
+      });
+    }
   }
 
   // Hydrate grantee display names for owner's manage list.
