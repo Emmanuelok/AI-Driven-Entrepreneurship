@@ -325,6 +325,14 @@ export const profileApi = {
       counts: { sessions: number; offerings: number; seats: number };
     }>(`/api/v2/me/mentor-dashboard`),
 
+  // Founder fundraising-engagement dashboard (Phase 72). Caller's own
+  // ventures + dataroom engagement per investor.
+  getFundraising: () =>
+    call<{
+      ventures: import("@/app/api/v2/me/fundraising/route").FundraisingVenture[];
+      totals: { ventures: number; grants: number; activeGrants: number; views: number; hot: number; cold: number };
+    }>(`/api/v2/me/fundraising`),
+
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
     const params = new URLSearchParams();
