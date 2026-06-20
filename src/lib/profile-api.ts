@@ -302,6 +302,11 @@ export const profileApi = {
       { method: "DELETE" },
     ),
 
+  // Investor-side deal room (Phase 68): every dataroom I've been
+  // granted access to, hydrated.
+  myDatarooms: () =>
+    call<{ results: InvestorDealroomRow[] }>(`/api/v2/me/datarooms`),
+
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
     const params = new URLSearchParams();
@@ -424,6 +429,25 @@ export type DataroomItem = {
   visibility: "public" | "gated";
   created_at: string;
   updated_at: string;
+};
+
+export type InvestorDealroomRow = {
+  grantId: string;
+  ventureSlug: string;
+  title: string;
+  tagline: string;
+  sectors: string[];
+  region: string | null;
+  stage: string | null;
+  isRaising: boolean;
+  raisingAmountUsd: number | null;
+  founder: { display_name: string; slug: string | null; avatar_url: string | null };
+  reason: string;
+  grantedAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  gatedItemCount: number;
+  access: import("@/lib/dataroom-access").ViewerAccess;
 };
 
 export type DataroomGrantRow = {

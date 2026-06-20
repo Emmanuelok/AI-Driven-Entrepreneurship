@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, Button, Badge } from "@/components/ui";
-import { Briefcase, ArrowLeft, ArrowRight, Loader2, Search, Filter, Flame, Eye, Globe2 } from "lucide-react";
+import { Briefcase, ArrowLeft, ArrowRight, Loader2, Search, Filter, Flame, Eye, Globe2, ShieldCheck } from "lucide-react";
 import type { VentureCard } from "@/app/api/v2/ventures/browse/route";
 
 // Investor portal — a real opt-in venture marketplace.
@@ -77,16 +77,21 @@ export default function InvestorPortalPage() {
         <ArrowLeft className="size-3" /> Studio
       </Link>
 
-      <div className="mb-8">
-        <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
-          <Briefcase className="size-3.5" /> Investor portal
-        </p>
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
-          Ventures founders have published for backers.
-        </h1>
-        <p className="mt-3 text-muted max-w-2xl leading-relaxed">
-          Real opt-in ventures from Sankofa founders. Each row has been published by its owner with a public-safe view of their venture. Click through to see the full pitch and reach the founder.
-        </p>
+      <div className="mb-8 flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
+            <Briefcase className="size-3.5" /> Investor portal
+          </p>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
+            Ventures founders have published for backers.
+          </h1>
+          <p className="mt-3 text-muted max-w-2xl leading-relaxed">
+            Real opt-in ventures from Sankofa founders. Each row has been published by its owner with a public-safe view of their venture. Click through to see the full pitch and reach the founder.
+          </p>
+        </div>
+        <Link href="/studio/investor/datarooms">
+          <Button variant="secondary"><ShieldCheck className="size-4" /> My deal rooms</Button>
+        </Link>
       </div>
 
       <Card className="p-4 mb-6 space-y-3">

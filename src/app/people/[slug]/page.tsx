@@ -8,7 +8,10 @@ import { profileApi, type UserProfile, type VerifiedState, type Attestation } fr
 import { getAccountTypeDef } from "@/lib/account-types";
 import { Card, Badge, Button, Textarea, Input, Dialog } from "@/components/ui";
 import { VerifiedBadge } from "@/components/verified-badge";
-import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2, BadgeCheck, Bot, Sparkles } from "lucide-react";
+import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2, BadgeCheck, Bot, Sparkles, Users, Calendar, Clock, ArrowRight } from "lucide-react";
+import type { OfficeHoursListRow } from "@/lib/profile-api";
+import { formatPriceUsd } from "@/lib/office-hours-state";
+import { format } from "date-fns";
 
 // Public profile page rendered at /people/[slug]. Shows the same
 // fields the directory teases plus the persona-specific data
@@ -146,6 +149,11 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
           isSelf={!!viewerId && viewerId === profile.user_id}
           signedIn={!!viewerId}
         />
+      )}
+
+      {/* Phase 67: upcoming office hours offered by this mentor. */}
+      {profile.account_type === "mentor" && profile.slug && (
+        <MentorOfficeHoursSection slug={profile.slug} />
       )}
 
       {profile.contact_policy !== "closed" && (
@@ -621,6 +629,62 @@ function AttestComposer({ profile, onSaved }: { profile: UserProfile; onSaved: (
         </Button>
       </div>
     </div>
+  );
+}
+
+/* ─── Phase 67: upcoming office hours offered by this mentor ─── */
+function MentorOfficeHoursSection({ slug }: { slug: string }) {
+  const [rows, setRows] = useState<OfficeHoursListRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const r = await profileApi.listOfficeHours({ mentorSlug: slug, upcoming: true, limit: 5 });
+      if (r.ok) setRows(r.results);
+      setLoading(false);
+    })();
+  }, [slug]);
+
+  if (loading) return null;
+  if (rows.length === 0) return null;
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs uppercase tracking-[0.22em] text-emerald flex items-center gap-1.5">
+          <Users className="size-3.5" /> Upcoming office hours
+        </h3>
+        <Link href="/studio/office-hours" className="text-xs text-muted hover:text-emerald inline-flex items-center gap-1">
+          All offerings <ArrowRight className="size-3" />
+        </Link>
+      </div>
+      <div className="space-y-2">
+        {rows.map((o) => {
+          const free = o.price_per_seat_cents === 0;
+          const full = o.filled_count >= o.capacity;
+          return (
+            <Link key={o.id} href={`/studio/office-hours/${o.id}`} className="block">
+              <div className="rounded-xl border border-border hover:border-emerald/40 p-3 transition flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{o.title}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted">
+                    <span className="flex items-center gap-1"><Calendar className="size-3" /> {format(new Date(o.scheduled_at), "PP, p")}</span>
+                    <span className="flex items-center gap-1"><Clock className="size-3" /> {o.duration_minutes}m</span>
+                    <span className="flex items-center gap-1"><Users className="size-3" /> {o.filled_count} / {o.capacity}</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-[family-name:var(--font-display)] text-sm text-emerald">
+                    {free ? "Free" : formatPriceUsd(o.price_per_seat_cents)}
+                  </div>
+                  {full ? <Badge color="rust">Full</Badge> : <Badge color="emerald">Open</Badge>}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
