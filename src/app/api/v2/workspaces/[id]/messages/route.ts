@@ -8,6 +8,8 @@ import { summonsSage, buildTranscript } from "@/lib/workspace-discussion";
 import { readSiteContext, siteSystemBlock } from "@/lib/site-brain";
 import { aiGuard } from "@/lib/ai-guard";
 import { indexWorkspaceMessage } from "@/lib/workspace-search-indexer";
+import { embed } from "@/lib/embeddings";
+import { composeContext, RAG_SYSTEM_PROMPT_FRAGMENT, type RetrievalHit } from "@/lib/sage-retrieval";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,7 +154,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // message still stands.
   let agentReply: typeof inserted | null = null;
   if (summonsSage(text)) {
-    agentReply = await replyAsSage(req, sb, id, wsTitle, parsed.raw);
+    agentReply = await replyAsSage(req, sb, id, wsTitle, parsed.raw, text);
   }
 
   await sb.from("workspace_activity").insert({
@@ -173,13 +175,15 @@ async function replyAsSage(
   workspaceId: string,
   wsTitle: string,
   rawBody: unknown,
+  userQuestion: string,
 ): Promise<{ id: string; workspace_id: string; user_id: string | null; author_name: string | null; body: string; is_agent: boolean; mentions: string[]; pinned_at: string | null; pinned_by: string | null; created_at: string } | null> {
   const guard = await aiGuard({ req, scope: "workspace-discuss", maxCalls: 30 });
   if (!guard.ok || !guard.apiKey) {
     return await postAgentMessage(sb, workspaceId, "I'm here, but my AI brain isn't wired up in this environment yet. Once an API key is configured I'll join the conversation properly.");
   }
 
-  // Pull recent context for the model.
+  // Pull recent transcript for the model — this stays the primary
+  // "conversational order" context (newest at the end).
   const { data: recent } = await sb
     .from("workspace_messages")
     .select("author_name, is_agent, body")
@@ -189,6 +193,64 @@ async function replyAsSage(
   const transcript = buildTranscript(((recent ?? []).reverse()) as { author_name: string | null; is_agent: boolean; body: string }[]);
   const brain = siteSystemBlock(readSiteContext(rawBody));
 
+  // Phase 65: retrieval-augmented grounding. Strip the @sage handle
+  // from the question so the embedding doesn't waste signal on the
+  // mention itself, then kNN over workspace_search_index.
+  const cleanedQuestion = userQuestion
+    .replace(/@sage\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  let retrievalBlock = "";
+  let citations: { index: number; title: string; href: string }[] = [];
+  if (cleanedQuestion.length >= 3) {
+    try {
+      const [qVec] = await embed([cleanedQuestion]);
+      if (qVec && qVec.length > 0) {
+        const { data: hits } = await sb.rpc("workspace_search_match", {
+          _workspace_id: workspaceId,
+          query_embedding: qVec,
+          match_count: 8,
+          kind_filter: null,
+        });
+        const raw = (hits ?? []) as Array<{
+          id: number; kind: string; ref_id: string; ref_url: string | null;
+          title: string | null; body: string; similarity: number;
+        }>;
+        if (raw.length > 0) {
+          // Filter out the very message the user just sent — it
+          // hasn't been embedded yet, but a near-duplicate
+          // earlier copy would be confusing context to cite.
+          const retrievalHits: RetrievalHit[] = raw.map((h) => ({
+            entity_kind: `workspace_${h.kind}`,
+            entity_id: h.ref_id,
+            href: h.ref_url || `/studio/workspaces/${workspaceId}`,
+            title: h.title || "(untitled)",
+            body: h.body,
+            similarity: h.similarity,
+          }));
+          const composed = composeContext(retrievalHits);
+          if (composed.citations.length > 0) {
+            retrievalBlock = `\n\nHISTORICAL CONTEXT (cite as [N] when load-bearing):\n${composed.contextBlock}`;
+            citations = composed.citations.map((c) => ({
+              index: c.index, title: c.title, href: c.href,
+            }));
+          }
+        }
+      }
+    } catch {
+      // Retrieval is opportunistic — a failure shouldn't lose us the
+      // reply. Fall through to the transcript-only path.
+    }
+  }
+
+  // System prompt: transcript context PLUS retrieval block when we
+  // have one. Citation rules are tucked into the retrieval section so
+  // the model only thinks about them when there's something to cite.
+  const ragRules = citations.length > 0
+    ? `\n\n${RAG_SYSTEM_PROMPT_FRAGMENT}`
+    : "";
+
   try {
     const client = new Anthropic({ apiKey: guard.apiKey });
     const res = await client.messages.create({
@@ -197,20 +259,50 @@ async function replyAsSage(
       system: [
         {
           type: "text",
-          text: `${brain}You are Sage, a mentor participating in a collaborative workspace discussion in "${wsTitle}". A member summoned you with @sage. Reply as a thoughtful participant in the thread — not a chatbot. Be concise (≤ 140 words), specific to what was actually said, and end with either a concrete suggestion or a sharpening question. Markdown allowed. Never restate the whole thread back to them.`,
+          text: `${brain}You are Sage, a mentor participating in a collaborative workspace discussion in "${wsTitle}". A member summoned you with @sage. Reply as a thoughtful participant in the thread — not a chatbot. Be concise (≤ 140 words), specific to what was actually said, and end with either a concrete suggestion or a sharpening question. Markdown allowed. Never restate the whole thread back to them.${ragRules}`,
           cache_control: { type: "ephemeral" },
         },
       ],
       messages: [
-        { role: "user", content: `Here is the recent discussion:\n\n${transcript}\n\nReply to the latest message as Sage.` },
+        { role: "user", content: `Here is the recent discussion:\n\n${transcript}${retrievalBlock}\n\nReply to the latest message as Sage.` },
       ],
     });
-    const replyText = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();
+    let replyText = res.content.filter((c) => c.type === "text").map((c) => (c.type === "text" ? c.text : "")).join("").trim();
     if (!replyText) return null;
+
+    // Append a sources footer ONLY for citations the model actually
+    // used — keeps the reply uncluttered when it didn't lean on
+    // retrieval.
+    if (citations.length > 0) {
+      const cited = extractCitedIndices(replyText);
+      const used = citations.filter((c) => cited.has(c.index));
+      if (used.length > 0) {
+        const footer = used
+          .map((c) => `[${c.index}] [${truncateTitle(c.title, 80)}](${c.href})`)
+          .join("  ·  ");
+        replyText += `\n\n— *Sources:* ${footer}`;
+      }
+    }
     return await postAgentMessage(sb, workspaceId, replyText);
   } catch {
     return null;
   }
+}
+
+function extractCitedIndices(reply: string): Set<number> {
+  const seen = new Set<number>();
+  const matches = reply.matchAll(/\[(\d+(?:\s*,\s*\d+)*)\]/g);
+  for (const m of matches) {
+    for (const n of m[1].split(",").map((s) => parseInt(s.trim(), 10)).filter(Number.isFinite)) {
+      seen.add(n);
+    }
+  }
+  return seen;
+}
+
+function truncateTitle(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1).trimEnd() + "…";
 }
 
 async function postAgentMessage(
