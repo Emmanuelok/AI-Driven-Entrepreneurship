@@ -64,16 +64,21 @@ export default function MentorDashboardPage() {
         <ArrowLeft className="size-3" /> Studio
       </Link>
 
-      <header className="mb-8">
-        <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
-          <Wallet className="size-3.5" /> Mentor dashboard
-        </p>
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
-          Your earnings, both rails.
-        </h1>
-        <p className="mt-3 text-muted max-w-2xl leading-relaxed">
-          Money from 1:1 sessions and group office hours, net of Sankofa&apos;s fee — plus what&apos;s locked in for sessions you haven&apos;t held yet.
-        </p>
+      <header className="mb-8 flex items-end justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-emerald mb-2 flex items-center gap-1.5">
+            <Wallet className="size-3.5" /> Mentor dashboard
+          </p>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold leading-tight">
+            Your earnings, both rails.
+          </h1>
+          <p className="mt-3 text-muted max-w-2xl leading-relaxed">
+            Money from 1:1 sessions and group office hours, net of Sankofa&apos;s fee — plus what&apos;s locked in for sessions you haven&apos;t held yet.
+          </p>
+        </div>
+        <Link href="/studio/payouts">
+          <Button variant="secondary">Payouts &amp; ledger</Button>
+        </Link>
       </header>
 
       {!sellerReady && (

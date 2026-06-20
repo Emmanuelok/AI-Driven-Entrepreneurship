@@ -343,6 +343,47 @@ export const profileApi = {
       { method: "POST", body: "{}" },
     ),
 
+  // Mentor payouts (Phase 74). Live Stripe Connect balance + recent
+  // payouts + schedule, with the caller's seller onboarding state.
+  getPayouts: (limit = 10) =>
+    call<{
+      sellerReady: boolean;
+      setupRequired: boolean;
+      setupInProgress: boolean;
+      country: string | null;
+      balance: import("@/lib/payouts").BalanceState | null;
+      schedule: import("@/lib/payouts").PayoutScheduleSummary | null;
+      payouts: import("@/lib/payouts").PayoutRow[];
+      liveError: string | null;
+    }>(`/api/v2/me/payouts?limit=${limit}`),
+
+  // Caller's transaction ledger (Phase 74). Local DB only.
+  getTransactions: (opts?: {
+    source?: "session" | "office_hours";
+    status?: "earned" | "upcoming" | "refunded";
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.source) params.set("source", opts.source);
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.from) params.set("from", opts.from);
+    if (opts?.to) params.set("to", opts.to);
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    if (opts?.offset) params.set("offset", String(opts.offset));
+    const qs = params.toString();
+    return call<{
+      total: number;
+      offset: number;
+      limit: number;
+      rows: import("@/lib/payouts").LedgerRow[];
+      summary: import("@/lib/payouts").LedgerSummary | null;
+      months: Array<{ month: string; netCents: number; count: number }>;
+    }>(`/api/v2/me/transactions${qs ? `?${qs}` : ""}`);
+  },
+
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
     const params = new URLSearchParams();

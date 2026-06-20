@@ -68,6 +68,7 @@ const NAV: NavItem[] = [
   { href: "/studio/mentor-sessions", label: "Mentor sessions", icon: GraduationCap, group: "Network" },
   { href: "/studio/office-hours", label: "Office hours", icon: Users, group: "Network" },
   { href: "/studio/mentor-dashboard", label: "Mentor earnings", icon: Wallet, group: "Network" },
+  { href: "/studio/payouts", label: "Payouts", icon: Wallet, group: "Network" },
   { href: "/studio/funding", label: "Funding", icon: Wallet, group: "Network" },
   { href: "/studio/workspaces", label: "Workspaces", icon: Users, group: "Network" },
   { href: "/studio/community", label: "Community", icon: Users, group: "Network" },
