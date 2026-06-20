@@ -307,6 +307,13 @@ export const profileApi = {
   myDatarooms: () =>
     call<{ results: InvestorDealroomRow[] }>(`/api/v2/me/datarooms`),
 
+  // Mentor reputation (Phase 69): aggregate of reviews from 1:1
+  // sessions + office hours seats.
+  getMentorReviews: (slug: string) =>
+    call<{ reputation: import("@/lib/mentor-reviews").MentorReputation }>(
+      `/api/v2/profiles/${encodeURIComponent(slug)}/mentor-reviews`,
+    ),
+
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
     const params = new URLSearchParams();

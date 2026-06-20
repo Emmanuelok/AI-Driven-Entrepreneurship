@@ -8,10 +8,11 @@ import { profileApi, type UserProfile, type VerifiedState, type Attestation } fr
 import { getAccountTypeDef } from "@/lib/account-types";
 import { Card, Badge, Button, Textarea, Input, Dialog } from "@/components/ui";
 import { VerifiedBadge } from "@/components/verified-badge";
-import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2, BadgeCheck, Bot, Sparkles, Users, Calendar, Clock, ArrowRight } from "lucide-react";
+import { ArrowLeft, Globe, Link as LinkIcon, AtSign, Mail, Loader2, MapPin, Send, CheckCircle2, BadgeCheck, Bot, Sparkles, Users, Calendar, Clock, ArrowRight, Star, Quote } from "lucide-react";
 import type { OfficeHoursListRow } from "@/lib/profile-api";
 import { formatPriceUsd } from "@/lib/office-hours-state";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
+import { type MentorReputation, reputationSummary, shouldShowReputation } from "@/lib/mentor-reviews";
 
 // Public profile page rendered at /people/[slug]. Shows the same
 // fields the directory teases plus the persona-specific data
@@ -154,6 +155,11 @@ export default function PublicProfilePage({ params }: { params: Promise<{ slug: 
       {/* Phase 67: upcoming office hours offered by this mentor. */}
       {profile.account_type === "mentor" && profile.slug && (
         <MentorOfficeHoursSection slug={profile.slug} />
+      )}
+
+      {/* Phase 69: aggregate reviews from sessions + office hours. */}
+      {profile.account_type === "mentor" && profile.slug && (
+        <MentorReviewsSection slug={profile.slug} mentorName={profile.display_name} />
       )}
 
       {profile.contact_policy !== "closed" && (
@@ -629,6 +635,74 @@ function AttestComposer({ profile, onSaved }: { profile: UserProfile; onSaved: (
         </Button>
       </div>
     </div>
+  );
+}
+
+/* ─── Phase 69: mentor reputation from real reviews ─── */
+function MentorReviewsSection({ slug, mentorName }: { slug: string; mentorName: string }) {
+  const [rep, setRep] = useState<MentorReputation | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const r = await profileApi.getMentorReviews(slug);
+      if (r.ok) setRep(r.reputation);
+      setLoading(false);
+    })();
+  }, [slug]);
+
+  if (loading || !rep || !shouldShowReputation(rep)) return null;
+  const summary = reputationSummary(rep);
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs uppercase tracking-[0.22em] text-emerald flex items-center gap-1.5">
+          <Star className="size-3.5" /> What founders say
+        </h3>
+        {summary && (
+          <div className="text-xs font-medium text-amber flex items-center gap-1">
+            <Star className="size-3 fill-current" /> {summary}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {rep.recent.length === 0 ? (
+          <p className="text-xs text-muted">
+            {mentorName} has {rep.totalCount} review{rep.totalCount === 1 ? "" : "s"} but none with written feedback yet.
+          </p>
+        ) : (
+          rep.recent.map((rv, i) => (
+            <div key={i} className="rounded-xl border border-border p-4">
+              <div className="flex items-start gap-3">
+                <Quote className="size-4 text-emerald shrink-0 mt-1" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 mb-1">
+                    {Array.from({ length: 5 }).map((_, k) => (
+                      <Star key={k} className={`size-3 ${k < rv.rating ? "text-amber fill-current" : "text-muted"}`} />
+                    ))}
+                  </div>
+                  <p className="text-sm leading-relaxed">{rv.body}</p>
+                  <div className="mt-2 text-[11px] text-muted flex items-center gap-2 flex-wrap">
+                    {rv.reviewer?.slug ? (
+                      <Link href={`/p/${rv.reviewer.slug}`} className="hover:text-emerald">{rv.reviewer.display_name}</Link>
+                    ) : (
+                      <span>{rv.reviewer?.display_name ?? "Founder"}</span>
+                    )}
+                    <span>·</span>
+                    <span>{rv.source === "session" ? "1:1 session" : "Office hours"}</span>
+                    {rv.context && <><span>·</span><span className="italic truncate">{rv.context}</span></>}
+                    <span>·</span>
+                    <span>{formatDistanceToNow(new Date(rv.reviewed_at), { addSuffix: true })}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </Card>
   );
 }
 
