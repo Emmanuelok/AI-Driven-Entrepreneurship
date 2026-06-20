@@ -112,6 +112,9 @@ export default async function PublicVenturePage({ params }: { params: Promise<{ 
               <button className="bg-[#2cc295] text-black font-semibold px-7 py-3 rounded-full hover:bg-[#f4a949] transition">
                 {launch.cta}
               </button>
+              <Link href={`/v/${slug}/dataroom`} className="text-sm text-[#2cc295] hover:underline inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full border border-[#2a3a35] hover:border-[#2cc295]/40 transition">
+                Investor dataroom →
+              </Link>
               <span className="text-xs text-[#6b8079]">Tap to express interest — we&apos;ll follow up.</span>
             </div>
           )}

@@ -4,7 +4,7 @@ import { use } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, notFound } from "next/navigation";
 import { useStore } from "@/store";
-import { Lightbulb, Users, Wrench, TrendingUp, Layout as LayoutIcon, FileText, Wallet, Brain, ArrowLeft, Target, FolderLock, Scale, Megaphone, Mic, UserPlus } from "lucide-react";
+import { Lightbulb, Users, Wrench, TrendingUp, Layout as LayoutIcon, FileText, Wallet, Brain, ArrowLeft, Target, FolderLock, Scale, Megaphone, Mic, UserPlus, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VentureReadonlyBanner } from "@/components/venture-readonly-banner";
 
@@ -20,6 +20,7 @@ const TABS = [
   { slug: "hire", label: "Hire", icon: UserPlus },
   { slug: "okrs", label: "OKRs", icon: Target },
   { slug: "dataroom", label: "Data Room", icon: FolderLock },
+  { slug: "investor-access", label: "Investor Access", icon: ShieldCheck },
   { slug: "legal", label: "Legal", icon: Scale },
   { slug: "launch", label: "Launch", icon: Megaphone },
   { slug: "coach", label: "Akili Coach", icon: Brain },

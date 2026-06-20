@@ -251,6 +251,81 @@ export const profileApi = {
       `/api/v2/mentor-sessions/${id}/checkout`,
       { method: "POST", body: "{}" },
     ),
+
+  // ── Founder dataroom (Phase 66) ──────────────────────────────────
+  getDataroom: (slug: string) =>
+    call<{
+      access: import("@/lib/dataroom-access").ViewerAccess;
+      venture: { slug: string; owner_id: string; title: string };
+      items: DataroomItem[];
+      grants: Array<DataroomGrantRow & { grantee?: { display_name: string | null; slug: string | null } }>;
+    }>(`/api/v2/ventures/${encodeURIComponent(slug)}/dataroom`),
+  createDataroomItem: (slug: string, body: {
+    kind: "doc" | "metric" | "file" | "link" | "note";
+    title: string;
+    body?: string;
+    value?: string;
+    visibility?: "public" | "gated";
+    position?: number;
+  }) =>
+    call<{ item: DataroomItem }>(`/api/v2/ventures/${encodeURIComponent(slug)}/dataroom`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  patchDataroomItem: (slug: string, itemId: string, body: Partial<{
+    kind: "doc" | "metric" | "file" | "link" | "note";
+    title: string;
+    body: string;
+    value: string;
+    visibility: "public" | "gated";
+    position: number;
+  }>) =>
+    call<{ item: DataroomItem }>(
+      `/api/v2/ventures/${encodeURIComponent(slug)}/dataroom/${itemId}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ),
+  deleteDataroomItem: (slug: string, itemId: string) =>
+    call(`/api/v2/ventures/${encodeURIComponent(slug)}/dataroom/${itemId}`, { method: "DELETE" }),
+  grantDataroom: (slug: string, body: {
+    granteeUserId?: string;
+    granteeSlug?: string;
+    days?: number | null;
+    reason?: string;
+  }) =>
+    call<{ grant: DataroomGrantRow }>(
+      `/api/v2/ventures/${encodeURIComponent(slug)}/dataroom/grants`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  revokeDataroomGrant: (slug: string, grantId: string) =>
+    call(
+      `/api/v2/ventures/${encodeURIComponent(slug)}/dataroom/grants?grantId=${encodeURIComponent(grantId)}`,
+      { method: "DELETE" },
+    ),
+};
+
+export type DataroomItem = {
+  id: string;
+  kind: "doc" | "metric" | "file" | "link" | "note";
+  title: string;
+  body: string;
+  value: string;
+  position: number;
+  visibility: "public" | "gated";
+  created_at: string;
+  updated_at: string;
+};
+
+export type DataroomGrantRow = {
+  id: string;
+  granted_to_user_id: string;
+  granted_by_user_id: string;
+  reason: string;
+  granted_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  first_viewed_at: string | null;
+  last_viewed_at: string | null;
+  view_count: number;
 };
 
 export type MentorSession = {
