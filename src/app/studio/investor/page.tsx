@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, Button, Badge } from "@/components/ui";
-import { Briefcase, ArrowLeft, ArrowRight, Loader2, Search, Filter, Flame, Eye, Globe2, ShieldCheck } from "lucide-react";
+import { Briefcase, ArrowLeft, ArrowRight, Loader2, Search, Filter, Flame, Eye, Globe2, ShieldCheck, Bookmark, Check } from "lucide-react";
+import { profileApi } from "@/lib/profile-api";
+import { hasAnyFilter, suggestTitle, type SearchCriteria } from "@/lib/saved-search";
 import type { VentureCard } from "@/app/api/v2/ventures/browse/route";
 
 // Investor portal — a real opt-in venture marketplace.
@@ -89,9 +91,17 @@ export default function InvestorPortalPage() {
             Real opt-in ventures from Sankofa founders. Each row has been published by its owner with a public-safe view of their venture. Click through to see the full pitch and reach the founder.
           </p>
         </div>
-        <Link href="/studio/investor/datarooms">
-          <Button variant="secondary"><ShieldCheck className="size-4" /> My deal rooms</Button>
-        </Link>
+        <div className="flex gap-2 flex-wrap">
+          <Link href="/studio/investor/saved">
+            <Button variant="secondary"><Bookmark className="size-4" /> Saved searches</Button>
+          </Link>
+          <Link href="/studio/investor/datarooms">
+            <Button variant="secondary"><ShieldCheck className="size-4" /> My deal rooms</Button>
+          </Link>
+          <SaveCurrentSearchButton
+            criteria={{ sectors: sector ? [sector] : [], stage: (stage || null) as ("idea" | "discover" | "mvp" | "launch" | "scale" | null), region: null, raisingOnly, minRaiseUsd: null, maxRaiseUsd: null, q: q.trim() || null }}
+          />
+        </div>
       </div>
 
       <Card className="p-4 mb-6 space-y-3">
@@ -214,5 +224,37 @@ function EmptyState() {
         No ventures match those filters yet. Try clearing them — or check back as more founders publish.
       </p>
     </Card>
+  );
+}
+
+// Quick-save button that turns the current browse filters into a saved
+// search. Disabled when no filter is active (an "all ventures" alert
+// would just email about every new publish). On click, calls the API
+// and shows a transient checkmark.
+function SaveCurrentSearchButton({ criteria }: { criteria: SearchCriteria }) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const enabled = hasAnyFilter(criteria);
+
+  async function onClick() {
+    if (!enabled || saving) return;
+    setSaving(true);
+    const r = await profileApi.createSavedSearch({
+      title: suggestTitle(criteria),
+      criteria,
+      alertCadence: "weekly",
+    });
+    setSaving(false);
+    if (r.ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    }
+  }
+
+  return (
+    <Button variant={saved ? "primary" : "secondary"} onClick={onClick} disabled={!enabled || saving} title={enabled ? "Save these filters as a weekly alert" : "Pick a filter first"}>
+      {saved ? <Check className="size-4" /> : saving ? <Loader2 className="size-4 animate-spin" /> : <Bookmark className="size-4" />}
+      {saved ? "Saved" : "Save search"}
+    </Button>
   );
 }

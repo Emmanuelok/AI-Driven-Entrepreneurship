@@ -74,6 +74,7 @@ const NAV: NavItem[] = [
   { href: "/studio/community", label: "Community", icon: Users, group: "Network" },
   { href: "/studio/investor", label: "Investor Portal", icon: Briefcase, group: "Network" },
   { href: "/studio/investor/datarooms", label: "Deal rooms", icon: Briefcase, group: "Network" },
+  { href: "/studio/investor/saved", label: "Saved searches", icon: Briefcase, group: "Network" },
   { href: "/studio/fundraising", label: "Fundraising signal", icon: TrendingUp, group: "Network" },
 
   { href: "/studio/brainstorm", label: "Sketch (classic)", icon: Lightbulb, group: "Tools" },

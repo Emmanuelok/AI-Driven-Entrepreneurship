@@ -384,6 +384,41 @@ export const profileApi = {
     }>(`/api/v2/me/transactions${qs ? `?${qs}` : ""}`);
   },
 
+  // ── Investor saved searches (Phase 75) ──────────────────────────
+  listSavedSearches: () =>
+    call<{ results: SavedSearch[] }>(`/api/v2/me/saved-searches`),
+  createSavedSearch: (body: {
+    title?: string;
+    criteria: Partial<import("@/lib/saved-search").SearchCriteria>;
+    alertCadence?: "off" | "weekly" | "instant";
+  }) =>
+    call<{ search: SavedSearch }>(`/api/v2/me/saved-searches`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  patchSavedSearch: (id: string, body: Partial<{
+    title: string;
+    criteria: Partial<import("@/lib/saved-search").SearchCriteria>;
+    alertCadence: "off" | "weekly" | "instant";
+  }>) =>
+    call<{ search: SavedSearch }>(`/api/v2/me/saved-searches/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteSavedSearch: (id: string) =>
+    call(`/api/v2/me/saved-searches/${id}`, { method: "DELETE" }),
+  runSavedSearch: (id: string, opts?: { since?: string; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.since) params.set("since", opts.since);
+    if (opts?.limit) params.set("limit", String(opts.limit));
+    const qs = params.toString();
+    return call<{
+      matches: import("@/lib/saved-search").MatchableVenture[];
+      total: number;
+      criteria: import("@/lib/saved-search").SearchCriteria;
+    }>(`/api/v2/me/saved-searches/${id}/run${qs ? `?${qs}` : ""}`, { method: "POST", body: "{}" });
+  },
+
   // ── Mentor office hours (Phase 67) ───────────────────────────────
   listOfficeHours: (opts?: { mentorSlug?: string; q?: string; mine?: boolean; upcoming?: boolean; limit?: number }) => {
     const params = new URLSearchParams();
@@ -504,6 +539,18 @@ export type DataroomItem = {
   value: string;
   position: number;
   visibility: "public" | "gated";
+  created_at: string;
+  updated_at: string;
+};
+
+export type SavedSearch = {
+  id: string;
+  title: string;
+  criteria: import("@/lib/saved-search").SearchCriteria;
+  alert_cadence: "off" | "weekly" | "instant";
+  last_run_at: string | null;
+  last_alert_at: string | null;
+  match_count_total: number;
   created_at: string;
   updated_at: string;
 };
